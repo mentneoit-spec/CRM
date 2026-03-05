@@ -89,6 +89,21 @@ app.use((req, res, next) => {
 
 // ==================== ROUTES ====================
 
+// Root route
+app.get("/", (req, res) => {
+  res.json({
+    success: true,
+    message: "College ERP & CRM API Server",
+    version: "1.0.0",
+    status: "running",
+    endpoints: {
+      health: "/api/health",
+      auth: "/api/auth",
+      documentation: "/api/docs"
+    }
+  });
+});
+
 // Webhook (before auth)
 app.post("/api/webhooks/razorpay", handleWebhook);
 

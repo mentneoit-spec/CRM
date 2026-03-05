@@ -75,23 +75,25 @@ const ModernLogin = () => {
       }
       
       // Store token and user data
-      if (response.success && response.token) {
-        localStorage.setItem('token', response.token);
-        localStorage.setItem('user', JSON.stringify(response.user));
-        if (response.collegeId) {
-          localStorage.setItem('collegeId', response.collegeId);
+      if (response.success && response.data) {
+        const { token, user } = response.data;
+        
+        localStorage.setItem('token', token);
+        localStorage.setItem('user', JSON.stringify(user));
+        if (user.collegeId) {
+          localStorage.setItem('collegeId', user.collegeId);
         }
         
-        // Navigate based on role
+        // Navigate based on role (use user.role from response, not formData.role)
         const roleRoutes = {
-          student: '/student/dashboard',
-          teacher: '/teacher/dashboard',
-          parent: '/parent/dashboard',
-          admin: '/admin/dashboard',
-          superadmin: '/superadmin/dashboard',
+          Student: '/student/dashboard',
+          Teacher: '/teacher/dashboard',
+          Parent: '/parent/dashboard',
+          Admin: '/admin/dashboard',
+          SuperAdmin: '/superadmin/dashboard',
         };
         
-        navigate(roleRoutes[formData.role] || '/dashboard');
+        navigate(roleRoutes[user.role] || '/dashboard');
       } else {
         setError(response.message || 'Login failed. Please try again.');
       }
@@ -360,6 +362,16 @@ const ModernLogin = () => {
           <Box sx={{ textAlign: 'center', mt: 3 }}>
             <Typography variant="body2" color="text.secondary">
               Don't have an account?{' '}
+              <Button
+                size="small"
+                onClick={() => navigate('/signup')}
+                sx={{ textTransform: 'none', fontWeight: 600 }}
+              >
+                Sign Up
+              </Button>
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              New student?{' '}
               <Button
                 size="small"
                 onClick={() => navigate('/admission')}

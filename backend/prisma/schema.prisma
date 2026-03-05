@@ -23,7 +23,7 @@ model SuperAdmin {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  AuditLogs       AuditLog[]
+  AuditLogs       AuditLog[] @relation("SuperAdminAuditLogs")
 }
 
 // College Domain Management
@@ -99,6 +99,12 @@ model College {
   TransportFees   TransportFee[]
   Homework        Homework[]
   AuditLogs       AuditLog[]
+  Admins          Admin[]
+  AdmissionTeams  AdmissionTeam[]
+  AccountsTeams   AccountsTeam[]
+  TransportTeams  TransportTeam[]
+  Sections        Section[]
+  TeacherAttendances TeacherAttendance[]
 }
 
 // ==================== USER & ROLES ====================
@@ -272,7 +278,6 @@ model Sclass {
   classTeacher    Teacher?  @relation("ClassTeacher", fields: [classTeacherId], references: [id])
 
   Subjects        Subject[]
-  Teachers        Teacher[]
   Students        Student[]
   Sections        Section[]
   Exams           Exam[]
@@ -455,6 +460,7 @@ model Parent {
 
   Students        Student[]
   Payments        Payment[]
+  Complaints      Complain[]
 
   isActive        Boolean   @default(true)
   createdAt       DateTime  @default(now())
@@ -819,6 +825,9 @@ model AuditLog {
 
   userId          String?
   user            User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  superAdminId    String?
+  superAdmin      SuperAdmin? @relation("SuperAdminAuditLogs", fields: [superAdminId], references: [id], onDelete: SetNull)
 
   collegeId       String?
   college         College?  @relation(fields: [collegeId], references: [id], onDelete: SetNull)

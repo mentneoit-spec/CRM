@@ -27,9 +27,13 @@ const login = async (req, res) => {
                 include: { college: true },
             });
         } else {
-            // SuperAdmin login
-            user = await prisma.user.findUnique({
-                where: { email },
+            // SuperAdmin or non-college user login
+            // Use findFirst since email alone is not unique
+            user = await prisma.user.findFirst({
+                where: { 
+                    email,
+                    collegeId: null
+                },
                 include: { college: true },
             });
         }
@@ -273,8 +277,12 @@ const register = async (req, res) => {
                 where: { email_collegeId: { email, collegeId } },
             });
         } else {
-            existingUser = await prisma.user.findUnique({
-                where: { email },
+            // Use findFirst for non-college users since email alone is not unique
+            existingUser = await prisma.user.findFirst({
+                where: { 
+                    email,
+                    collegeId: null
+                },
             });
         }
 
@@ -288,29 +296,158 @@ const register = async (req, res) => {
         // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // Create user
-        const user = await prisma.user.create({
-            data: {
-                name,
-                email,
-                password: hashedPassword,
-                phone,
-                role,
-                collegeId,
-                isActive: true,
-            },
+        // Create user and role-specific record in a transaction
+        const result = await prisma.$transaction(async (tx) => {
+            // Create base user record
+            const user = await tx.user.create({
+                data: {
+                    name,
+                    email,
+                    password: hashedPassword,
+                    phone,
+                    role,
+                    collegeId,
+                    isActive: true,
+                },
+            });
+
+            // Create role-specific record
+            let roleProfile = null;
+
+            switch (role) {
+                case 'Student':
+                    if (collegeId) {
+                        // For students, we need a class (sclassId)
+                        // For now, create without class - admin can assign later
+                        roleProfile = await tx.student.create({
+                            data: {
+                                name,
+                                email,
+                                phone,
+                                password: hashedPassword,
+                                studentId: `STU${Date.now()}`, // Generate unique student ID
+                                userId: user.id,
+                                collegeId,
+                                sclassId: null, // Will be assigned by admin
+                            },
+                        });
+                    }
+                    break;
+
+                case 'Teacher':
+                    if (collegeId) {
+                        roleProfile = await tx.teacher.create({
+                            data: {
+                                name,
+                                email,
+                                phone,
+                                password: hashedPassword,
+                                userId: user.id,
+                                collegeId,
+                            },
+                        });
+                    }
+                    break;
+
+                case 'Parent':
+                    if (collegeId) {
+                        roleProfile = await tx.parent.create({
+                            data: {
+                                name,
+                                email,
+                                phone,
+                                password: hashedPassword,
+                                userId: user.id,
+                                collegeId,
+                            },
+                        });
+                    }
+                    break;
+
+                case 'Admin':
+                    if (collegeId) {
+                        roleProfile = await tx.admin.create({
+                            data: {
+                                name,
+                                email,
+                                phone,
+                                password: hashedPassword,
+                                userId: user.id,
+                                collegeId,
+                            },
+                        });
+                    }
+                    break;
+
+                case 'SuperAdmin':
+                    // SuperAdmin goes to separate table
+                    roleProfile = await tx.superAdmin.create({
+                        data: {
+                            name,
+                            email,
+                            phone,
+                            password: hashedPassword,
+                        },
+                    });
+                    break;
+
+                case 'AdmissionTeam':
+                    if (collegeId) {
+                        roleProfile = await tx.admissionTeam.create({
+                            data: {
+                                name,
+                                email,
+                                phone,
+                                userId: user.id,
+                                collegeId,
+                            },
+                        });
+                    }
+                    break;
+
+                case 'AccountsTeam':
+                    if (collegeId) {
+                        roleProfile = await tx.accountsTeam.create({
+                            data: {
+                                name,
+                                email,
+                                phone,
+                                userId: user.id,
+                                collegeId,
+                            },
+                        });
+                    }
+                    break;
+
+                case 'TransportTeam':
+                    if (collegeId) {
+                        roleProfile = await tx.transportTeam.create({
+                            data: {
+                                name,
+                                email,
+                                phone,
+                                userId: user.id,
+                                collegeId,
+                            },
+                        });
+                    }
+                    break;
+            }
+
+            return { user, roleProfile };
         });
 
         // Generate token
-        const token = generateToken(user.id, role, collegeId);
+        const token = generateToken(result.user.id, role, collegeId);
 
-        const { password: _, ...userWithoutPassword } = user;
+        const { password: _, ...userWithoutPassword } = result.user;
 
         res.status(201).json({
             success: true,
             message: 'Registration successful',
             data: {
                 user: userWithoutPassword,
+                roleProfile: result.roleProfile,
                 token,
             },
         });

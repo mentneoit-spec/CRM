@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Grid,
@@ -13,8 +13,10 @@ import {
   List,
   ListItem,
   ListItemText,
-  ListItemAvatar,
   Divider,
+  CircularProgress,
+  Alert,
+  Container,
 } from '@mui/material';
 import {
   TrendingUp,
@@ -24,48 +26,97 @@ import {
   School,
   CheckCircle,
   ArrowForward,
-  Notifications,
   Book,
 } from '@mui/icons-material';
-import { LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../components/DashboardLayout';
+import { studentAPI } from '../../services/api';
 
 const StudentDashboardModern = () => {
-  // Sample data
-  const attendanceData = [
-    { month: 'Jan', percentage: 92 },
-    { month: 'Feb', percentage: 88 },
-    { month: 'Mar', percentage: 95 },
-    { month: 'Apr', percentage: 90 },
-    { month: 'May', percentage: 93 },
-  ];
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [dashboardData, setDashboardData] = useState(null);
 
-  const subjectMarks = [
-    { subject: 'Mathematics', marks: 85, total: 100 },
-    { subject: 'Physics', marks: 78, total: 100 },
-    { subject: 'Chemistry', marks: 92, total: 100 },
-    { subject: 'English', marks: 88, total: 100 },
-    { subject: 'Computer Sci', marks: 95, total: 100 },
-  ];
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
 
-  const upcomingEvents = [
-    { title: 'Mid-term Exam - Mathematics', date: '2026-03-15', type: 'exam' },
-    { title: 'Assignment Due - Physics Lab', date: '2026-03-10', type: 'assignment' },
-    { title: 'Parent-Teacher Meeting', date: '2026-03-20', type: 'event' },
-    { title: 'Sports Day', date: '2026-03-25', type: 'event' },
-  ];
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      const response = await studentAPI.getDashboard();
+      
+      if (response.data.success) {
+        setDashboardData(response.data.data);
+      }
+    } catch (err) {
+      console.error('Dashboard fetch error:', err);
+      setError(err.response?.data?.message || 'Failed to load dashboard data');
+      
+      // Set fallback data for demo
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      setDashboardData({
+        student: { 
+          name: user.name || 'Student', 
+          studentId: 'STU001',
+          sclass: { sclassName: 'Not Assigned' } 
+        },
+        stats: {
+          attendance: { percentage: 0, present: 0, total: 0 },
+          marks: null,
+          fees: { totalDue: 0, pendingCount: 0 },
+          homework: 0,
+        },
+        recentMarks: [],
+        upcomingHomework: [],
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const recentNotices = [
-    { title: 'Holiday Notice', date: '2 hours ago', priority: 'high' },
-    { title: 'Library Timing Update', date: '1 day ago', priority: 'medium' },
-    { title: 'New Course Material Available', date: '2 days ago', priority: 'low' },
-  ];
+  if (loading) {
+    return (
+      <DashboardLayout role="student">
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
+          <CircularProgress size={60} />
+        </Box>
+      </DashboardLayout>
+    );
+  }
 
-  const COLORS = ['#1976d2', '#dc004e', '#2e7d32', '#ed6c02', '#9c27b0'];
+  if (!dashboardData) {
+    return (
+      <DashboardLayout role="student">
+        <Container maxWidth="lg" sx={{ mt: 4 }}>
+          <Alert severity="info">No dashboard data available</Alert>
+        </Container>
+      </DashboardLayout>
+    );
+  }
+
+  const { student, stats, recentMarks, upcomingHomework } = dashboardData;
 
   return (
     <DashboardLayout role="student">
       <Box>
+        {/* Error Alert */}
+        {error && (
+          <Alert 
+            severity="warning" 
+            sx={{ mb: 3 }}
+            action={
+              <Button color="inherit" size="small" onClick={fetchDashboardData}>
+                Retry
+              </Button>
+            }
+          >
+            {error} - Showing sample data
+          </Alert>
+        )}
+
         {/* Welcome Section */}
         <Paper
           sx={{
@@ -76,22 +127,21 @@ const StudentDashboardModern = () => {
             borderRadius: 3,
           }}
         >
-          <Grid container spacing={3} alignItems="center">
-            <Grid item xs={12} md={8}>
+          <Grid container spacing={2} alignItems="center">
+            <Grid item>
+              <Avatar sx={{ width: 80, height: 80, bgcolor: 'white', color: '#667eea' }}>
+                <School fontSize="large" />
+              </Avatar>
+            </Grid>
+            <Grid item xs>
               <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
-                Welcome back, John! 👋
+                Welcome back, {student.name}! 👋
               </Typography>
               <Typography variant="body1" sx={{ opacity: 0.9 }}>
-                You have 3 assignments due this week and 2 upcoming exams
+                Class: {student.sclass?.sclassName || 'Not Assigned'}
               </Typography>
-            </Grid>
-            <Grid item xs={12} md={4} sx={{ textAlign: { xs: 'left', md: 'right' } }}>
-              <Chip
-                label="Class 10-A"
-                sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white', mb: 1 }}
-              />
-              <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                Roll No: 2024001
+              <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                Student ID: {student.studentId}
               </Typography>
             </Grid>
           </Grid>
@@ -99,164 +149,133 @@ const StudentDashboardModern = () => {
 
         {/* Stats Cards */}
         <Grid container spacing={3} sx={{ mb: 3 }}>
+          {/* Attendance Card */}
           <Grid item xs={12} sm={6} md={3}>
             <Card sx={{ height: '100%' }}>
               <CardContent>
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                  <Avatar sx={{ bgcolor: 'primary.light', mr: 2 }}>
-                    <TrendingUp />
+                  <Avatar sx={{ bgcolor: 'success.light', mr: 2 }}>
+                    <CheckCircle />
                   </Avatar>
                   <Box>
                     <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                      92%
+                      {stats.attendance.percentage}%
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
                       Attendance
                     </Typography>
                   </Box>
                 </Box>
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+                  {stats.attendance.present} / {stats.attendance.total} days
+                </Typography>
                 <LinearProgress
                   variant="determinate"
-                  value={92}
+                  value={stats.attendance.percentage}
                   sx={{ height: 8, borderRadius: 4 }}
+                  color="success"
                 />
               </CardContent>
             </Card>
           </Grid>
 
+          {/* Homework Card */}
           <Grid item xs={12} sm={6} md={3}>
             <Card sx={{ height: '100%' }}>
               <CardContent>
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                  <Avatar sx={{ bgcolor: 'success.light', mr: 2 }}>
+                  <Avatar sx={{ bgcolor: 'primary.light', mr: 2 }}>
                     <Assignment />
                   </Avatar>
                   <Box>
                     <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                      12/15
+                      {stats.homework}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      Assignments
+                      Homework
                     </Typography>
                   </Box>
                 </Box>
-                <LinearProgress
-                  variant="determinate"
-                  value={80}
-                  color="success"
-                  sx={{ height: 8, borderRadius: 4 }}
-                />
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+                  Pending assignments
+                </Typography>
+                <Button 
+                  size="small" 
+                  endIcon={<ArrowForward />}
+                  onClick={() => navigate('/student/homework')}
+                  fullWidth
+                  variant="outlined"
+                >
+                  View All
+                </Button>
               </CardContent>
             </Card>
           </Grid>
 
+          {/* Fees Card */}
           <Grid item xs={12} sm={6} md={3}>
             <Card sx={{ height: '100%' }}>
               <CardContent>
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                   <Avatar sx={{ bgcolor: 'warning.light', mr: 2 }}>
-                    <School />
-                  </Avatar>
-                  <Box>
-                    <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                      87.5%
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Average Score
-                    </Typography>
-                  </Box>
-                </Box>
-                <LinearProgress
-                  variant="determinate"
-                  value={87.5}
-                  color="warning"
-                  sx={{ height: 8, borderRadius: 4 }}
-                />
-              </CardContent>
-            </Card>
-          </Grid>
-
-          <Grid item xs={12} sm={6} md={3}>
-            <Card sx={{ height: '100%' }}>
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                  <Avatar sx={{ bgcolor: 'error.light', mr: 2 }}>
                     <Payment />
                   </Avatar>
                   <Box>
                     <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                      ₹0
+                      ₹{stats.fees.totalDue}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      Pending Fees
+                      Fees Due
                     </Typography>
                   </Box>
                 </Box>
-                <Chip
-                  label="All Paid"
-                  size="small"
-                  color="success"
-                  icon={<CheckCircle />}
-                />
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-
-        {/* Charts Section */}
-        <Grid container spacing={3} sx={{ mb: 3 }}>
-          {/* Attendance Trend */}
-          <Grid item xs={12} md={8}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
-                  Attendance Trend
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+                  {stats.fees.pendingCount} pending payments
                 </Typography>
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={attendanceData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="month" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Line
-                      type="monotone"
-                      dataKey="percentage"
-                      stroke="#1976d2"
-                      strokeWidth={3}
-                      dot={{ r: 6 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+                <Button 
+                  size="small" 
+                  endIcon={<ArrowForward />}
+                  onClick={() => navigate('/student/fees')}
+                  fullWidth
+                  variant="outlined"
+                  color="warning"
+                >
+                  Pay Now
+                </Button>
               </CardContent>
             </Card>
           </Grid>
 
-          {/* Subject Performance */}
-          <Grid item xs={12} md={4}>
+          {/* Performance Card */}
+          <Grid item xs={12} sm={6} md={3}>
             <Card sx={{ height: '100%' }}>
               <CardContent>
-                <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
-                  Subject Performance
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                  <Avatar sx={{ bgcolor: 'info.light', mr: 2 }}>
+                    <TrendingUp />
+                  </Avatar>
+                  <Box>
+                    <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                      {stats.marks ? `${stats.marks.percentage?.toFixed(1)}%` : 'N/A'}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Performance
+                    </Typography>
+                  </Box>
+                </Box>
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+                  Latest exam result
                 </Typography>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={subjectMarks}
-                      dataKey="marks"
-                      nameKey="subject"
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={80}
-                      label
-                    >
-                      {subjectMarks.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
+                <Button 
+                  size="small" 
+                  endIcon={<ArrowForward />}
+                  onClick={() => navigate('/student/marks')}
+                  fullWidth
+                  variant="outlined"
+                  color="info"
+                >
+                  View Results
+                </Button>
               </CardContent>
             </Card>
           </Grid>
@@ -264,111 +283,148 @@ const StudentDashboardModern = () => {
 
         {/* Bottom Section */}
         <Grid container spacing={3}>
-          {/* Upcoming Events */}
+          {/* Recent Marks */}
           <Grid item xs={12} md={6}>
             <Card>
               <CardContent>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                   <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                    Upcoming Events
+                    <Book sx={{ mr: 1, verticalAlign: 'middle' }} />
+                    Recent Exam Results
                   </Typography>
-                  <Button size="small" endIcon={<ArrowForward />}>
+                  <Button 
+                    size="small" 
+                    endIcon={<ArrowForward />}
+                    onClick={() => navigate('/student/marks')}
+                  >
                     View All
                   </Button>
                 </Box>
-                <List>
-                  {upcomingEvents.map((event, index) => (
-                    <React.Fragment key={index}>
-                      <ListItem sx={{ px: 0 }}>
-                        <ListItemAvatar>
-                          <Avatar
-                            sx={{
-                              bgcolor:
-                                event.type === 'exam'
-                                  ? 'error.light'
-                                  : event.type === 'assignment'
-                                  ? 'warning.light'
-                                  : 'primary.light',
-                            }}
-                          >
-                            {event.type === 'exam' ? (
-                              <Assignment />
-                            ) : event.type === 'assignment' ? (
-                              <Book />
-                            ) : (
-                              <Event />
-                            )}
-                          </Avatar>
-                        </ListItemAvatar>
-                        <ListItemText
-                          primary={event.title}
-                          secondary={event.date}
-                          primaryTypographyProps={{ fontWeight: 500 }}
-                        />
-                      </ListItem>
-                      {index < upcomingEvents.length - 1 && <Divider />}
-                    </React.Fragment>
-                  ))}
-                </List>
+                <Divider sx={{ mb: 2 }} />
+                {recentMarks && recentMarks.length > 0 ? (
+                  <List>
+                    {recentMarks.map((mark, index) => (
+                      <React.Fragment key={mark.id}>
+                        <ListItem sx={{ px: 0 }}>
+                          <ListItemText
+                            primary={mark.subject?.subName || 'Subject'}
+                            secondary={`Exam: ${mark.exam?.examName || 'N/A'}`}
+                            primaryTypographyProps={{ fontWeight: 500 }}
+                          />
+                          <Chip 
+                            label={`${mark.marksObtained}/${mark.subject?.maxMarks || 100}`}
+                            color={mark.marksObtained >= (mark.subject?.passingMarks || 40) ? 'success' : 'error'}
+                          />
+                        </ListItem>
+                        {index < recentMarks.length - 1 && <Divider />}
+                      </React.Fragment>
+                    ))}
+                  </List>
+                ) : (
+                  <Typography variant="body2" color="text.secondary" align="center" py={3}>
+                    No exam results available yet
+                  </Typography>
+                )}
               </CardContent>
             </Card>
           </Grid>
 
-          {/* Recent Notices */}
+          {/* Upcoming Homework */}
           <Grid item xs={12} md={6}>
             <Card>
               <CardContent>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                   <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                    Recent Notices
+                    <Assignment sx={{ mr: 1, verticalAlign: 'middle' }} />
+                    Upcoming Homework
                   </Typography>
-                  <Button size="small" endIcon={<ArrowForward />}>
+                  <Button 
+                    size="small" 
+                    endIcon={<ArrowForward />}
+                    onClick={() => navigate('/student/homework')}
+                  >
                     View All
                   </Button>
                 </Box>
-                <List>
-                  {recentNotices.map((notice, index) => (
-                    <React.Fragment key={index}>
-                      <ListItem sx={{ px: 0 }}>
-                        <ListItemAvatar>
-                          <Avatar
-                            sx={{
-                              bgcolor:
-                                notice.priority === 'high'
-                                  ? 'error.light'
-                                  : notice.priority === 'medium'
-                                  ? 'warning.light'
-                                  : 'info.light',
-                            }}
-                          >
-                            <Notifications />
-                          </Avatar>
-                        </ListItemAvatar>
-                        <ListItemText
-                          primary={notice.title}
-                          secondary={notice.date}
-                          primaryTypographyProps={{ fontWeight: 500 }}
-                        />
-                        <Chip
-                          label={notice.priority}
-                          size="small"
-                          color={
-                            notice.priority === 'high'
-                              ? 'error'
-                              : notice.priority === 'medium'
-                              ? 'warning'
-                              : 'default'
-                          }
-                        />
-                      </ListItem>
-                      {index < recentNotices.length - 1 && <Divider />}
-                    </React.Fragment>
-                  ))}
-                </List>
+                <Divider sx={{ mb: 2 }} />
+                {upcomingHomework && upcomingHomework.length > 0 ? (
+                  <List>
+                    {upcomingHomework.map((hw, index) => (
+                      <React.Fragment key={hw.id}>
+                        <ListItem sx={{ px: 0 }}>
+                          <ListItemText
+                            primary={hw.title}
+                            secondary={`Subject: ${hw.subject?.subName || 'N/A'} | Due: ${new Date(hw.dueDate).toLocaleDateString()}`}
+                            primaryTypographyProps={{ fontWeight: 500 }}
+                          />
+                          <Chip 
+                            label={new Date(hw.dueDate) < new Date() ? 'Overdue' : 'Pending'}
+                            color={new Date(hw.dueDate) < new Date() ? 'error' : 'warning'}
+                            size="small"
+                          />
+                        </ListItem>
+                        {index < upcomingHomework.length - 1 && <Divider />}
+                      </React.Fragment>
+                    ))}
+                  </List>
+                ) : (
+                  <Typography variant="body2" color="text.secondary" align="center" py={3}>
+                    No pending homework
+                  </Typography>
+                )}
               </CardContent>
             </Card>
           </Grid>
         </Grid>
+
+        {/* Quick Actions */}
+        <Paper sx={{ p: 3, mt: 3 }}>
+          <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+            Quick Actions
+          </Typography>
+          <Grid container spacing={2}>
+            <Grid item xs={6} sm={3}>
+              <Button 
+                fullWidth 
+                variant="outlined" 
+                startIcon={<CheckCircle />}
+                onClick={() => navigate('/student/attendance')}
+              >
+                Attendance
+              </Button>
+            </Grid>
+            <Grid item xs={6} sm={3}>
+              <Button 
+                fullWidth 
+                variant="outlined" 
+                startIcon={<Assignment />}
+                onClick={() => navigate('/student/homework')}
+              >
+                Homework
+              </Button>
+            </Grid>
+            <Grid item xs={6} sm={3}>
+              <Button 
+                fullWidth 
+                variant="outlined" 
+                startIcon={<Event />}
+                onClick={() => navigate('/student/timetable')}
+              >
+                Timetable
+              </Button>
+            </Grid>
+            <Grid item xs={6} sm={3}>
+              <Button 
+                fullWidth 
+                variant="outlined" 
+                startIcon={<Payment />}
+                onClick={() => navigate('/student/fees')}
+              >
+                Pay Fees
+              </Button>
+            </Grid>
+          </Grid>
+        </Paper>
       </Box>
     </DashboardLayout>
   );

@@ -64,6 +64,9 @@ export const authAPI = {
   // Login with email/password
   login: (credentials) => api.post('/auth/login', credentials),
   
+  // Register new user
+  register: (data) => api.post('/auth/register', data),
+  
   // Super admin login
   superAdminLogin: (credentials) => api.post('/auth/superadmin/login', credentials),
   

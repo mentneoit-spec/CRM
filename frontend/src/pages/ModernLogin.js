@@ -1,0 +1,385 @@
+import React, { useState } from 'react';
+import {
+  Box,
+  Container,
+  Paper,
+  Typography,
+  TextField,
+  Button,
+  Divider,
+  IconButton,
+  InputAdornment,
+  Tabs,
+  Tab,
+  Stack,
+  Chip,
+  Alert,
+  CircularProgress,
+} from '@mui/material';
+import {
+  Visibility,
+  VisibilityOff,
+  Google,
+  Phone,
+  Email,
+  School,
+  ArrowBack,
+} from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
+import { authAPI } from '../config/api';
+
+const ModernLogin = () => {
+  const navigate = useNavigate();
+  const [tabValue, setTabValue] = useState(0);
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+    phone: '',
+    otp: '',
+    role: 'student',
+  });
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+    setError('');
+  };
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      let response;
+      
+      // Call appropriate API based on tab
+      if (tabValue === 0) {
+        // Email/Password login
+        response = await authAPI.login({
+          email: formData.email,
+          password: formData.password,
+          role: formData.role,
+        });
+      } else {
+        // OTP login
+        response = await authAPI.verifyOTP({
+          phone: formData.phone,
+          otp: formData.otp,
+          role: formData.role,
+        });
+      }
+      
+      // Store token and user data
+      if (response.success && response.token) {
+        localStorage.setItem('token', response.token);
+        localStorage.setItem('user', JSON.stringify(response.user));
+        if (response.collegeId) {
+          localStorage.setItem('collegeId', response.collegeId);
+        }
+        
+        // Navigate based on role
+        const roleRoutes = {
+          student: '/student/dashboard',
+          teacher: '/teacher/dashboard',
+          parent: '/parent/dashboard',
+          admin: '/admin/dashboard',
+          superadmin: '/superadmin/dashboard',
+        };
+        
+        navigate(roleRoutes[formData.role] || '/dashboard');
+      } else {
+        setError(response.message || 'Login failed. Please try again.');
+      }
+    } catch (err) {
+      console.error('Login error:', err);
+      setError(err.message || 'Invalid credentials. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRequestOTP = async () => {
+    if (!formData.phone) {
+      setError('Please enter your phone number');
+      return;
+    }
+    setLoading(true);
+    try {
+      const response = await authAPI.requestOTP({
+        phone: formData.phone,
+        role: formData.role,
+      });
+      
+      if (response.success) {
+        setOtpSent(true);
+        setError('');
+      } else {
+        setError(response.message || 'Failed to send OTP');
+      }
+    } catch (err) {
+      console.error('OTP error:', err);
+      setError(err.message || 'Failed to send OTP. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = () => {
+    // Implement Google OAuth
+    console.log('Google login');
+  };
+
+  return (
+    <Box
+      sx={{
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        display: 'flex',
+        alignItems: 'center',
+        py: 4,
+      }}
+    >
+      <Container maxWidth="sm">
+        <Box sx={{ textAlign: 'center', mb: 4 }}>
+          <IconButton
+            onClick={() => navigate('/')}
+            sx={{
+              position: 'absolute',
+              top: 20,
+              left: 20,
+              bgcolor: 'rgba(255,255,255,0.2)',
+              color: 'white',
+              '&:hover': { bgcolor: 'rgba(255,255,255,0.3)' },
+            }}
+          >
+            <ArrowBack />
+          </IconButton>
+          <School sx={{ fontSize: 60, color: 'white', mb: 2 }} />
+          <Typography variant="h4" sx={{ color: 'white', fontWeight: 700 }}>
+            Welcome Back
+          </Typography>
+          <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.9)', mt: 1 }}>
+            Sign in to continue to your dashboard
+          </Typography>
+        </Box>
+
+        <Paper
+          elevation={10}
+          sx={{
+            p: 4,
+            borderRadius: 4,
+            backdropFilter: 'blur(10px)',
+          }}
+        >
+          {/* Role Selection */}
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="subtitle2" sx={{ mb: 1, color: 'text.secondary' }}>
+              Select Your Role
+            </Typography>
+            <Stack direction="row" spacing={1} flexWrap="wrap" gap={1}>
+              {['student', 'teacher', 'parent', 'admin', 'superadmin'].map((role) => (
+                <Chip
+                  key={role}
+                  label={role === 'superadmin' ? 'Super Admin' : role.charAt(0).toUpperCase() + role.slice(1)}
+                  onClick={() => setFormData({ ...formData, role })}
+                  color={formData.role === role ? 'primary' : 'default'}
+                  variant={formData.role === role ? 'filled' : 'outlined'}
+                  sx={{ cursor: 'pointer' }}
+                />
+              ))}
+            </Stack>
+          </Box>
+
+          {/* Login Method Tabs */}
+          <Tabs
+            value={tabValue}
+            onChange={(e, newValue) => setTabValue(newValue)}
+            variant="fullWidth"
+            sx={{ mb: 3 }}
+          >
+            <Tab icon={<Email />} label="Email" />
+            <Tab icon={<Phone />} label="Phone OTP" />
+          </Tabs>
+
+          {error && (
+            <Alert severity="error" sx={{ mb: 3 }}>
+              {error}
+            </Alert>
+          )}
+
+          <form onSubmit={handleLogin}>
+            {/* Email/Password Login */}
+            {tabValue === 0 && (
+              <Stack spacing={3}>
+                <TextField
+                  fullWidth
+                  label="Email Address"
+                  name="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  required
+                  autoComplete="email"
+                />
+                <TextField
+                  fullWidth
+                  label="Password"
+                  name="password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={formData.password}
+                  onChange={handleChange}
+                  required
+                  autoComplete="current-password"
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton
+                          onClick={() => setShowPassword(!showPassword)}
+                          edge="end"
+                        >
+                          {showPassword ? <VisibilityOff /> : <Visibility />}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+                <Box sx={{ textAlign: 'right' }}>
+                  <Button size="small" sx={{ textTransform: 'none' }}>
+                    Forgot Password?
+                  </Button>
+                </Box>
+                <Button
+                  type="submit"
+                  variant="contained"
+                  size="large"
+                  fullWidth
+                  disabled={loading}
+                  sx={{ py: 1.5 }}
+                >
+                  {loading ? <CircularProgress size={24} /> : 'Sign In'}
+                </Button>
+              </Stack>
+            )}
+
+            {/* Phone OTP Login */}
+            {tabValue === 1 && (
+              <Stack spacing={3}>
+                <TextField
+                  fullWidth
+                  label="Phone Number"
+                  name="phone"
+                  type="tel"
+                  value={formData.phone}
+                  onChange={handleChange}
+                  required
+                  placeholder="+91 9876543210"
+                  disabled={otpSent}
+                />
+                {otpSent && (
+                  <TextField
+                    fullWidth
+                    label="Enter OTP"
+                    name="otp"
+                    type="text"
+                    value={formData.otp}
+                    onChange={handleChange}
+                    required
+                    placeholder="123456"
+                    inputProps={{ maxLength: 6 }}
+                  />
+                )}
+                {!otpSent ? (
+                  <Button
+                    variant="contained"
+                    size="large"
+                    fullWidth
+                    onClick={handleRequestOTP}
+                    disabled={loading}
+                    sx={{ py: 1.5 }}
+                  >
+                    {loading ? <CircularProgress size={24} /> : 'Send OTP'}
+                  </Button>
+                ) : (
+                  <Stack spacing={2}>
+                    <Button
+                      type="submit"
+                      variant="contained"
+                      size="large"
+                      fullWidth
+                      disabled={loading}
+                      sx={{ py: 1.5 }}
+                    >
+                      {loading ? <CircularProgress size={24} /> : 'Verify & Sign In'}
+                    </Button>
+                    <Button
+                      size="small"
+                      onClick={() => setOtpSent(false)}
+                      sx={{ textTransform: 'none' }}
+                    >
+                      Change Phone Number
+                    </Button>
+                  </Stack>
+                )}
+              </Stack>
+            )}
+          </form>
+
+          {/* Divider */}
+          <Divider sx={{ my: 3 }}>
+            <Typography variant="body2" color="text.secondary">
+              OR
+            </Typography>
+          </Divider>
+
+          {/* Google Login */}
+          <Button
+            variant="outlined"
+            size="large"
+            fullWidth
+            startIcon={<Google />}
+            onClick={handleGoogleLogin}
+            sx={{
+              py: 1.5,
+              borderColor: 'divider',
+              color: 'text.primary',
+              '&:hover': {
+                borderColor: 'primary.main',
+                bgcolor: 'primary.light',
+              },
+            }}
+          >
+            Continue with Google
+          </Button>
+
+          {/* Sign Up Link */}
+          <Box sx={{ textAlign: 'center', mt: 3 }}>
+            <Typography variant="body2" color="text.secondary">
+              Don't have an account?{' '}
+              <Button
+                size="small"
+                onClick={() => navigate('/admission')}
+                sx={{ textTransform: 'none', fontWeight: 600 }}
+              >
+                Apply for Admission
+              </Button>
+            </Typography>
+          </Box>
+        </Paper>
+
+        {/* Additional Info */}
+        <Box sx={{ textAlign: 'center', mt: 3 }}>
+          <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.8)' }}>
+            By signing in, you agree to our Terms of Service and Privacy Policy
+          </Typography>
+        </Box>
+      </Container>
+    </Box>
+  );
+};
+
+export default ModernLogin;

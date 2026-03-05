@@ -1,20 +1,18 @@
 import { configureStore } from '@reduxjs/toolkit';
-import { userReducer } from './userRelated/userSlice';
-import { studentReducer } from './studentRelated/studentSlice';
-import { noticeReducer } from './noticeRelated/noticeSlice';
-import { sclassReducer } from './sclassRelated/sclassSlice';
-import { teacherReducer } from './teacherRelated/teacherSlice';
-import { complainReducer } from './complainRelated/complainSlice';
+import authReducer from './slices/authSlice';
+import uiReducer from './slices/uiSlice';
+import dashboardReducer from './slices/dashboardSlice';
 
-const store = configureStore({
-    reducer: {
-        user: userReducer,
-        student: studentReducer,
-        teacher: teacherReducer,
-        notice: noticeReducer,
-        complain: complainReducer,
-        sclass: sclassReducer
-    },
+export const store = configureStore({
+  reducer: {
+    auth: authReducer,
+    ui: uiReducer,
+    dashboard: dashboardReducer,
+  },
+  middleware: (getDefaultMiddleware) =>
+    getDefaultMiddleware({
+      serializableCheck: false,
+    }),
 });
 
 export default store;

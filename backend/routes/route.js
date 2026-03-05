@@ -1,119 +1,89 @@
-const router = require('express').Router();
+const express = require('express');
+const router = express.Router();
+const { authMiddleware, authorize } = require('../middleware/auth');
 
-// const { adminRegister, adminLogIn, deleteAdmin, getAdminDetail, updateAdmin } = require('../controllers/admin-controller.js');
+// Import all route modules
+const authRoutes = require('./auth-routes');
+const superAdminRoutes = require('./superadmin-routes');
+const adminRoutes = require('./admin-routes');
+const teacherRoutes = require('./teacher-routes');
+const studentRoutes = require('./student-routes');
+const parentRoutes = require('./parent-routes');
+const admissionRoutes = require('./admission-routes');
+const accountsRoutes = require('./accounts-routes');
+const transportRoutes = require('./transport-routes');
 
-const { adminRegister, adminLogIn, getAdminDetail} = require('../controllers/admin-controller.js');
+// ==================== PUBLIC ROUTES ====================
+// No authentication required
+router.use('/auth', authRoutes);
+router.use('/admission', admissionRoutes);
 
-const { sclassCreate, sclassList, deleteSclass, deleteSclasses, getSclassDetail, getSclassStudents } = require('../controllers/class-controller.js');
-const { complainCreate, complainList } = require('../controllers/complain-controller.js');
-const { noticeCreate, noticeList, deleteNotices, deleteNotice, updateNotice } = require('../controllers/notice-controller.js');
-const {
-    studentRegister,
-    studentLogIn,
-    getStudents,
-    getStudentDetail,
-    deleteStudents,
-    deleteStudent,
-    updateStudent,
-    studentAttendance,
-    deleteStudentsByClass,
-    updateExamResult,
-    clearAllStudentsAttendanceBySubject,
-    clearAllStudentsAttendance,
-    removeStudentAttendanceBySubject,
-    removeStudentAttendance } = require('../controllers/student_controller.js');
-const { subjectCreate, classSubjects, deleteSubjectsByClass, getSubjectDetail, deleteSubject, freeSubjectList, allSubjects, deleteSubjects } = require('../controllers/subject-controller.js');
-const { teacherRegister, teacherLogIn, getTeachers, getTeacherDetail, deleteTeachers, deleteTeachersByClass, deleteTeacher, updateTeacherSubject, teacherAttendance } = require('../controllers/teacher-controller.js');
+// ==================== PROTECTED ROUTES ====================
+// All routes below require authentication and college_id validation
 
-// Admin
-router.post('/AdminReg', adminRegister);
-router.post('/AdminLogin', adminLogIn);
+// Super Admin Routes
+router.use('/superadmin', authMiddleware, authorize('superadmin'), superAdminRoutes);
 
-router.get("/Admin/:id", getAdminDetail)
-// router.delete("/Admin/:id", deleteAdmin)
+// College Admin Routes
+router.use('/admin', authMiddleware, authorize('admin'), adminRoutes);
 
-// router.put("/Admin/:id", updateAdmin)
+// Teacher Routes
+router.use('/teacher', authMiddleware, authorize('teacher'), teacherRoutes);
 
-// Student
+// Student Routes
+router.use('/student', authMiddleware, authorize('student'), studentRoutes);
 
-router.post('/StudentReg', studentRegister);
-router.post('/StudentLogin', studentLogIn)
+// Parent Routes
+router.use('/parent', authMiddleware, authorize('parent'), parentRoutes);
 
-router.get("/Students/:id", getStudents)
-router.get("/Student/:id", getStudentDetail)
+// Accounts Team Routes
+router.use('/accounts', authMiddleware, authorize('accounts'), accountsRoutes);
 
-router.delete("/Students/:id", deleteStudents)
-router.delete("/StudentsClass/:id", deleteStudentsByClass)
-router.delete("/Student/:id", deleteStudent)
+// Transport Team Routes
+router.use('/transport', authMiddleware, authorize('transport'), transportRoutes);
 
-router.put("/Student/:id", updateStudent)
+// ==================== HEALTH CHECK ====================
+router.get('/health', async (req, res) => {
+    try {
+        const prisma = require('../lib/prisma');
+        const { isRedisConnected } = require('../utils/redis-service');
+        
+        // Check database
+        await prisma.$queryRaw`SELECT 1`;
+        const dbStatus = 'connected';
+        
+        // Check Redis
+        const redisStatus = isRedisConnected() ? 'connected' : 'disconnected';
+        
+        res.status(200).json({
+            status: 'healthy',
+            timestamp: new Date(),
+            uptime: process.uptime(),
+            database: dbStatus,
+            redis: redisStatus,
+            memory: {
+                used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + ' MB',
+                total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024) + ' MB',
+            },
+            version: require('../package.json').version,
+        });
+    } catch (error) {
+        res.status(503).json({
+            status: 'unhealthy',
+            error: error.message,
+            timestamp: new Date(),
+        });
+    }
+});
 
-router.put('/UpdateExamResult/:id', updateExamResult)
-
-router.put('/StudentAttendance/:id', studentAttendance)
-
-router.put('/RemoveAllStudentsSubAtten/:id', clearAllStudentsAttendanceBySubject);
-router.put('/RemoveAllStudentsAtten/:id', clearAllStudentsAttendance);
-
-router.put('/RemoveStudentSubAtten/:id', removeStudentAttendanceBySubject);
-router.put('/RemoveStudentAtten/:id', removeStudentAttendance)
-
-// Teacher
-
-router.post('/TeacherReg', teacherRegister);
-router.post('/TeacherLogin', teacherLogIn)
-
-router.get("/Teachers/:id", getTeachers)
-router.get("/Teacher/:id", getTeacherDetail)
-
-router.delete("/Teachers/:id", deleteTeachers)
-router.delete("/TeachersClass/:id", deleteTeachersByClass)
-router.delete("/Teacher/:id", deleteTeacher)
-
-router.put("/TeacherSubject", updateTeacherSubject)
-
-router.post('/TeacherAttendance/:id', teacherAttendance)
-
-// Notice
-
-router.post('/NoticeCreate', noticeCreate);
-
-router.get('/NoticeList/:id', noticeList);
-
-router.delete("/Notices/:id", deleteNotices)
-router.delete("/Notice/:id", deleteNotice)
-
-router.put("/Notice/:id", updateNotice)
-
-// Complain
-
-router.post('/ComplainCreate', complainCreate);
-
-router.get('/ComplainList/:id', complainList);
-
-// Sclass
-
-router.post('/SclassCreate', sclassCreate);
-
-router.get('/SclassList/:id', sclassList);
-router.get("/Sclass/:id", getSclassDetail)
-
-router.get("/Sclass/Students/:id", getSclassStudents)
-
-router.delete("/Sclasses/:id", deleteSclasses)
-router.delete("/Sclass/:id", deleteSclass)
-
-// Subject
-
-router.post('/SubjectCreate', subjectCreate);
-
-router.get('/AllSubjects/:id', allSubjects);
-router.get('/ClassSubjects/:id', classSubjects);
-router.get('/FreeSubjectList/:id', freeSubjectList);
-router.get("/Subject/:id", getSubjectDetail)
-
-router.delete("/Subject/:id", deleteSubject)
-router.delete("/Subjects/:id", deleteSubjects)
-router.delete("/SubjectsClass/:id", deleteSubjectsByClass)
+// ==================== 404 HANDLER ====================
+router.use((req, res) => {
+    res.status(404).json({
+        success: false,
+        message: 'Route not found',
+        path: req.path,
+        method: req.method
+    });
+});
 
 module.exports = router;

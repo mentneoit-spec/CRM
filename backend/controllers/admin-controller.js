@@ -1,152 +1,468 @@
-const bcrypt = require('bcrypt');
-const Admin = require('../models/adminSchema.js');
-const Sclass = require('../models/sclassSchema.js');
-const Student = require('../models/studentSchema.js');
-const Teacher = require('../models/teacherSchema.js');
-const Subject = require('../models/subjectSchema.js');
-const Notice = require('../models/noticeSchema.js');
-const Complain = require('../models/complainSchema.js');
+const prisma = require('../lib/prisma');
+const bcrypt = require('bcryptjs');
+const { generateToken } = require('../utils/jwt');
 
-// const adminRegister = async (req, res) => {
-//     try {
-//         const salt = await bcrypt.genSalt(10);
-//         const hashedPass = await bcrypt.hash(req.body.password, salt);
+// ==================== USER MANAGEMENT ====================
 
-//         const admin = new Admin({
-//             ...req.body,
-//             password: hashedPass
-//         });
-
-//         const existingAdminByEmail = await Admin.findOne({ email: req.body.email });
-//         const existingSchool = await Admin.findOne({ schoolName: req.body.schoolName });
-
-//         if (existingAdminByEmail) {
-//             res.send({ message: 'Email already exists' });
-//         }
-//         else if (existingSchool) {
-//             res.send({ message: 'School name already exists' });
-//         }
-//         else {
-//             let result = await admin.save();
-//             result.password = undefined;
-//             res.send(result);
-//         }
-//     } catch (err) {
-//         res.status(500).json(err);
-//     }
-// };
-
-// const adminLogIn = async (req, res) => {
-//     if (req.body.email && req.body.password) {
-//         let admin = await Admin.findOne({ email: req.body.email });
-//         if (admin) {
-//             const validated = await bcrypt.compare(req.body.password, admin.password);
-//             if (validated) {
-//                 admin.password = undefined;
-//                 res.send(admin);
-//             } else {
-//                 res.send({ message: "Invalid password" });
-//             }
-//         } else {
-//             res.send({ message: "User not found" });
-//         }
-//     } else {
-//         res.send({ message: "Email and password are required" });
-//     }
-// };
-
-const adminRegister = async (req, res) => {
+// Create teacher
+const createTeacher = async (req, res) => {
     try {
-        const admin = new Admin({
-            ...req.body
+        const { collegeId } = req.query;
+        const { name, email, phone, password, qualification, experience, specialization } = req.body;
+
+        // Validate input
+        if (!name || !email || !password || !collegeId) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Required fields missing' 
+            });
+        }
+
+        // Check if college exists
+        const college = await prisma.college.findUnique({
+            where: { id: collegeId },
         });
 
-        const existingAdminByEmail = await Admin.findOne({ email: req.body.email });
-        const existingSchool = await Admin.findOne({ schoolName: req.body.schoolName });
+        if (!college) {
+            return res.status(404).json({ success: false, message: 'College not found' });
+        }
 
-        if (existingAdminByEmail) {
-            res.send({ message: 'Email already exists' });
+        // Check if email already exists
+        const existingUser = await prisma.user.findFirst({
+            where: { email, collegeId },
+        });
+
+        if (existingUser) {
+            return res.status(400).json({ success: false, message: 'Email already registered' });
         }
-        else if (existingSchool) {
-            res.send({ message: 'School name already exists' });
-        }
-        else {
-            let result = await admin.save();
-            result.password = undefined;
-            res.send(result);
-        }
-    } catch (err) {
-        res.status(500).json(err);
+
+        // Hash password
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        // Create user
+        const user = await prisma.user.create({
+            data: {
+                name,
+                email,
+                password: hashedPassword,
+                phone,
+                role: 'Teacher',
+                collegeId,
+                isEmailVerified: true,
+                isActive: true,
+            },
+        });
+
+        // Create teacher profile
+        const teacher = await prisma.teacher.create({
+            data: {
+                name,
+                email,
+                phone,
+                password: hashedPassword,
+                qualification,
+                experience: experience ? parseInt(experience) : null,
+                specialization,
+                collegeId,
+                userId: user.id,
+            },
+        });
+
+        res.status(201).json({
+            success: true,
+            message: 'Teacher created successfully',
+            data: { user, teacher },
+        });
+    } catch (error) {
+        console.error('Create teacher error:', error);
+        res.status(500).json({ success: false, message: 'Error creating teacher' });
     }
 };
 
-const adminLogIn = async (req, res) => {
-    if (req.body.email && req.body.password) {
-        let admin = await Admin.findOne({ email: req.body.email });
-        if (admin) {
-            if (req.body.password === admin.password) {
-                admin.password = undefined;
-                res.send(admin);
-            } else {
-                res.send({ message: "Invalid password" });
-            }
-        } else {
-            res.send({ message: "User not found" });
-        }
-    } else {
-        res.send({ message: "Email and password are required" });
-    }
-};
-
-const getAdminDetail = async (req, res) => {
+// Create student
+const createStudent = async (req, res) => {
     try {
-        let admin = await Admin.findById(req.params.id);
-        if (admin) {
-            admin.password = undefined;
-            res.send(admin);
+        const { collegeId } = req.query;
+        const { name, studentId, email, phone, password, sclassId, sectionId, parentName, parentPhone } = req.body;
+
+        if (!name || !studentId || !password || !collegeId || !sclassId) {
+            return res.status(400).json({ success: false, message: 'Required fields missing' });
         }
-        else {
-            res.send({ message: "No admin found" });
+
+        // Check college exists
+        const college = await prisma.college.findUnique({
+            where: { id: collegeId },
+        });
+
+        if (!college) {
+            return res.status(404).json({ success: false, message: 'College not found' });
         }
-    } catch (err) {
-        res.status(500).json(err);
+
+        // Check student ID uniqueness
+        const existingStudent = await prisma.student.findFirst({
+            where: { studentId, collegeId },
+        });
+
+        if (existingStudent) {
+            return res.status(400).json({ success: false, message: 'Student ID already exists' });
+        }
+
+        // Hash password
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        // Create user
+        const user = await prisma.user.create({
+            data: {
+                name,
+                email,
+                password: hashedPassword,
+                phone,
+                role: 'Student',
+                collegeId,
+                isActive: true,
+            },
+        });
+
+        // Create student profile
+        const student = await prisma.student.create({
+            data: {
+                name,
+                studentId,
+                email,
+                phone,
+                password: hashedPassword,
+                parentName,
+                parentPhone,
+                collegeId,
+                sclassId,
+                sectionId: sectionId || null,
+                userId: user.id,
+            },
+        });
+
+        res.status(201).json({
+            success: true,
+            message: 'Student created successfully',
+            data: { user, student },
+        });
+    } catch (error) {
+        console.error('Create student error:', error);
+        res.status(500).json({ success: false, message: 'Error creating student' });
     }
-}
+};
 
-// const deleteAdmin = async (req, res) => {
-//     try {
-//         const result = await Admin.findByIdAndDelete(req.params.id)
+// Get all students in college
+const getAllStudents = async (req, res) => {
+    try {
+        const { collegeId } = req.query;
+        const { page = 1, limit = 20, sclassId, status = 'active' } = req.query;
 
-//         await Sclass.deleteMany({ school: req.params.id });
-//         await Student.deleteMany({ school: req.params.id });
-//         await Teacher.deleteMany({ school: req.params.id });
-//         await Subject.deleteMany({ school: req.params.id });
-//         await Notice.deleteMany({ school: req.params.id });
-//         await Complain.deleteMany({ school: req.params.id });
+        if (!collegeId) {
+            return res.status(400).json({ success: false, message: 'College ID required' });
+        }
 
-//         res.send(result)
-//     } catch (error) {
-//         res.status(500).json(err);
-//     }
-// }
+        const skip = (page - 1) * limit;
+        const filter = { collegeId, isDeleted: false };
 
-// const updateAdmin = async (req, res) => {
-//     try {
-//         if (req.body.password) {
-//             const salt = await bcrypt.genSalt(10)
-//             res.body.password = await bcrypt.hash(res.body.password, salt)
-//         }
-//         let result = await Admin.findByIdAndUpdate(req.params.id,
-//             { $set: req.body },
-//             { new: true })
+        if (sclassId) filter.sclassId = sclassId;
+        if (status === 'active') filter.isActive = true;
 
-//         result.password = undefined;
-//         res.send(result)
-//     } catch (error) {
-//         res.status(500).json(err);
-//     }
-// }
+        const students = await prisma.student.findMany({
+            where: filter,
+            skip: parseInt(skip),
+            take: parseInt(limit),
+            include: {
+                sclass: true,
+                section: true,
+                parent: true,
+                _count: {
+                    select: {
+                        ExamResults: true,
+                        Attendances: true,
+                    },
+                },
+            },
+            orderBy: { createdAt: 'desc' },
+        });
 
-// module.exports = { adminRegister, adminLogIn, getAdminDetail, deleteAdmin, updateAdmin };
+        const total = await prisma.student.count({ where: filter });
 
-module.exports = { adminRegister, adminLogIn, getAdminDetail };
+        res.status(200).json({
+            success: true,
+            data: students,
+            pagination: {
+                total,
+                page: parseInt(page),
+                limit: parseInt(limit),
+                pages: Math.ceil(total / limit),
+            },
+        });
+    } catch (error) {
+        console.error('Get students error:', error);
+        res.status(500).json({ success: false, message: 'Error fetching students' });
+    }
+};
+
+// Get all teachers in college
+const getAllTeachers = async (req, res) => {
+    try {
+        const { collegeId } = req.query;
+        const { page = 1, limit = 20 } = req.query;
+
+        if (!collegeId) {
+            return res.status(400).json({ success: false, message: 'College ID required' });
+        }
+
+        const skip = (page - 1) * limit;
+
+        const teachers = await prisma.teacher.findMany({
+            where: { collegeId, isActive: true },
+            skip: parseInt(skip),
+            take: parseInt(limit),
+            include: {
+                Subjects: true,
+                ClassTeacherOf: true,
+                _count: {
+                    select: {
+                        Subjects: true,
+                        Homeworks: true,
+                    },
+                },
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+
+        const total = await prisma.teacher.count({ 
+            where: { collegeId, isActive: true } 
+        });
+
+        res.status(200).json({
+            success: true,
+            data: teachers,
+            pagination: {
+                total,
+                page: parseInt(page),
+                limit: parseInt(limit),
+            },
+        });
+    } catch (error) {
+        console.error('Get teachers error:', error);
+        res.status(500).json({ success: false, message: 'Error fetching teachers' });
+    }
+};
+
+// ==================== CLASS MANAGEMENT ====================
+
+// Create class
+const createClass = async (req, res) => {
+    try {
+        const { collegeId } = req.query;
+        const { sclassName, sclassCode, academicYear, description, classTeacherId } = req.body;
+
+        if (!collegeId || !sclassName) {
+            return res.status(400).json({ success: false, message: 'College and class name required' });
+        }
+
+        const sclass = await prisma.sclass.create({
+            data: {
+                sclassName,
+                sclassCode: sclassCode || sclassName,
+                academicYear: academicYear || new Date().getFullYear().toString(),
+                description,
+                collegeId,
+                classTeacherId: classTeacherId || null,
+            },
+        });
+
+        res.status(201).json({
+            success: true,
+            message: 'Class created successfully',
+            data: sclass,
+        });
+    } catch (error) {
+        console.error('Create class error:', error);
+        res.status(500).json({ success: false, message: 'Error creating class' });
+    }
+};
+
+// Get all classes
+const getAllClasses = async (req, res) => {
+    try {
+        const { collegeId } = req.query;
+
+        if (!collegeId) {
+            return res.status(400).json({ success: false, message: 'College ID required' });
+        }
+
+        const classes = await prisma.sclass.findMany({
+            where: { collegeId },
+            include: {
+                classTeacher: true,
+                Subjects: true,
+                Students: true,
+                Sections: true,
+                _count: {
+                    select: {
+                        Students: true,
+                        Teachers: true,
+                        Subjects: true,
+                    },
+                },
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+
+        res.status(200).json({
+            success: true,
+            data: classes,
+        });
+    } catch (error) {
+        console.error('Get classes error:', error);
+        res.status(500).json({ success: false, message: 'Error fetching classes' });
+    }
+};
+
+// ==================== SUBJECT MANAGEMENT ====================
+
+// Create subject
+const createSubject = async (req, res) => {
+    try {
+        const { collegeId } = req.query;
+        const { subName, subCode, description, sclassId, maxMarks, passingMarks } = req.body;
+
+        if (!collegeId || !subName || !subCode || !sclassId) {
+            return res.status(400).json({ success: false, message: 'Required fields missing' });
+        }
+
+        // Check if subject already exists
+        const existing = await prisma.subject.findFirst({
+            where: { collegeId, sclassId, subCode },
+        });
+
+        if (existing) {
+            return res.status(400).json({ success: false, message: 'Subject code already exists in this class' });
+        }
+
+        const subject = await prisma.subject.create({
+            data: {
+                subName,
+                subCode,
+                description,
+                collegeId,
+                sclassId,
+                maxMarks: maxMarks || 100,
+                passingMarks: passingMarks || 40,
+            },
+        });
+
+        res.status(201).json({
+            success: true,
+            message: 'Subject created successfully',
+            data: subject,
+        });
+    } catch (error) {
+        console.error('Create subject error:', error);
+        res.status(500).json({ success: false, message: 'Error creating subject' });
+    }
+};
+
+// ==================== FEE MANAGEMENT ====================
+
+// Define fee structure
+const defineFeeStructure = async (req, res) => {
+    try {
+        const { collegeId } = req.query;
+        const { feeType, amount, dueDate, frequency, sclassId, description } = req.body;
+
+        if (!collegeId || !feeType || !amount) {
+            return res.status(400).json({ success: false, message: 'Required fields missing' });
+        }
+
+        // For now, we'll store this in Fee model per student
+        // Later can create a FeeStructure model for college-wide fees
+
+        res.status(201).json({
+            success: true,
+            message: 'Fee structure will be applied to students',
+            data: { feeType, amount, dueDate, frequency },
+        });
+    } catch (error) {
+        console.error('Define fee error:', error);
+        res.status(500).json({ success: false, message: 'Error defining fees' });
+    }
+};
+
+// ==================== DASHBOARD ====================
+
+// Get college dashboard
+const getDashboard = async (req, res) => {
+    try {
+        const { collegeId } = req.query;
+
+        if (!collegeId) {
+            return res.status(400).json({ success: false, message: 'College ID required' });
+        }
+
+        const college = await prisma.college.findUnique({
+            where: { id: collegeId },
+        });
+
+        const studentCount = await prisma.student.count({
+            where: { collegeId, isDeleted: false },
+        });
+
+        const teacherCount = await prisma.teacher.count({
+            where: { collegeId, isActive: true },
+        });
+
+        const classCount = await prisma.sclass.count({
+            where: { collegeId },
+        });
+
+        const revenueData = await prisma.payment.aggregate({
+            where: { collegeId, status: 'completed' },
+            _sum: { amount: true },
+        });
+
+        const admissionPending = await prisma.admission.count({
+            where: { collegeId, status: 'pending' },
+        });
+
+        const recentPayments = await prisma.payment.findMany({
+            where: { collegeId, status: 'completed' },
+            take: 5,
+            include: { student: true },
+            orderBy: { createdAt: 'desc' },
+        });
+
+        res.status(200).json({
+            success: true,
+            data: {
+                college,
+                stats: {
+                    students: studentCount,
+                    teachers: teacherCount,
+                    classes: classCount,
+                    revenue: revenueData._sum.amount || 0,
+                    pendingAdmissions: admissionPending,
+                },
+                recentPayments,
+            },
+        });
+    } catch (error) {
+        console.error('Get dashboard error:', error);
+        res.status(500).json({ success: false, message: 'Error fetching dashboard' });
+    }
+};
+
+module.exports = {
+    createTeacher,
+    createStudent,
+    getAllStudents,
+    getAllTeachers,
+    createClass,
+    getAllClasses,
+    createSubject,
+    defineFeeStructure,
+    getDashboard,
+};

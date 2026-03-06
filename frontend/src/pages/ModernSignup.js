@@ -99,6 +99,8 @@ const ModernSignup = () => {
         role: formData.role,
         dateOfBirth: formData.dateOfBirth || undefined,
         gender: formData.gender || undefined,
+        // Automatically assign to Test College for Students, Teachers, Parents, Admins
+        collegeId: formData.role !== 'SuperAdmin' ? '2aad2902-caee-4a50-bcb9-0b75e0c75262' : undefined,
       };
 
       // Add college name for Admin

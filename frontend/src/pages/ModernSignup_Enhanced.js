@@ -106,7 +106,7 @@ const ModernSignupEnhanced = () => {
     setError('');
 
     try {
-      const response = await authAPI.register({
+      const signupData = {
         name: formData.name,
         email: formData.email,
         phone: formData.phone,
@@ -116,7 +116,14 @@ const ModernSignupEnhanced = () => {
         gender: formData.gender,
         admissionNumber: formData.role === 'Student' ? formData.admissionNumber : undefined,
         employeeId: formData.role === 'Teacher' ? formData.employeeId : undefined,
-      });
+      };
+      
+      // Add collegeId for non-SuperAdmin users
+      if (formData.role !== 'SuperAdmin') {
+        signupData.collegeId = '2aad2902-caee-4a50-bcb9-0b75e0c75262';
+      }
+      
+      const response = await authAPI.register(signupData);
 
       if (response.success) {
         setSuccess('Account created successfully! Redirecting to login...');

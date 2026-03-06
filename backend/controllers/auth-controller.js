@@ -11,15 +11,15 @@ const login = async (req, res) => {
         const { email, password, collegeId } = req.body;
 
         if (!email || !password) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Email and password are required' 
+            return res.status(400).json({
+                success: false,
+                message: 'Email and password are required'
             });
         }
 
         // Find user by email
         let user;
-        
+
         if (collegeId) {
             // College-specific login
             user = await prisma.user.findUnique({
@@ -30,7 +30,7 @@ const login = async (req, res) => {
             // SuperAdmin or non-college user login
             // Use findFirst since email alone is not unique
             user = await prisma.user.findFirst({
-                where: { 
+                where: {
                     email,
                     collegeId: null
                 },
@@ -39,35 +39,35 @@ const login = async (req, res) => {
         }
 
         if (!user) {
-            return res.status(401).json({ 
-                success: false, 
-                message: 'Invalid email or password' 
+            return res.status(401).json({
+                success: false,
+                message: 'Invalid email or password'
             });
         }
 
         // Check if user is active
         if (!user.isActive) {
-            return res.status(403).json({ 
-                success: false, 
-                message: 'User account is inactive' 
+            return res.status(403).json({
+                success: false,
+                message: 'User account is inactive'
             });
         }
 
         // Verify password
         const isPasswordValid = await bcrypt.compare(password, user.password);
         if (!isPasswordValid) {
-            return res.status(401).json({ 
-                success: false, 
-                message: 'Invalid email or password' 
+            return res.status(401).json({
+                success: false,
+                message: 'Invalid email or password'
             });
         }
 
         // Check college status if college user
         if (user.collegeId && user.college) {
             if (user.college.status !== 'active') {
-                return res.status(403).json({ 
-                    success: false, 
-                    message: 'College is not active' 
+                return res.status(403).json({
+                    success: false,
+                    message: 'College is not active'
                 });
             }
         }
@@ -105,9 +105,9 @@ const superAdminLogin = async (req, res) => {
         const { email, password } = req.body;
 
         if (!email || !password) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Email and password are required' 
+            return res.status(400).json({
+                success: false,
+                message: 'Email and password are required'
             });
         }
 
@@ -117,26 +117,26 @@ const superAdminLogin = async (req, res) => {
         });
 
         if (!superAdmin) {
-            return res.status(401).json({ 
-                success: false, 
-                message: 'Invalid email or password' 
+            return res.status(401).json({
+                success: false,
+                message: 'Invalid email or password'
             });
         }
 
         // Verify password
         const isPasswordValid = await bcrypt.compare(password, superAdmin.password);
         if (!isPasswordValid) {
-            return res.status(401).json({ 
-                success: false, 
-                message: 'Invalid email or password' 
+            return res.status(401).json({
+                success: false,
+                message: 'Invalid email or password'
             });
         }
 
         // Check if account is active
         if (!superAdmin.isActive) {
-            return res.status(403).json({ 
-                success: false, 
-                message: 'Account is inactive' 
+            return res.status(403).json({
+                success: false,
+                message: 'Account is inactive'
             });
         }
 
@@ -185,9 +185,9 @@ const logout = async (req, res) => {
 const getCurrentUser = async (req, res) => {
     try {
         if (!req.user) {
-            return res.status(401).json({ 
-                success: false, 
-                message: 'Not authenticated' 
+            return res.status(401).json({
+                success: false,
+                message: 'Not authenticated'
             });
         }
 
@@ -211,16 +211,16 @@ const changePassword = async (req, res) => {
         const userId = req.user.id;
 
         if (!oldPassword || !newPassword) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Old and new passwords are required' 
+            return res.status(400).json({
+                success: false,
+                message: 'Old and new passwords are required'
             });
         }
 
         if (newPassword.length < 6) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Password must be at least 6 characters long' 
+            return res.status(400).json({
+                success: false,
+                message: 'Password must be at least 6 characters long'
             });
         }
 
@@ -232,9 +232,9 @@ const changePassword = async (req, res) => {
         // Verify old password
         const isPasswordValid = await bcrypt.compare(oldPassword, user.password);
         if (!isPasswordValid) {
-            return res.status(401).json({ 
-                success: false, 
-                message: 'Old password is incorrect' 
+            return res.status(401).json({
+                success: false,
+                message: 'Old password is incorrect'
             });
         }
 
@@ -264,9 +264,9 @@ const register = async (req, res) => {
         const { name, email, password, phone, role = 'Student', collegeId } = req.body;
 
         if (!name || !email || !password) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Name, email, and password are required' 
+            return res.status(400).json({
+                success: false,
+                message: 'Name, email, and password are required'
             });
         }
 
@@ -279,7 +279,7 @@ const register = async (req, res) => {
         } else {
             // Use findFirst for non-college users since email alone is not unique
             existingUser = await prisma.user.findFirst({
-                where: { 
+                where: {
                     email,
                     collegeId: null
                 },
@@ -287,9 +287,9 @@ const register = async (req, res) => {
         }
 
         if (existingUser) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Email already registered' 
+            return res.status(400).json({
+                success: false,
+                message: 'Email already registered'
             });
         }
 
@@ -445,6 +445,7 @@ const register = async (req, res) => {
         res.status(201).json({
             success: true,
             message: 'Registration successful',
+            schoolName: role === 'Admin' ? req.body.schoolName : undefined,
             data: {
                 user: userWithoutPassword,
                 roleProfile: result.roleProfile,
@@ -473,9 +474,9 @@ const requestOTP = async (req, res) => {
         const { phone, collegeId } = req.body;
 
         if (!phone) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Phone number is required' 
+            return res.status(400).json({
+                success: false,
+                message: 'Phone number is required'
             });
         }
 
@@ -492,9 +493,9 @@ const requestOTP = async (req, res) => {
         }
 
         if (!user) {
-            return res.status(404).json({ 
-                success: false, 
-                message: 'Phone number not registered' 
+            return res.status(404).json({
+                success: false,
+                message: 'Phone number not registered'
             });
         }
 
@@ -528,9 +529,9 @@ const verifyOTPLogin = async (req, res) => {
         const { phone, otp, collegeId } = req.body;
 
         if (!phone || !otp) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Phone and OTP are required' 
+            return res.status(400).json({
+                success: false,
+                message: 'Phone and OTP are required'
             });
         }
 
@@ -538,26 +539,26 @@ const verifyOTPLogin = async (req, res) => {
         const otpData = await getOTP(phone);
 
         if (!otpData) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'OTP expired or not found' 
+            return res.status(400).json({
+                success: false,
+                message: 'OTP expired or not found'
             });
         }
 
         // Check attempts
         if (otpData.attempts >= 5) {
             await deleteOTP(phone);
-            return res.status(429).json({ 
-                success: false, 
-                message: 'Maximum OTP verification attempts exceeded' 
+            return res.status(429).json({
+                success: false,
+                message: 'Maximum OTP verification attempts exceeded'
             });
         }
 
         // Verify OTP
         if (otpData.otp !== otp) {
             await incrementOTPAttempts(phone);
-            return res.status(400).json({ 
-                success: false, 
+            return res.status(400).json({
+                success: false,
                 message: 'Invalid OTP',
                 attemptsRemaining: 5 - (otpData.attempts + 1),
             });
@@ -581,25 +582,25 @@ const verifyOTPLogin = async (req, res) => {
         }
 
         if (!user) {
-            return res.status(404).json({ 
-                success: false, 
-                message: 'User not found' 
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
             });
         }
 
         // Check if user is active
         if (!user.isActive) {
-            return res.status(403).json({ 
-                success: false, 
-                message: 'User account is inactive' 
+            return res.status(403).json({
+                success: false,
+                message: 'User account is inactive'
             });
         }
 
         // Check college status
         if (user.collegeId && user.college && user.college.status !== 'active') {
-            return res.status(403).json({ 
-                success: false, 
-                message: 'College is not active' 
+            return res.status(403).json({
+                success: false,
+                message: 'College is not active'
             });
         }
 
@@ -609,7 +610,7 @@ const verifyOTPLogin = async (req, res) => {
         // Update last login
         await prisma.user.update({
             where: { id: user.id },
-            data: { 
+            data: {
                 lastLogin: new Date(),
                 isPhoneVerified: true,
             },
@@ -637,9 +638,9 @@ const googleAuthUrl = async (req, res) => {
     try {
         const { collegeId } = req.query;
         const { getGoogleAuthUrl } = require('../utils/google-oauth-service');
-        
+
         const authUrl = getGoogleAuthUrl(collegeId);
-        
+
         res.status(200).json({
             success: true,
             authUrl,
@@ -654,13 +655,13 @@ const googleCallback = async (req, res) => {
     try {
         const { code, state } = req.query;
         const { handleGoogleCallback } = require('../utils/google-oauth-service');
-        
+
         const result = await handleGoogleCallback(code, state);
-        
+
         if (!result.success) {
             return res.status(400).json(result);
         }
-        
+
         res.status(200).json(result);
     } catch (error) {
         console.error('Google callback error:', error);
@@ -674,10 +675,10 @@ const setup2FA = async (req, res) => {
     try {
         const userId = req.user.id;
         const userEmail = req.user.email;
-        
+
         const { setup2FA } = require('../utils/2fa-service');
         const result = await setup2FA(userId, userEmail);
-        
+
         res.status(200).json(result);
     } catch (error) {
         console.error('Setup 2FA error:', error);
@@ -689,17 +690,17 @@ const enable2FA = async (req, res) => {
     try {
         const userId = req.user.id;
         const { token } = req.body;
-        
+
         if (!token) {
-            return res.status(400).json({ 
-                success: false, 
-                message: '2FA token is required' 
+            return res.status(400).json({
+                success: false,
+                message: '2FA token is required'
             });
         }
-        
+
         const { enable2FA } = require('../utils/2fa-service');
         const result = await enable2FA(userId, token);
-        
+
         res.status(200).json(result);
     } catch (error) {
         console.error('Enable 2FA error:', error);
@@ -711,17 +712,17 @@ const disable2FA = async (req, res) => {
     try {
         const userId = req.user.id;
         const { token } = req.body;
-        
+
         if (!token) {
-            return res.status(400).json({ 
-                success: false, 
-                message: '2FA token is required' 
+            return res.status(400).json({
+                success: false,
+                message: '2FA token is required'
             });
         }
-        
+
         const { disable2FA } = require('../utils/2fa-service');
         const result = await disable2FA(userId, token);
-        
+
         res.status(200).json(result);
     } catch (error) {
         console.error('Disable 2FA error:', error);
@@ -733,17 +734,17 @@ const verify2FA = async (req, res) => {
     try {
         const userId = req.user.id;
         const { token } = req.body;
-        
+
         if (!token) {
-            return res.status(400).json({ 
-                success: false, 
-                message: '2FA token is required' 
+            return res.status(400).json({
+                success: false,
+                message: '2FA token is required'
             });
         }
-        
+
         const { validate2FALogin } = require('../utils/2fa-service');
         const result = await validate2FALogin(userId, token);
-        
+
         res.status(200).json(result);
     } catch (error) {
         console.error('Verify 2FA error:', error);

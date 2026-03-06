@@ -22,39 +22,39 @@ router.use('/admission', admissionRoutes);
 // All routes below require authentication and college_id validation
 
 // Super Admin Routes
-router.use('/superadmin', authMiddleware, authorize('superadmin'), superAdminRoutes);
+router.use('/superadmin', authMiddleware, authorize('superadmin', 'SuperAdmin'), superAdminRoutes);
 
 // College Admin Routes
-router.use('/admin', authMiddleware, authorize('admin'), adminRoutes);
+router.use('/admin', authMiddleware, authorize('admin', 'Admin', 'SuperAdmin'), adminRoutes);
 
 // Teacher Routes
-router.use('/teacher', authMiddleware, authorize('teacher'), teacherRoutes);
+router.use('/teacher', authMiddleware, authorize('teacher', 'Teacher'), teacherRoutes);
 
 // Student Routes
-router.use('/student', authMiddleware, authorize('student'), studentRoutes);
+router.use('/student', authMiddleware, authorize('student', 'Student'), studentRoutes);
 
 // Parent Routes
-router.use('/parent', authMiddleware, authorize('parent'), parentRoutes);
+router.use('/parent', authMiddleware, authorize('parent', 'Parent'), parentRoutes);
 
 // Accounts Team Routes
-router.use('/accounts', authMiddleware, authorize('accounts'), accountsRoutes);
+router.use('/accounts', authMiddleware, authorize('accounts', 'AccountsTeam', 'Admin', 'SuperAdmin'), accountsRoutes);
 
 // Transport Team Routes
-router.use('/transport', authMiddleware, authorize('transport'), transportRoutes);
+router.use('/transport', authMiddleware, authorize('transport', 'TransportTeam', 'Admin', 'SuperAdmin'), transportRoutes);
 
 // ==================== HEALTH CHECK ====================
 router.get('/health', async (req, res) => {
     try {
         const prisma = require('../lib/prisma');
         const { isRedisConnected } = require('../utils/redis-service');
-        
+
         // Check database
         await prisma.$queryRaw`SELECT 1`;
         const dbStatus = 'connected';
-        
+
         // Check Redis
         const redisStatus = isRedisConnected() ? 'connected' : 'disconnected';
-        
+
         res.status(200).json({
             status: 'healthy',
             timestamp: new Date(),

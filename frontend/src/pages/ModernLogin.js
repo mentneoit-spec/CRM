@@ -15,6 +15,12 @@ import {
   Chip,
   Alert,
   CircularProgress,
+  Card,
+  CardContent,
+  Grid,
+  Link,
+  FormControlLabel,
+  Checkbox,
 } from '@mui/material';
 import {
   Visibility,
@@ -24,6 +30,8 @@ import {
   Email,
   School,
   ArrowBack,
+  CheckCircle,
+  Send,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { authAPI } from '../config/api';

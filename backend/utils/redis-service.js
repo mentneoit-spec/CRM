@@ -21,27 +21,37 @@ const initRedis = async () => {
         });
 
         redisClient.on('error', (err) => {
-            console.error('Redis Client Error:', err);
+            if (process.env.NODE_ENV !== 'test') {
+                console.error('Redis Client Error:', err);
+            }
             isRedisConnected = false;
         });
 
         redisClient.on('connect', () => {
-            console.log('✓ Redis connected successfully');
+            if (process.env.NODE_ENV !== 'test') {
+                console.log('✓ Redis connected successfully');
+            }
             isRedisConnected = true;
         });
 
         redisClient.on('ready', () => {
-            console.log('✓ Redis client ready');
+            if (process.env.NODE_ENV !== 'test') {
+                console.log('✓ Redis client ready');
+            }
         });
 
         redisClient.on('reconnecting', () => {
-            console.log('⚠ Redis reconnecting...');
+            if (process.env.NODE_ENV !== 'test') {
+                console.log('⚠ Redis reconnecting...');
+            }
         });
 
         await redisClient.connect();
         return redisClient;
     } catch (error) {
-        console.error('Redis initialization error:', error);
+        if (process.env.NODE_ENV !== 'test') {
+            console.error('Redis initialization error:', error);
+        }
         isRedisConnected = false;
         return null;
     }

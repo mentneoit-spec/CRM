@@ -51,19 +51,27 @@ const paymentQueue = new Bull('payment-queue', REDIS_URL, {
     },
 });
 
+[emailQueue, notificationQueue, reportQueue, paymentQueue].forEach(queue => {
+    queue.on('error', (error) => {
+        if (process.env.NODE_ENV !== 'test') {
+            console.warn(`Bull queue error: ${error.message}`);
+        }
+    });
+});
+
 // ==================== EMAIL QUEUE PROCESSORS ====================
 
 emailQueue.process(async (job) => {
     const { to, templateName, variables } = job.data;
-    
+
     console.log(`Processing email job: ${job.id} - ${templateName} to ${to}`);
-    
+
     const result = await sendEmail(to, templateName, variables);
-    
+
     if (!result.success) {
         throw new Error(result.message);
     }
-    
+
     return result;
 });
 
@@ -80,9 +88,9 @@ emailQueue.on('failed', (job, err) => {
 
 notificationQueue.process(async (job) => {
     const { userId, collegeId, type, title, message, data } = job.data;
-    
+
     console.log(`Processing notification job: ${job.id} for user ${userId}`);
-    
+
     // Create notification in database
     await prisma.notification.create({
         data: {
@@ -95,9 +103,9 @@ notificationQueue.process(async (job) => {
             isRead: false,
         },
     });
-    
+
     // In production, also send push notification via FCM/APNS
-    
+
     return { success: true, message: 'Notification created' };
 });
 
@@ -113,12 +121,12 @@ notificationQueue.on('failed', (job, err) => {
 
 reportQueue.process(async (job) => {
     const { reportType, collegeId, filters, userId } = job.data;
-    
+
     console.log(`Processing report job: ${job.id} - ${reportType}`);
-    
+
     // Generate report based on type
     let reportData;
-    
+
     switch (reportType) {
         case 'attendance':
             reportData = await generateAttendanceReport(collegeId, filters);
@@ -132,7 +140,7 @@ reportQueue.process(async (job) => {
         default:
             throw new Error(`Unknown report type: ${reportType}`);
     }
-    
+
     // Save report to database
     const report = await prisma.report.create({
         data: {
@@ -143,14 +151,14 @@ reportQueue.process(async (job) => {
             status: 'completed',
         },
     });
-    
+
     // Send email notification
     await emailQueue.add({
         to: job.data.userEmail,
         templateName: 'reportReady',
         variables: [job.data.userName, reportType],
     });
-    
+
     return { success: true, reportId: report.id };
 });
 
@@ -166,9 +174,9 @@ reportQueue.on('failed', (job, err) => {
 
 paymentQueue.process(async (job) => {
     const { paymentId, action } = job.data;
-    
+
     console.log(`Processing payment job: ${job.id} - ${action}`);
-    
+
     switch (action) {
         case 'send_reminder':
             await sendPaymentReminder(paymentId);
@@ -182,7 +190,7 @@ paymentQueue.process(async (job) => {
         default:
             throw new Error(`Unknown payment action: ${action}`);
     }
-    
+
     return { success: true, message: `Payment ${action} completed` };
 });
 
@@ -208,7 +216,7 @@ const generateAttendanceReport = async (collegeId, filters) => {
             subject: true,
         },
     });
-    
+
     return attendanceData;
 };
 
@@ -224,7 +232,7 @@ const generateFeesReport = async (collegeId, filters) => {
             fee: true,
         },
     });
-    
+
     return feesData;
 };
 
@@ -241,7 +249,7 @@ const generateAcademicReport = async (collegeId, filters) => {
             exam: true,
         },
     });
-    
+
     return academicData;
 };
 
@@ -253,7 +261,7 @@ const sendPaymentReminder = async (paymentId) => {
             fee: true,
         },
     });
-    
+
     if (payment && payment.student?.parent?.email) {
         await emailQueue.add({
             to: payment.student.parent.email,
@@ -345,7 +353,7 @@ const getQueueStats = async (queueName) => {
         default:
             return null;
     }
-    
+
     const [waiting, active, completed, failed, delayed] = await Promise.all([
         queue.getWaitingCount(),
         queue.getActiveCount(),
@@ -353,7 +361,7 @@ const getQueueStats = async (queueName) => {
         queue.getFailedCount(),
         queue.getDelayedCount(),
     ]);
-    
+
     return {
         waiting,
         active,
@@ -382,7 +390,7 @@ const cleanQueue = async (queueName, grace = 3600000) => {
         default:
             return null;
     }
-    
+
     await queue.clean(grace, 'completed');
     await queue.clean(grace, 'failed');
 };

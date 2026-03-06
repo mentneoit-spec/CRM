@@ -19,13 +19,13 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    
+
     // Add collegeId from localStorage if available
     const collegeId = localStorage.getItem('collegeId');
     if (collegeId && !config.params?.collegeId) {
       config.params = { ...config.params, collegeId };
     }
-    
+
     return config;
   },
   (error) => {
@@ -47,7 +47,7 @@ api.interceptors.response.use(
         localStorage.removeItem('collegeId');
         window.location.href = '/login';
       }
-      
+
       // Return error message
       return Promise.reject(error.response.data);
     } else if (error.request) {
@@ -63,34 +63,34 @@ api.interceptors.response.use(
 export const authAPI = {
   // Login with email/password
   login: (credentials) => api.post('/auth/login', credentials),
-  
+
   // Register new user
   register: (data) => api.post('/auth/register', data),
-  
+
   // Super admin login
   superAdminLogin: (credentials) => api.post('/auth/superadmin/login', credentials),
-  
+
   // Request OTP
   requestOTP: (data) => api.post('/auth/otp/request', data),
-  
+
   // Verify OTP
   verifyOTP: (data) => api.post('/auth/otp/verify', data),
-  
+
   // Google OAuth URL
   getGoogleAuthURL: (collegeId) => api.get(`/auth/google/url?collegeId=${collegeId}`),
-  
+
   // Setup 2FA
   setup2FA: () => api.post('/auth/2fa/setup'),
-  
+
   // Enable 2FA
   enable2FA: (token) => api.post('/auth/2fa/enable', { token }),
-  
+
   // Disable 2FA
   disable2FA: (token) => api.post('/auth/2fa/disable', { token }),
-  
+
   // Change password
   changePassword: (data) => api.post('/auth/change-password', data),
-  
+
   // Get current user
   getCurrentUser: () => api.get('/auth/me'),
 };
@@ -104,13 +104,13 @@ export const superAdminAPI = {
   getCollege: (id) => api.get(`/superadmin/colleges/${id}`),
   updateCollege: (id, data) => api.put(`/superadmin/colleges/${id}`, data),
   suspendCollege: (id) => api.post(`/superadmin/colleges/${id}/suspend`),
-  
+
   // Admins
   createAdmin: (data) => api.post('/superadmin/admins', data),
-  
+
   // Analytics
   getAnalytics: () => api.get('/superadmin/analytics'),
-  
+
   // Audit Logs
   getAuditLogs: (params) => api.get('/superadmin/audit-logs', { params }),
 };
@@ -120,44 +120,48 @@ export const superAdminAPI = {
 export const adminAPI = {
   // Dashboard
   getDashboard: () => api.get('/admin/dashboard'),
-  
+
   // Teachers
   createTeacher: (data) => api.post('/admin/teachers', data),
   getTeachers: (params) => api.get('/admin/teachers', { params }),
   getTeacher: (id) => api.get(`/admin/teachers/${id}`),
   updateTeacher: (id, data) => api.put(`/admin/teachers/${id}`, data),
   deleteTeacher: (id) => api.delete(`/admin/teachers/${id}`),
-  
+
   // Students
   createStudent: (data) => api.post('/admin/students', data),
   getStudents: (params) => api.get('/admin/students', { params }),
   getStudent: (id) => api.get(`/admin/students/${id}`),
   updateStudent: (id, data) => api.put(`/admin/students/${id}`, data),
   deleteStudent: (id) => api.delete(`/admin/students/${id}`),
-  
+
   // Classes
   createClass: (data) => api.post('/admin/classes', data),
   getClasses: () => api.get('/admin/classes'),
   getClass: (id) => api.get(`/admin/classes/${id}`),
   updateClass: (id, data) => api.put(`/admin/classes/${id}`, data),
   deleteClass: (id) => api.delete(`/admin/classes/${id}`),
-  
+
   // Subjects
   createSubject: (data) => api.post('/admin/subjects', data),
   getSubjects: (params) => api.get('/admin/subjects', { params }),
   getSubject: (id) => api.get(`/admin/subjects/${id}`),
   updateSubject: (id, data) => api.put(`/admin/subjects/${id}`, data),
   deleteSubject: (id) => api.delete(`/admin/subjects/${id}`),
-  
+
+  // Teams
+  createTeamMember: (data) => api.post('/admin/teams', data),
+  getTeams: (params) => api.get('/admin/teams', { params }),
+
   // Fees
   createFee: (data) => api.post('/admin/fees', data),
   getFees: (params) => api.get('/admin/fees', { params }),
-  
+
   // Notices
   createNotice: (data) => api.post('/admin/notices', data),
   getNotices: () => api.get('/admin/notices'),
   deleteNotice: (id) => api.delete(`/admin/notices/${id}`),
-  
+
   // Admissions
   getAdmissions: (params) => api.get('/admin/admissions', { params }),
   approveAdmission: (id) => api.post(`/admin/admissions/${id}/approve`),
@@ -169,18 +173,18 @@ export const adminAPI = {
 export const teacherAPI = {
   // Dashboard
   getDashboard: () => api.get('/teacher/dashboard'),
-  
+
   // Students
   getStudents: (params) => api.get('/teacher/students', { params }),
-  
+
   // Attendance
   markAttendance: (data) => api.post('/teacher/attendance', data),
   getAttendance: (params) => api.get('/teacher/attendance', { params }),
-  
+
   // Marks
   uploadMarks: (data) => api.post('/teacher/marks', data),
   getMarks: (params) => api.get('/teacher/marks', { params }),
-  
+
   // Homework
   createHomework: (data) => api.post('/teacher/homework', data),
   getHomework: (params) => api.get('/teacher/homework', { params }),
@@ -194,19 +198,19 @@ export const studentAPI = {
   // Profile
   getProfile: () => api.get('/student/profile'),
   updateProfile: (data) => api.put('/student/profile', data),
-  
+
   // Attendance
   getAttendance: (params) => api.get('/student/attendance', { params }),
-  
+
   // Marks
   getMarks: (params) => api.get('/student/marks', { params }),
-  
+
   // Homework
   getHomework: (params) => api.get('/student/homework', { params }),
-  
+
   // Fees
   getFees: () => api.get('/student/fees'),
-  
+
   // Notices
   getNotices: () => api.get('/student/notices'),
 };
@@ -216,12 +220,12 @@ export const studentAPI = {
 export const parentAPI = {
   // Children
   getChildren: () => api.get('/parent/children'),
-  
+
   // Child details
   getChildAttendance: (studentId) => api.get(`/parent/children/${studentId}/attendance`),
   getChildMarks: (studentId) => api.get(`/parent/children/${studentId}/marks`),
   getChildFees: (studentId) => api.get(`/parent/children/${studentId}/fees`),
-  
+
   // Payments
   createPayment: (data) => api.post('/parent/payments', data),
   getPayments: (params) => api.get('/parent/payments', { params }),
@@ -232,7 +236,7 @@ export const parentAPI = {
 export const admissionAPI = {
   // Submit admission
   submitAdmission: (data) => api.post('/admission/apply', data),
-  
+
   // Get admission status
   getAdmissionStatus: (admissionNumber) => api.get(`/admission/${admissionNumber}`),
 };
@@ -255,7 +259,7 @@ export const transportAPI = {
   getRoutes: () => api.get('/transport/routes'),
   updateRoute: (id, data) => api.put(`/transport/routes/${id}`, data),
   deleteRoute: (id) => api.delete(`/transport/routes/${id}`),
-  
+
   // Buses
   createBus: (data) => api.post('/transport/buses', data),
   getBuses: () => api.get('/transport/buses'),
@@ -274,7 +278,7 @@ export const uploadAPI = {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
-  
+
   // Upload documents
   uploadDocuments: (files, folder) => {
     const formData = new FormData();
@@ -284,7 +288,7 @@ export const uploadAPI = {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
-  
+
   // Delete file
   deleteFile: (fileKey) => api.delete(`/upload/${fileKey}`),
 };

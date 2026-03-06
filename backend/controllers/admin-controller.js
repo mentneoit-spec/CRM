@@ -12,9 +12,9 @@ const createTeacher = async (req, res) => {
 
         // Validate input
         if (!name || !email || !password || !collegeId) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Required fields missing' 
+            return res.status(400).json({
+                success: false,
+                message: 'Required fields missing'
             });
         }
 
@@ -232,8 +232,8 @@ const getAllTeachers = async (req, res) => {
             orderBy: { createdAt: 'desc' },
         });
 
-        const total = await prisma.teacher.count({ 
-            where: { collegeId, isActive: true } 
+        const total = await prisma.teacher.count({
+            where: { collegeId, isActive: true }
         });
 
         res.status(200).json({
@@ -248,6 +248,72 @@ const getAllTeachers = async (req, res) => {
     } catch (error) {
         console.error('Get teachers error:', error);
         res.status(500).json({ success: false, message: 'Error fetching teachers' });
+    }
+};
+
+// ==================== TEAM MANAGEMENT ====================
+
+// Create Team Member
+const createTeamMember = async (req, res) => {
+    try {
+        const { collegeId } = req.query;
+        const { name, email, phone, password, role } = req.body;
+
+        if (!name || !email || !password || !collegeId || !role) {
+            return res.status(400).json({ success: false, message: 'Required fields missing' });
+        }
+
+        const validRoles = ['AdmissionTeam', 'AccountsTeam', 'TransportTeam'];
+        if (!validRoles.includes(role)) {
+            return res.status(400).json({ success: false, message: 'Invalid team role' });
+        }
+
+        const existingUser = await prisma.user.findFirst({
+            where: { email, collegeId },
+        });
+
+        if (existingUser) {
+            return res.status(400).json({ success: false, message: 'Email already registered' });
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        const user = await prisma.user.create({
+            data: { name, email, password: hashedPassword, phone, role, collegeId, isEmailVerified: true, isActive: true },
+        });
+
+        let teamProfile;
+        if (role === 'AdmissionTeam') {
+            teamProfile = await prisma.admissionTeam.create({ data: { name, email, phone, password: hashedPassword, collegeId, userId: user.id } });
+        } else if (role === 'AccountsTeam') {
+            teamProfile = await prisma.accountsTeam.create({ data: { name, email, phone, password: hashedPassword, collegeId, userId: user.id } });
+        } else if (role === 'TransportTeam') {
+            teamProfile = await prisma.transportTeam.create({ data: { name, email, phone, password: hashedPassword, collegeId, userId: user.id } });
+        }
+
+        res.status(201).json({ success: true, message: `${role} member created`, data: { user, teamProfile } });
+    } catch (error) {
+        console.error('Create team member error:', error);
+        res.status(500).json({ success: false, message: 'Error creating team member' });
+    }
+};
+
+// Get Team Members
+const getTeamMembers = async (req, res) => {
+    try {
+        const { collegeId } = req.query;
+        if (!collegeId) {
+            return res.status(400).json({ success: false, message: 'College ID required' });
+        }
+
+        const admissions = await prisma.admissionTeam.findMany({ where: { collegeId }, orderBy: { createdAt: 'desc' }, include: { user: true } });
+        const accounts = await prisma.accountsTeam.findMany({ where: { collegeId }, orderBy: { createdAt: 'desc' }, include: { user: true } });
+        const transport = await prisma.transportTeam.findMany({ where: { collegeId }, orderBy: { createdAt: 'desc' }, include: { user: true } });
+
+        res.status(200).json({ success: true, data: [...admissions.map(a => ({ ...a, role: 'AdmissionTeam' })), ...accounts.map(a => ({ ...a, role: 'AccountsTeam' })), ...transport.map(a => ({ ...a, role: 'TransportTeam' }))] });
+    } catch (error) {
+        console.error('Get team members error:', error);
+        res.status(500).json({ success: false, message: 'Error fetching team members' });
     }
 };
 
@@ -366,6 +432,31 @@ const createSubject = async (req, res) => {
     }
 };
 
+// Get all subjects
+const getSubjects = async (req, res) => {
+    try {
+        const { collegeId } = req.query;
+
+        if (!collegeId) {
+            return res.status(400).json({ success: false, message: 'College ID required' });
+        }
+
+        const subjects = await prisma.subject.findMany({
+            where: { collegeId },
+            include: { sclass: true },
+            orderBy: { createdAt: 'desc' },
+        });
+
+        res.status(200).json({
+            success: true,
+            data: subjects,
+        });
+    } catch (error) {
+        console.error('Get subjects error:', error);
+        res.status(500).json({ success: false, message: 'Error fetching subjects' });
+    }
+};
+
 // ==================== FEE MANAGEMENT ====================
 
 // Define fee structure
@@ -455,14 +546,35 @@ const getDashboard = async (req, res) => {
     }
 };
 
+// ==================== FEES ====================
+
+const getFees = async (req, res) => {
+    try {
+        const collegeId = req.collegeId;
+        const fees = await prisma.fee.findMany({
+            where: { collegeId },
+            include: { student: { select: { name: true, sclass: { select: { sclassName: true } } } } },
+            orderBy: { createdAt: 'desc' }
+        });
+        res.status(200).json({ success: true, data: fees });
+    } catch (error) {
+        console.error('Get fees error:', error);
+        res.status(500).json({ success: false, message: 'Error fetching fees' });
+    }
+};
+
 module.exports = {
     createTeacher,
     createStudent,
     getAllStudents,
     getAllTeachers,
+    createTeamMember,
+    getTeamMembers,
     createClass,
     getAllClasses,
     createSubject,
+    getSubjects,
     defineFeeStructure,
     getDashboard,
+    getFees,
 };

@@ -58,13 +58,23 @@ connectDB();
 const { initRedis, closeRedis } = require("./utils/redis-service");
 
 async function connectRedis() {
+  // Skip Redis connection in test environment
+  if (process.env.NODE_ENV === 'test') {
+    console.log('⏭ Skipping Redis connection in test mode');
+    return;
+  }
+  
   try {
     await initRedis();
   } catch (error) {
     console.warn("⚠ Redis connection failed. Continuing without cache:", error.message);
   }
 }
-connectRedis();
+
+// Only connect to Redis if not in test mode
+if (process.env.NODE_ENV !== 'test') {
+  connectRedis();
+}
 
 // ==================== CUSTOM MIDDLEWARE ====================
 
@@ -149,8 +159,10 @@ app.use((err, req, res, next) => {
 
 // ==================== SERVER STARTUP ====================
 
+let server; // Declare server variable
+
 function startServer(port) {
-  const server = app.listen(port, () => {
+  server = app.listen(port, () => {
     console.log(`
 ╔══════════════════════════════════════════════════════════╗
 ║  Multi-Tenant College ERP & CRM SaaS Platform            ║
@@ -181,8 +193,17 @@ function startServer(port) {
       process.exit(0);
     });
   });
+
+  return server; // Return the server
 }
 
-startServer(PORT);
+// Only start server if not in test mode
+let startedServer;
+if (process.env.NODE_ENV !== 'test') {
+  startedServer = startServer(PORT);
+} else {
+  // In test mode, create a mock server or just export app
+  startedServer = null;
+}
 
-module.exports = app;
+module.exports = { app, server: startedServer };

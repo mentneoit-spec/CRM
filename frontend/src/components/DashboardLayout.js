@@ -45,7 +45,7 @@ const DashboardLayout = ({ children, role = 'student' }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  
+
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
 
@@ -108,9 +108,12 @@ const DashboardLayout = ({ children, role = 'student' }) => {
       { text: 'Dashboard', icon: <Dashboard />, path: '/admin/dashboard' },
       { text: 'Students', icon: <People />, path: '/admin/students' },
       { text: 'Teachers', icon: <People />, path: '/admin/teachers' },
+      { text: 'Teams', icon: <People />, path: '/admin/teams' },
       { text: 'Classes', icon: <School />, path: '/admin/classes' },
-      { text: 'Admissions', icon: <Assignment />, path: '/admin/admissions' },
+      { text: 'Subjects', icon: <Assignment />, path: '/admin/subjects' },
+      { text: 'Admissions', icon: <Person />, path: '/admin/admissions' },
       { text: 'Fees', icon: <Payment />, path: '/admin/fees' },
+      { text: 'Transport', icon: <DirectionsBus />, path: '/admin/transport' },
       { text: 'Reports', icon: <Assessment />, path: '/admin/reports' },
       { text: 'Settings', icon: <Settings />, path: '/admin/settings' },
     ],
@@ -234,7 +237,7 @@ const DashboardLayout = ({ children, role = 'student' }) => {
           >
             <MenuIcon />
           </IconButton>
-          
+
           <Typography variant="h6" sx={{ flexGrow: 1, color: 'text.primary', fontWeight: 600 }}>
             {currentMenuItems.find(item => item.path === location.pathname)?.text || 'Dashboard'}
           </Typography>

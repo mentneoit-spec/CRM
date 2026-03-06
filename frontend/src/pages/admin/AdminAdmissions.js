@@ -1,0 +1,190 @@
+import React, { useEffect, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import {
+    Box, Paper, Typography, Button, Table, TableBody, TableCell,
+    TableContainer, TableHead, TableRow, TablePagination, TextField,
+    InputAdornment, Chip, IconButton, Dialog, DialogTitle,
+    DialogContent, DialogActions, Grid, CircularProgress, Tooltip
+} from '@mui/material';
+import {
+    Search as SearchIcon, CheckCircle as CheckCircleIcon, Cancel as CancelIcon,
+    Refresh as RefreshIcon, Visibility as VisibilityIcon
+} from '@mui/icons-material';
+import DashboardLayout from '../../components/DashboardLayout';
+import { fetchAdmissions, approveAdmission, rejectAdmission } from '../../redux/slices/adminSlice';
+
+const AdminAdmissions = () => {
+    const dispatch = useDispatch();
+    const { admissions, loading } = useSelector((state) => state.admin);
+
+    // Table State
+    const [page, setPage] = useState(0);
+    const [rowsPerPage, setRowsPerPage] = useState(10);
+    const [searchTerm, setSearchTerm] = useState('');
+
+    // Reject Dialog
+    const [openReject, setOpenReject] = useState(false);
+    const [rejectId, setRejectId] = useState(null);
+    const [rejectReason, setRejectReason] = useState('');
+
+    useEffect(() => {
+        dispatch(fetchAdmissions());
+    }, [dispatch]);
+
+    const handleChangePage = (event, newPage) => setPage(newPage);
+    const handleChangeRowsPerPage = (event) => { setRowsPerPage(parseInt(event.target.value, 10)); setPage(0); };
+    const handleSearch = (event) => { setSearchTerm(event.target.value); setPage(0); };
+
+    const handleApprove = (id) => {
+        if (window.confirm("Approve this admission application and create a student profile?")) {
+            dispatch(approveAdmission(id));
+        }
+    };
+
+    const handleOpenReject = (id) => {
+        setRejectId(id);
+        setOpenReject(true);
+    };
+
+    const submitReject = () => {
+        dispatch(rejectAdmission({ id: rejectId, reason: rejectReason })).then((res) => {
+            if (!res.error) {
+                setOpenReject(false);
+                setRejectId(null);
+                setRejectReason('');
+            }
+        });
+    };
+
+    const filteredAdmissions = admissions?.filter((app) =>
+        app.studentName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        app.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        app.phone?.toLowerCase().includes(searchTerm.toLowerCase())
+    ) || [];
+
+    const paginatedAdmissions = filteredAdmissions.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+
+    const getStatusColor = (status) => {
+        if (status === 'approved') return 'success';
+        if (status === 'rejected') return 'error';
+        return 'warning';
+    };
+
+    return (
+        <DashboardLayout role="admin">
+            <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="h4" sx={{ fontWeight: 700, color: 'text.primary' }}>
+                    Admissions Management
+                </Typography>
+                <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => dispatch(fetchAdmissions())}>
+                    Refresh List
+                </Button>
+            </Box>
+
+            <Paper sx={{ width: '100%', overflow: 'hidden', boxShadow: 3, borderRadius: 2 }}>
+                <Box sx={{ p: 2, display: 'flex', gap: 2, alignItems: 'center', borderBottom: '1px solid #eee' }}>
+                    <TextField
+                        variant="outlined"
+                        placeholder="Search by student name, email, or phone..."
+                        value={searchTerm}
+                        onChange={handleSearch}
+                        size="small"
+                        sx={{ width: 400 }}
+                        InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon color="action" /></InputAdornment> }}
+                    />
+                    {loading && <CircularProgress size={24} sx={{ ml: 2 }} />}
+                </Box>
+
+                <TableContainer sx={{ maxHeight: 600 }}>
+                    <Table stickyHeader>
+                        <TableHead>
+                            <TableRow>
+                                <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f8f9fa' }}>Student Name</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f8f9fa' }}>Contact Info</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f8f9fa' }}>Class Applied</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f8f9fa' }}>Date</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f8f9fa' }}>Status</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f8f9fa', textAlign: 'center' }}>Actions</TableCell>
+                            </TableRow>
+                        </TableHead>
+                        <TableBody>
+                            {paginatedAdmissions.length === 0 && !loading ? (
+                                <TableRow>
+                                    <TableCell colSpan={6} align="center" sx={{ py: 3 }}>No admissions found.</TableCell>
+                                </TableRow>
+                            ) : (
+                                paginatedAdmissions.map((app) => (
+                                    <TableRow hover key={app.id}>
+                                        <TableCell sx={{ fontWeight: 500 }}>{app.studentName}</TableCell>
+                                        <TableCell>
+                                            <Typography variant="body2">{app.email}</Typography>
+                                            <Typography variant="caption" color="text.secondary">{app.phone}</Typography>
+                                        </TableCell>
+                                        <TableCell>{app.sclass?.sclassName || 'N/A'}</TableCell>
+                                        <TableCell>{new Date(app.createdAt).toLocaleDateString()}</TableCell>
+                                        <TableCell>
+                                            <Chip label={app.status.toUpperCase()} size="small" color={getStatusColor(app.status)} />
+                                        </TableCell>
+                                        <TableCell align="center">
+                                            <Tooltip title="View Details">
+                                                <IconButton color="info" size="small"><VisibilityIcon fontSize="small" /></IconButton>
+                                            </Tooltip>
+                                            {app.status === 'pending' && (
+                                                <>
+                                                    <Tooltip title="Approve & Admit">
+                                                        <IconButton color="success" size="small" onClick={() => handleApprove(app.id)}>
+                                                            <CheckCircleIcon fontSize="small" />
+                                                        </IconButton>
+                                                    </Tooltip>
+                                                    <Tooltip title="Reject Application">
+                                                        <IconButton color="error" size="small" onClick={() => handleOpenReject(app.id)}>
+                                                            <CancelIcon fontSize="small" />
+                                                        </IconButton>
+                                                    </Tooltip>
+                                                </>
+                                            )}
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            )}
+                        </TableBody>
+                    </Table>
+                </TableContainer>
+                <TablePagination
+                    rowsPerPageOptions={[5, 10, 25]}
+                    component="div"
+                    count={filteredAdmissions.length}
+                    rowsPerPage={rowsPerPage}
+                    page={page}
+                    onPageChange={handleChangePage}
+                    onRowsPerPageChange={handleChangeRowsPerPage}
+                />
+            </Paper>
+
+            {/* Reject Dialog */}
+            <Dialog open={openReject} onClose={() => setOpenReject(false)} maxWidth="sm" fullWidth>
+                <DialogTitle sx={{ fontWeight: 'bold', color: 'error.main' }}>Reject Admission Application</DialogTitle>
+                <DialogContent dividers>
+                    <Typography variant="body2" sx={{ mb: 2 }}>Please provide a reason for rejecting this admission application. This reason may be shared with the applicant.</Typography>
+                    <TextField
+                        label="Rejection Reason"
+                        multiline
+                        rows={4}
+                        fullWidth
+                        required
+                        value={rejectReason}
+                        onChange={(e) => setRejectReason(e.target.value)}
+                    />
+                </DialogContent>
+                <DialogActions sx={{ p: 2 }}>
+                    <Button onClick={() => setOpenReject(false)} color="inherit">Cancel</Button>
+                    <Button onClick={submitReject} variant="contained" color="error" disabled={!rejectReason || loading}>
+                        {loading ? 'Rejecting...' : 'Confirm Rejection'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+        </DashboardLayout>
+    );
+};
+
+export default AdminAdmissions;

@@ -71,7 +71,8 @@ const ModernSignupEnhanced = () => {
       setError('Please enter your full name');
       return false;
     }
-    if (!formData.email.includes('@')) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
       setError('Please enter a valid email address');
       return false;
     }
@@ -96,7 +97,7 @@ const ModernSignupEnhanced = () => {
 
   const handleSignup = async (e) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
@@ -174,7 +175,7 @@ const ModernSignupEnhanced = () => {
         setSuccess('Phone verified successfully!');
         setOtpTab(false);
         // Continue with registration
-        handleSignup({ preventDefault: () => {} });
+        handleSignup({ preventDefault: () => { } });
       } else {
         setError(response.message || 'Invalid OTP');
       }
@@ -251,7 +252,7 @@ const ModernSignupEnhanced = () => {
           )}
 
           {/* Info Alert */}
-          <Alert 
+          <Alert
             icon={<Info sx={{ fontSize: 20 }} />}
             severity="info"
             sx={{ mb: 3 }}

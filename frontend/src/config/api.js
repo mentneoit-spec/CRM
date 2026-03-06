@@ -70,11 +70,17 @@ export const authAPI = {
   // Super admin login
   superAdminLogin: (credentials) => api.post('/auth/superadmin/login', credentials),
 
-  // Request OTP
-  requestOTP: (data) => api.post('/auth/otp/request', data),
+  // Request Login OTP
+  requestOTP: (data) => api.post('/auth/otp/request-login', data),
 
-  // Verify OTP
-  verifyOTP: (data) => api.post('/auth/otp/verify', data),
+  // Verify Login OTP
+  verifyOTP: (data) => api.post('/auth/otp/verify-login', data),
+
+  // Request Registration OTP
+  requestRegistrationOTP: (data) => api.post('/auth/otp/request-register', data),
+
+  // Verify Registration OTP
+  verifyRegistrationOTP: (data) => api.post('/auth/otp/verify-register', data),
 
   // Google OAuth URL
   getGoogleAuthURL: (collegeId) => api.get(`/auth/google/url?collegeId=${collegeId}`),

@@ -23,6 +23,16 @@ const emailTemplates = {
         `,
     }),
 
+    otpLogin: (name, otp) => ({
+        subject: 'Your Login OTP',
+        html: `
+            <h2>OTP Verification</h2>
+            <p>Dear ${name},</p>
+            <p>Your One-Time Password (OTP) for login/registration is: <strong>${otp}</strong></p>
+            <p>This OTP is valid for 10 minutes. Please do not share it with anyone.</p>
+        `,
+    }),
+
     feeReminder: (studentName, parentName, totalDue, dueDate) => ({
         subject: `Reminder: School Fee Payment Due - ${studentName}`,
         html: `

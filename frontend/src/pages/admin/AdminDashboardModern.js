@@ -29,7 +29,7 @@ const AdminDashboardModern = () => {
     { month: 'Feb', revenue: 520000 },
     { month: 'Mar', revenue: 480000 },
     { month: 'Apr', revenue: 550000 },
-    { month: 'May', revenue: stats?.revenue ?? 600000 },
+    { month: 'May', revenue: stats?.revenue || 600000 },
   ];
 
   const admissionData = [

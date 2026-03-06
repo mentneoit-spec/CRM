@@ -89,11 +89,18 @@ const ModernLoginEnhanced = () => {
           setLoading(false);
           return;
         }
-        response = await authAPI.login({
+        
+        const loginData = {
           email: formData.email,
           password: formData.password,
-          role: formData.role,
-        });
+        };
+        
+        // Add collegeId for non-superadmin users
+        if (formData.role !== 'SuperAdmin') {
+          loginData.collegeId = '2aad2902-caee-4a50-bcb9-0b75e0c75262';
+        }
+        
+        response = await authAPI.login(loginData);
       } else {
         // OTP login
         if (!otpSent) {
@@ -106,11 +113,18 @@ const ModernLoginEnhanced = () => {
           setLoading(false);
           return;
         }
-        response = await authAPI.verifyOTP({
+        
+        const otpData = {
           phone: formData.phone,
           otp: formData.otp,
-          role: formData.role,
-        });
+        };
+        
+        // Add collegeId for non-superadmin users
+        if (formData.role !== 'SuperAdmin') {
+          otpData.collegeId = '2aad2902-caee-4a50-bcb9-0b75e0c75262';
+        }
+        
+        response = await authAPI.verifyOTP(otpData);
       }
       
       if (response.success && response.data) {
@@ -156,10 +170,16 @@ const ModernLoginEnhanced = () => {
     }
     setLoading(true);
     try {
-      const response = await authAPI.requestOTP({
+      const otpData = {
         phone: formData.phone,
-        role: formData.role,
-      });
+      };
+      
+      // Add collegeId for non-superadmin users
+      if (formData.role !== 'SuperAdmin') {
+        otpData.collegeId = '2aad2902-caee-4a50-bcb9-0b75e0c75262';
+      }
+      
+      const response = await authAPI.requestOTP(otpData);
       
       if (response.success) {
         setOtpSent(true);
@@ -176,7 +196,7 @@ const ModernLoginEnhanced = () => {
     }
   };
 
-  const useTestCredentials = (role) => {
+  const fillTestCredentials = (role) => {
     const creds = testCredentials[role];
     setFormData({ ...formData, ...creds, role });
     setOpenTests(false);
@@ -572,7 +592,7 @@ const ModernLoginEnhanced = () => {
                       variant="contained"
                       fullWidth
                       sx={{ mt: 1 }}
-                      onClick={() => useTestCredentials(role)}
+                      onClick={() => fillTestCredentials(role)}
                     >
                       Use These Credentials
                     </Button>

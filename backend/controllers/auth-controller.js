@@ -326,9 +326,9 @@ const register = async (req, res) => {
                                 phone,
                                 password: hashedPassword,
                                 studentId: `STU${Date.now()}`, // Generate unique student ID
-                                userId: user.id,
-                                collegeId,
-                                sclassId: null, // Will be assigned by admin
+                                user: { connect: { id: user.id } },
+                                college: { connect: { id: collegeId } },
+                                // sclass will be assigned by admin later (optional field)
                             },
                         });
                     }
@@ -342,8 +342,8 @@ const register = async (req, res) => {
                                 email,
                                 phone,
                                 password: hashedPassword,
-                                userId: user.id,
-                                collegeId,
+                                user: { connect: { id: user.id } },
+                                college: { connect: { id: collegeId } },
                             },
                         });
                     }
@@ -357,8 +357,8 @@ const register = async (req, res) => {
                                 email,
                                 phone,
                                 password: hashedPassword,
-                                userId: user.id,
-                                collegeId,
+                                user: { connect: { id: user.id } },
+                                college: { connect: { id: collegeId } },
                             },
                         });
                     }
@@ -372,8 +372,8 @@ const register = async (req, res) => {
                                 email,
                                 phone,
                                 password: hashedPassword,
-                                userId: user.id,
-                                collegeId,
+                                user: { connect: { id: user.id } },
+                                college: { connect: { id: collegeId } },
                             },
                         });
                     }
@@ -453,7 +453,12 @@ const register = async (req, res) => {
         });
     } catch (error) {
         console.error('Register error:', error);
-        res.status(500).json({ success: false, message: 'Error during registration' });
+        res.status(500).json({ 
+            success: false, 
+            message: 'Error during registration',
+            error: error.message,
+            details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
     }
 };
 

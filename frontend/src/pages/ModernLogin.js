@@ -60,18 +60,30 @@ const ModernLogin = () => {
       // Call appropriate API based on tab
       if (tabValue === 0) {
         // Email/Password login
-        response = await authAPI.login({
+        const loginData = {
           email: formData.email,
           password: formData.password,
-          role: formData.role,
-        });
+        };
+        
+        // Add collegeId for non-superadmin users
+        if (formData.role !== 'superadmin') {
+          loginData.collegeId = '2aad2902-caee-4a50-bcb9-0b75e0c75262';
+        }
+        
+        response = await authAPI.login(loginData);
       } else {
         // OTP login
-        response = await authAPI.verifyOTP({
+        const otpData = {
           phone: formData.phone,
           otp: formData.otp,
-          role: formData.role,
-        });
+        };
+        
+        // Add collegeId for non-superadmin users
+        if (formData.role !== 'superadmin') {
+          otpData.collegeId = '2aad2902-caee-4a50-bcb9-0b75e0c75262';
+        }
+        
+        response = await authAPI.verifyOTP(otpData);
       }
       
       // Store token and user data
@@ -112,10 +124,16 @@ const ModernLogin = () => {
     }
     setLoading(true);
     try {
-      const response = await authAPI.requestOTP({
+      const otpData = {
         phone: formData.phone,
-        role: formData.role,
-      });
+      };
+      
+      // Add collegeId for non-superadmin users
+      if (formData.role !== 'superadmin') {
+        otpData.collegeId = '2aad2902-caee-4a50-bcb9-0b75e0c75262';
+      }
+      
+      const response = await authAPI.requestOTP(otpData);
       
       if (response.success) {
         setOtpSent(true);

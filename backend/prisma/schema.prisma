@@ -406,8 +406,8 @@ model Student {
   collegeId       String
   college         College  @relation(fields: [collegeId], references: [id], onDelete: Cascade)
 
-  sclassId        String
-  sclass          Sclass   @relation(fields: [sclassId], references: [id], onDelete: Cascade)
+  sclassId        String?
+  sclass          Sclass?   @relation(fields: [sclassId], references: [id], onDelete: Cascade)
 
   sectionId       String?
   section         Section? @relation(fields: [sectionId], references: [id], onDelete: SetNull)

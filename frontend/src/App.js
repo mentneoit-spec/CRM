@@ -6,6 +6,7 @@ import theme from './theme/theme';
 // Modern Pages
 import LandingPage from './pages/LandingPage';
 import ModernLogin from './pages/ModernLogin_Enhanced'; // Enhanced version
+import SimpleLogin from './pages/SimpleLogin'; // Debug version
 import ModernSignup from './pages/ModernSignup_Enhanced'; // Enhanced version
 import ModernAdmissionPortal from './pages/ModernAdmissionPortal';
 import ConnectionTest from './pages/ConnectionTest';
@@ -55,6 +56,7 @@ function App() {
           {/* Modern Routes */}
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<ModernLogin />} />
+          <Route path="/simple-login" element={<SimpleLogin />} />
           <Route path="/signup" element={<ModernSignup />} />
           <Route path="/admission" element={<ModernAdmissionPortal />} />
           <Route path="/connection-test" element={<ConnectionTest />} />

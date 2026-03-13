@@ -1,0 +1,26 @@
+import { CalendarCheck } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/card";
+import { motion } from "framer-motion";
+
+function AttendanceCard({ summary }) {
+  const status = summary?.attendanceStatus ?? "--";
+
+  return (
+    <motion.div whileHover={{ y: -3 }}>
+      <Card className="rounded-2xl">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Today's Attendance</CardTitle>
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-300">
+            <CalendarCheck className="h-4 w-4" />
+          </div>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Marked at --:--</p>
+          <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">{status}</p>
+        </CardContent>
+      </Card>
+    </motion.div>
+  );
+}
+
+export default AttendanceCard;

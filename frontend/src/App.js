@@ -14,6 +14,17 @@ import ConnectionTest from './pages/ConnectionTest';
 // Modern Dashboards
 import SuperAdminDashboard from './pages/superadmin/SuperAdminDashboard';
 import CollegesList from './pages/superadmin/CollegesList';
+import CreateSchoolPage from './pages/superadmin/pages/CreateSchoolPage';
+import EditSchoolPage from './pages/superadmin/pages/EditSchoolPage';
+import AssignPlanPage from './pages/superadmin/pages/AssignPlanPage';
+import StorageLimitPage from './pages/superadmin/pages/StorageLimitPage';
+import AdminManagementPage from './pages/superadmin/pages/AdminManagementPage';
+import MonitoringPage from './pages/superadmin/pages/MonitoringPage';
+import SecurityPage from './pages/superadmin/pages/SecurityPage';
+import CollegeStatusPage from './pages/superadmin/pages/CollegeStatusPage';
+import CollegeDeletePage from './pages/superadmin/pages/CollegeDeletePage';
+import CustomDomainPage from './pages/superadmin/pages/CustomDomainPage';
+import WhiteLabelPage from './pages/superadmin/pages/WhiteLabelPage';
 import AdminDashboardModern from './pages/admin/AdminDashboardModern';
 import AdminTeachers from './pages/admin/AdminTeachers';
 import AdminStudents from './pages/admin/AdminStudents';
@@ -24,8 +35,35 @@ import AdminSubjects from './pages/admin/AdminSubjects';
 import TeamManagement from './pages/admin/TeamManagement';
 import AdminTransport from './pages/admin/AdminTransport';
 import StudentDashboardModern from './pages/student/StudentDashboardModern';
+import StudentHomework from './pages/student/pages/HomeworkPage';
+import StudentAttendance from './pages/student/pages/AttendancePage';
+import StudentMarks from './pages/student/pages/MarksPage';
+import StudentFees from './pages/student/pages/FeesPage';
+import StudentProfilePage from './pages/student/pages/StudentProfile';
+import StudentComplaint from './pages/student/pages/ComplaintPage';
+import StudentTests from './pages/student/pages/TestPage';
 import TeacherDashboardModern from './pages/teacher/TeacherDashboardModern';
 import ParentDashboardModern from './pages/parent/ParentDashboardModern';
+import ParentAttendance from './pages/parent/pages/AttendancePage';
+import ParentHomework from './pages/parent/pages/HomeworkPage';
+import ParentExamResults from './pages/parent/pages/ExamResultsPage';
+import ParentFees from './pages/parent/pages/FeesPage';
+import ParentPaymentHistory from './pages/parent/pages/PaymentHistory';
+import ParentProfile from './pages/parent/pages/StudentProfile';
+import ParentFeedback from './pages/parent/pages/FeedbackPage';
+import TransportDashboard from './pages/transport/pages/TransportDashboard';
+import RoutesPage from './pages/transport/pages/RoutesPage';
+import AssignBusPage from './pages/transport/pages/AssignBusPage';
+import BusAttendancePage from './pages/transport/pages/BusAttendancePage';
+import BusFeesPage from './pages/transport/pages/BusFeesPage';
+import TransportReports from './pages/transport/pages/TransportReports';
+import AccountsDashboard from './pages/accounts/pages/AccountsDashboard';
+import AllPaymentsPage from './pages/accounts/pages/AllPaymentsPage';
+import RazorpayTransactions from './pages/accounts/pages/RazorpayTransactions';
+import ManualPaymentEntry from './pages/accounts/pages/ManualPaymentEntry';
+import RefundsPage from './pages/accounts/pages/RefundsPage';
+import PaymentReports from './pages/accounts/pages/PaymentReports';
+import ExportCSVPage from './pages/accounts/pages/ExportCSVPage';
 
 // New Comprehensive Admin Pages
 import AdminLayout from './layouts/AdminLayout';
@@ -41,7 +79,6 @@ import AttendanceManagement from './pages/admin/AttendanceManagement';
 // Old pages (keeping for backward compatibility)
 import Homepage from './pages/Homepage';
 import AdminDashboard from './pages/admin/AdminDashboard';
-import StudentDashboard from './pages/student/StudentDashboard';
 import TeacherDashboard from './pages/teacher/TeacherDashboard';
 import LoginPage from './pages/LoginPage';
 import AdminRegisterPage from './pages/admin/AdminRegisterPage';
@@ -64,6 +101,17 @@ function App() {
           {/* Modern Dashboards */}
           <Route path="/superadmin/dashboard" element={<SuperAdminDashboard />} />
           <Route path="/superadmin/colleges" element={<CollegesList />} />
+          <Route path="/superadmin/colleges/create" element={<CreateSchoolPage />} />
+          <Route path="/superadmin/colleges/edit" element={<EditSchoolPage />} />
+          <Route path="/superadmin/colleges/plan" element={<AssignPlanPage />} />
+          <Route path="/superadmin/colleges/storage" element={<StorageLimitPage />} />
+          <Route path="/superadmin/colleges/status" element={<CollegeStatusPage />} />
+          <Route path="/superadmin/colleges/delete" element={<CollegeDeletePage />} />
+          <Route path="/superadmin/colleges/domain" element={<CustomDomainPage />} />
+          <Route path="/superadmin/colleges/white-label" element={<WhiteLabelPage />} />
+          <Route path="/superadmin/admins" element={<AdminManagementPage />} />
+          <Route path="/superadmin/monitoring" element={<MonitoringPage />} />
+          <Route path="/superadmin/security" element={<SecurityPage />} />
           <Route path="/admin/dashboard" element={<AdminDashboardModern />} />
           <Route path="/admin/teachers" element={<AdminTeachers />} />
           <Route path="/admin/students" element={<AdminStudents />} />
@@ -75,6 +123,28 @@ function App() {
           <Route path="/admin/transport" element={<AdminTransport />} />
           <Route path="/teacher/dashboard" element={<TeacherDashboardModern />} />
           <Route path="/parent/dashboard" element={<ParentDashboardModern />} />
+          <Route path="/parent/attendance" element={<ParentAttendance />} />
+          <Route path="/parent/homework" element={<ParentHomework />} />
+          <Route path="/parent/exams" element={<ParentExamResults />} />
+          <Route path="/parent/fees" element={<ParentFees />} />
+          <Route path="/parent/payment-history" element={<ParentPaymentHistory />} />
+          <Route path="/parent/profile" element={<ParentProfile />} />
+          <Route path="/parent/feedback" element={<ParentFeedback />} />
+
+          <Route path="/transport/dashboard" element={<TransportDashboard />} />
+          <Route path="/transport/routes" element={<RoutesPage />} />
+          <Route path="/transport/assign-bus" element={<AssignBusPage />} />
+          <Route path="/transport/attendance" element={<BusAttendancePage />} />
+          <Route path="/transport/fees" element={<BusFeesPage />} />
+          <Route path="/transport/reports" element={<TransportReports />} />
+
+          <Route path="/accounts/dashboard" element={<AccountsDashboard />} />
+          <Route path="/accounts/payments" element={<AllPaymentsPage />} />
+          <Route path="/accounts/razorpay" element={<RazorpayTransactions />} />
+          <Route path="/accounts/manual" element={<ManualPaymentEntry />} />
+          <Route path="/accounts/refunds" element={<RefundsPage />} />
+          <Route path="/accounts/reports" element={<PaymentReports />} />
+          <Route path="/accounts/export" element={<ExportCSVPage />} />
 
           {/* Comprehensive Admin Layout with New Pages */}
           <Route path="/admin" element={<AdminLayout />}>
@@ -93,11 +163,16 @@ function App() {
           </Route>
 
           <Route path="/student/dashboard" element={<StudentDashboardModern />} />
-          <Route path="/student/courses" element={<StudentDashboardModern />} />
-          <Route path="/student/attendance" element={<StudentDashboardModern />} />
-          <Route path="/student/assignments" element={<StudentDashboardModern />} />
-          <Route path="/student/results" element={<StudentDashboardModern />} />
-          <Route path="/student/fees" element={<StudentDashboardModern />} />
+          <Route path="/student/homework" element={<StudentHomework />} />
+          <Route path="/student/attendance" element={<StudentAttendance />} />
+          <Route path="/student/tests" element={<StudentTests />} />
+          <Route path="/student/marks" element={<StudentMarks />} />
+          <Route path="/student/fees" element={<StudentFees />} />
+          <Route path="/student/profile" element={<StudentProfilePage />} />
+          <Route path="/student/complaints" element={<StudentComplaint />} />
+          <Route path="/student/assignments" element={<StudentHomework />} />
+          <Route path="/student/results" element={<StudentMarks />} />
+          <Route path="/student/courses" element={<StudentTests />} />
           <Route path="/student/transport" element={<StudentDashboardModern />} />
           <Route path="/student/notices" element={<StudentDashboardModern />} />
 
@@ -111,7 +186,7 @@ function App() {
           <Route path="/Adminregister" element={<AdminRegisterPage />} />
 
           {/* Old Dashboards */}
-          <Route path="/student/old-dashboard" element={<StudentDashboard />} />
+          <Route path="/student/old-dashboard" element={<StudentDashboardModern />} />
           <Route path="/teacher/old-dashboard" element={<TeacherDashboard />} />
           <Route path="/admin/old-dashboard" element={<AdminDashboard />} />
 

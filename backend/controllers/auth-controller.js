@@ -1,7 +1,15 @@
 const prisma = require('../lib/prisma');
 const bcrypt = require('bcryptjs');
 const { generateToken } = require('../utils/jwt');
-const { setOTP, getOTP, deleteOTP, incrementOTPAttempts } = require('../utils/redis-service');
+const {
+    setOTP,
+    getOTP,
+    deleteOTP,
+    incrementOTPAttempts,
+    setVerificationFlag,
+    getVerificationFlag,
+    deleteVerificationFlag,
+} = require('../utils/redis-service');
 const { sendEmail } = require('../utils/email-service');
 const { sendSMSOTP } = require('../utils/sms');
 
@@ -436,24 +444,50 @@ const changePassword = async (req, res) => {
 
 const register = async (req, res) => {
     try {
-        const { name, email, password, phone, role = 'Student', collegeId } = req.body;
+        const { name, email, password, phone, role = 'Student', collegeId: providedCollegeId } = req.body;
 
-        if (!name || !email || !password) {
+        const normalizedEmail = String(email || '').trim().toLowerCase();
+        const resolvedCollegeId = role === 'SuperAdmin' ? null : (providedCollegeId || req.collegeId || null);
+
+        if (!name || !normalizedEmail || !password) {
             return res.status(400).json({
                 success: false,
                 message: 'Name, email, and password are required'
             });
         }
 
+        // In production, require email OTP verification before creating accounts.
+        if ((process.env.NODE_ENV || 'development') === 'production' && role !== 'SuperAdmin') {
+            if (!resolvedCollegeId) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'College not identified. Please provide collegeId or use your college domain.',
+                    requiresCollegeId: true,
+                });
+            }
+
+            const verifyKey = `register:${resolvedCollegeId}:${normalizedEmail}`;
+            const ok = await getVerificationFlag(verifyKey);
+            if (!ok) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Please verify the OTP sent to your email before registering.',
+                    requiresOTP: true,
+                });
+            }
+
+            await deleteVerificationFlag(verifyKey);
+        }
+
         let existingUser;
-        if (collegeId) {
+        if (resolvedCollegeId) {
             existingUser = await prisma.user.findUnique({
-                where: { email_collegeId: { email, collegeId } },
+                where: { email_collegeId: { email: normalizedEmail, collegeId: resolvedCollegeId } },
             });
         } else {
             existingUser = await prisma.user.findFirst({
                 where: {
-                    email,
+                    email: normalizedEmail,
                     collegeId: null
                 },
             });
@@ -472,12 +506,13 @@ const register = async (req, res) => {
             const user = await tx.user.create({
                 data: {
                     name,
-                    email,
+                    email: normalizedEmail,
                     password: hashedPassword,
                     phone,
                     role,
-                    collegeId,
+                    collegeId: resolvedCollegeId,
                     isActive: true,
+                    isEmailVerified: role === 'SuperAdmin' ? true : ((process.env.NODE_ENV || 'development') === 'production'),
                 },
             });
 
@@ -485,58 +520,58 @@ const register = async (req, res) => {
 
             switch (role) {
                 case 'Student':
-                    if (collegeId) {
+                    if (resolvedCollegeId) {
                         roleProfile = await tx.student.create({
                             data: {
                                 name,
-                                email,
+                                email: normalizedEmail,
                                 phone,
                                 password: hashedPassword,
                                 studentId: `STU${Date.now()}`,
                                 user: { connect: { id: user.id } },
-                                college: { connect: { id: collegeId } },
+                                college: { connect: { id: resolvedCollegeId } },
                             },
                         });
                     }
                     break;
                 case 'Teacher':
-                    if (collegeId) {
+                    if (resolvedCollegeId) {
                         roleProfile = await tx.teacher.create({
                             data: {
                                 name,
-                                email,
+                                email: normalizedEmail,
                                 phone,
                                 password: hashedPassword,
                                 user: { connect: { id: user.id } },
-                                college: { connect: { id: collegeId } },
+                                college: { connect: { id: resolvedCollegeId } },
                             },
                         });
                     }
                     break;
                 case 'Parent':
-                    if (collegeId) {
+                    if (resolvedCollegeId) {
                         roleProfile = await tx.parent.create({
                             data: {
                                 name,
-                                email,
+                                email: normalizedEmail,
                                 phone,
                                 password: hashedPassword,
                                 user: { connect: { id: user.id } },
-                                college: { connect: { id: collegeId } },
+                                college: { connect: { id: resolvedCollegeId } },
                             },
                         });
                     }
                     break;
                 case 'Admin':
-                    if (collegeId) {
+                    if (resolvedCollegeId) {
                         roleProfile = await tx.admin.create({
                             data: {
                                 name,
-                                email,
+                                email: normalizedEmail,
                                 phone,
                                 password: hashedPassword,
                                 user: { connect: { id: user.id } },
-                                college: { connect: { id: collegeId } },
+                                college: { connect: { id: resolvedCollegeId } },
                             },
                         });
                     }
@@ -545,47 +580,47 @@ const register = async (req, res) => {
                     roleProfile = await tx.superAdmin.create({
                         data: {
                             name,
-                            email,
+                            email: normalizedEmail,
                             phone,
                             password: hashedPassword,
                         },
                     });
                     break;
                 case 'AdmissionTeam':
-                    if (collegeId) {
+                    if (resolvedCollegeId) {
                         roleProfile = await tx.admissionTeam.create({
                             data: {
                                 name,
-                                email,
+                                email: normalizedEmail,
                                 phone,
                                 userId: user.id,
-                                collegeId,
+                                collegeId: resolvedCollegeId,
                             },
                         });
                     }
                     break;
                 case 'AccountsTeam':
-                    if (collegeId) {
+                    if (resolvedCollegeId) {
                         roleProfile = await tx.accountsTeam.create({
                             data: {
                                 name,
-                                email,
+                                email: normalizedEmail,
                                 phone,
                                 userId: user.id,
-                                collegeId,
+                                collegeId: resolvedCollegeId,
                             },
                         });
                     }
                     break;
                 case 'TransportTeam':
-                    if (collegeId) {
+                    if (resolvedCollegeId) {
                         roleProfile = await tx.transportTeam.create({
                             data: {
                                 name,
-                                email,
+                                email: normalizedEmail,
                                 phone,
                                 userId: user.id,
-                                collegeId,
+                                collegeId: resolvedCollegeId,
                             },
                         });
                     }
@@ -595,7 +630,7 @@ const register = async (req, res) => {
             return { user, roleProfile };
         });
 
-        const token = generateToken(result.user.id, role, collegeId);
+        const token = generateToken(result.user.id, role, resolvedCollegeId);
 
         const { password: _, ...userWithoutPassword } = result.user;
 
@@ -618,57 +653,206 @@ const register = async (req, res) => {
     }
 };
 
+// ==================== REGISTRATION OTP (EMAIL) ====================
+
+const requestRegistrationOTP = async (req, res) => {
+    try {
+        const { email, collegeId: providedCollegeId } = req.body || {};
+        const normalizedEmail = String(email || '').trim().toLowerCase();
+        if (!normalizedEmail) {
+            return res.status(400).json({ success: false, message: 'Email is required' });
+        }
+
+        const resolvedCollegeId = providedCollegeId || req.collegeId || null;
+        if (!resolvedCollegeId) {
+            return res.status(400).json({
+                success: false,
+                message: 'College not identified. Please provide collegeId or use your college domain.',
+                requiresCollegeId: true,
+            });
+        }
+
+        const existingUser = await prisma.user.findUnique({
+            where: { email_collegeId: { email: normalizedEmail, collegeId: resolvedCollegeId } },
+            select: { id: true },
+        });
+
+        if (existingUser) {
+            return res.status(400).json({ success: false, message: 'Email already registered' });
+        }
+
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const otpKey = `register:${resolvedCollegeId}:${normalizedEmail}`;
+
+        await setOTP(otpKey, otp, 600);
+
+        const emailResult = await sendEmail(normalizedEmail, 'otpLogin', [normalizedEmail, otp]);
+        if (!emailResult?.success) {
+            return res.status(500).json({
+                success: false,
+                message: emailResult?.message || 'Failed to send email OTP',
+            });
+        }
+
+        res.status(200).json({ success: true, message: 'OTP sent to your email', expiresIn: 600 });
+    } catch (error) {
+        console.error('Request registration OTP error:', error);
+        res.status(500).json({ success: false, message: 'Error sending OTP' });
+    }
+};
+
+const verifyRegistrationOTP = async (req, res) => {
+    try {
+        const { email, otp, collegeId: providedCollegeId } = req.body || {};
+        const normalizedEmail = String(email || '').trim().toLowerCase();
+        const providedOtp = String(otp || '').trim();
+
+        if (!normalizedEmail || !providedOtp) {
+            return res.status(400).json({ success: false, message: 'Email and OTP are required' });
+        }
+
+        const resolvedCollegeId = providedCollegeId || req.collegeId || null;
+        if (!resolvedCollegeId) {
+            return res.status(400).json({
+                success: false,
+                message: 'College not identified. Please provide collegeId or use your college domain.',
+                requiresCollegeId: true,
+            });
+        }
+
+        const otpKey = `register:${resolvedCollegeId}:${normalizedEmail}`;
+        const otpData = await getOTP(otpKey);
+
+        if (!otpData) {
+            return res.status(400).json({ success: false, message: 'OTP expired or not found' });
+        }
+
+        if (otpData.attempts >= 5) {
+            await deleteOTP(otpKey);
+            return res.status(429).json({
+                success: false,
+                message: 'Maximum OTP verification attempts exceeded',
+            });
+        }
+
+        if (String(otpData.otp) !== providedOtp) {
+            await incrementOTPAttempts(otpKey);
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid OTP',
+                attemptsRemaining: 5 - (otpData.attempts + 1),
+            });
+        }
+
+        await deleteOTP(otpKey);
+
+        const verifyKey = `register:${resolvedCollegeId}:${normalizedEmail}`;
+        await setVerificationFlag(verifyKey, 15 * 60);
+
+        res.status(200).json({ success: true, message: 'Email verified successfully' });
+    } catch (error) {
+        console.error('Verify registration OTP error:', error);
+        res.status(500).json({ success: false, message: 'Error verifying OTP' });
+    }
+};
+
 // ==================== OTP AUTHENTICATION ====================
 
 const requestOTP = async (req, res) => {
     try {
-        const { phone, collegeId } = req.body;
+        const { phone, email, collegeId } = req.body || {};
 
-        if (!phone) {
+        const normalizedEmail = String(email || '').trim().toLowerCase();
+        const normalizedPhone = String(phone || '').trim();
+
+        if (!normalizedEmail && !normalizedPhone) {
             return res.status(400).json({
                 success: false,
-                message: 'Phone number is required'
+                message: 'Email or phone is required'
             });
         }
 
-        let user;
-        if (collegeId) {
-            user = await prisma.user.findFirst({
-                where: { phone, collegeId },
-            });
+        let user = null;
+
+        if (normalizedEmail) {
+            if (collegeId) {
+                user = await prisma.user.findUnique({
+                    where: { email_collegeId: { email: normalizedEmail, collegeId } },
+                    include: { college: true },
+                });
+            } else {
+                user = await prisma.user.findFirst({
+                    where: { email: normalizedEmail, collegeId: null },
+                    include: { college: true },
+                });
+
+                if (!user) {
+                    const matches = await prisma.user.findMany({
+                        where: { email: normalizedEmail, collegeId: { not: null } },
+                        include: { college: true },
+                        take: 2,
+                    });
+
+                    if (matches.length === 1) {
+                        user = matches[0];
+                    } else if (matches.length > 1) {
+                        return res.status(400).json({
+                            success: false,
+                            message: 'Multiple accounts found for this email. Please provide collegeId.',
+                            requiresCollegeId: true,
+                        });
+                    }
+                }
+            }
+
+            if (!user) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Email not registered'
+                });
+            }
         } else {
-            user = await prisma.user.findFirst({
-                where: { phone },
-            });
-        }
+            if (collegeId) {
+                user = await prisma.user.findFirst({ where: { phone: normalizedPhone, collegeId } });
+            } else {
+                user = await prisma.user.findFirst({ where: { phone: normalizedPhone } });
+            }
 
-        if (!user) {
-            return res.status(404).json({
-                success: false,
-                message: 'Phone number not registered'
-            });
+            if (!user) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Phone number not registered'
+                });
+            }
         }
 
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-        await setOTP(phone, otp, 600);
+        const otpKey = normalizedEmail
+            ? `login:${user.collegeId || 'none'}:${normalizedEmail}`
+            : `login:${collegeId || user.collegeId || 'none'}:${normalizedPhone}`;
+
+        await setOTP(otpKey, otp, 600);
 
         // --- Trigger AWS SNS SMS ---
-        console.log(`[SNS] Attempting to send OTP to: ${phone}`);
-        try {
-            await sendSMSOTP(phone, otp);
-        } catch (snsError) {
-            console.error("AWS SNS failed:", snsError.message);
-            // Fallback: Code will still show in console logs for testing
+        if (normalizedPhone) {
+            console.log(`[SNS] Attempting to send OTP to: ${normalizedPhone}`);
+            try {
+                await sendSMSOTP(normalizedPhone, otp);
+            } catch (snsError) {
+                console.error('AWS SNS failed:', snsError.message);
+                // Fallback: Code will still show in console logs for testing
+            }
         }
 
-        if (user.email) {
-            await sendEmail(user.email, 'otpLogin', [user.name, otp]);
+        const targetEmail = normalizedEmail || user.email;
+        if (targetEmail) {
+            await sendEmail(targetEmail, 'otpLogin', [user.name || targetEmail, otp]);
         }
 
         res.status(200).json({
             success: true,
-            message: 'OTP sent successfully',
+            message: normalizedEmail ? 'OTP sent to your email' : 'OTP sent successfully',
             expiresIn: 600,
         });
     } catch (error) {
@@ -679,16 +863,76 @@ const requestOTP = async (req, res) => {
 
 const verifyOTPLogin = async (req, res) => {
     try {
-        const { phone, otp, collegeId } = req.body;
+        const { phone, email, otp, collegeId } = req.body || {};
 
-        if (!phone || !otp) {
+        const normalizedEmail = String(email || '').trim().toLowerCase();
+        const normalizedPhone = String(phone || '').trim();
+        const providedOtp = String(otp || '').trim();
+
+        if ((!normalizedEmail && !normalizedPhone) || !providedOtp) {
             return res.status(400).json({
                 success: false,
-                message: 'Phone and OTP are required'
+                message: 'Email/phone and OTP are required'
             });
         }
 
-        const otpData = await getOTP(phone);
+        let user = null;
+        if (normalizedEmail) {
+            if (collegeId) {
+                user = await prisma.user.findUnique({
+                    where: { email_collegeId: { email: normalizedEmail, collegeId } },
+                    include: { college: true },
+                });
+            } else {
+                user = await prisma.user.findFirst({
+                    where: { email: normalizedEmail, collegeId: null },
+                    include: { college: true },
+                });
+
+                if (!user) {
+                    const matches = await prisma.user.findMany({
+                        where: { email: normalizedEmail, collegeId: { not: null } },
+                        include: { college: true },
+                        take: 2,
+                    });
+
+                    if (matches.length === 1) {
+                        user = matches[0];
+                    } else if (matches.length > 1) {
+                        return res.status(400).json({
+                            success: false,
+                            message: 'Multiple accounts found for this email. Please provide collegeId.',
+                            requiresCollegeId: true,
+                        });
+                    }
+                }
+            }
+        } else {
+            if (collegeId) {
+                user = await prisma.user.findFirst({
+                    where: { phone: normalizedPhone, collegeId },
+                    include: { college: true },
+                });
+            } else {
+                user = await prisma.user.findFirst({
+                    where: { phone: normalizedPhone },
+                    include: { college: true },
+                });
+            }
+        }
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        const otpKey = normalizedEmail
+            ? `login:${user.collegeId || 'none'}:${normalizedEmail}`
+            : `login:${collegeId || user.collegeId || 'none'}:${normalizedPhone}`;
+
+        const otpData = await getOTP(otpKey);
 
         if (!otpData) {
             return res.status(400).json({
@@ -698,15 +942,15 @@ const verifyOTPLogin = async (req, res) => {
         }
 
         if (otpData.attempts >= 5) {
-            await deleteOTP(phone);
+            await deleteOTP(otpKey);
             return res.status(429).json({
                 success: false,
                 message: 'Maximum OTP verification attempts exceeded'
             });
         }
 
-        if (otpData.otp !== otp) {
-            await incrementOTPAttempts(phone);
+        if (String(otpData.otp) !== providedOtp) {
+            await incrementOTPAttempts(otpKey);
             return res.status(400).json({
                 success: false,
                 message: 'Invalid OTP',
@@ -714,27 +958,7 @@ const verifyOTPLogin = async (req, res) => {
             });
         }
 
-        await deleteOTP(phone);
-
-        let user;
-        if (collegeId) {
-            user = await prisma.user.findFirst({
-                where: { phone, collegeId },
-                include: { college: true },
-            });
-        } else {
-            user = await prisma.user.findFirst({
-                where: { phone },
-                include: { college: true },
-            });
-        }
-
-        if (!user) {
-            return res.status(404).json({
-                success: false,
-                message: 'User not found'
-            });
-        }
+        await deleteOTP(otpKey);
 
         if (!user.isActive) {
             return res.status(403).json({
@@ -756,7 +980,8 @@ const verifyOTPLogin = async (req, res) => {
             where: { id: user.id },
             data: {
                 lastLogin: new Date(),
-                isPhoneVerified: true,
+                ...(normalizedPhone ? { isPhoneVerified: true } : {}),
+                ...(normalizedEmail ? { isEmailVerified: true } : {}),
             },
         });
 
@@ -899,6 +1124,8 @@ module.exports = {
     register,
     requestOTP,
     verifyOTPLogin,
+    requestRegistrationOTP,
+    verifyRegistrationOTP,
     googleAuthUrl,
     googleCallback,
     setup2FA,

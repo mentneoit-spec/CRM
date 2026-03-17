@@ -7,6 +7,9 @@ let isRedisConnected = false;
 // In-memory fallback for OTPs (dev convenience when Redis is unavailable)
 const memoryOtpStore = new Map();
 
+// In-memory fallback for short-lived verification flags
+const memoryVerifyStore = new Map();
+
 // Initialize Redis client
 const initRedis = async () => {
     try {
@@ -225,6 +228,62 @@ const deleteOTP = async (phone) => {
     return await cacheDel(`otp:${phone}`);
 };
 
+// Verification flags (e.g., email OTP verified for registration)
+const setVerificationFlag = async (key, expiryInSeconds = 900) => {
+    try {
+        const client = getRedisClient();
+        if (!client) {
+            memoryVerifyStore.set(String(key), {
+                value: true,
+                expiresAt: Date.now() + expiryInSeconds * 1000,
+            });
+            return true;
+        }
+
+        await client.setEx(`verify:${key}`, expiryInSeconds, '1');
+        return true;
+    } catch (error) {
+        console.error('Redis SET verification flag error:', error);
+        return false;
+    }
+};
+
+const getVerificationFlag = async (key) => {
+    try {
+        const client = getRedisClient();
+        if (!client) {
+            const entry = memoryVerifyStore.get(String(key));
+            if (!entry) return false;
+            if (Date.now() > entry.expiresAt) {
+                memoryVerifyStore.delete(String(key));
+                return false;
+            }
+            return Boolean(entry.value);
+        }
+
+        const data = await client.get(`verify:${key}`);
+        return Boolean(data);
+    } catch (error) {
+        console.error('Redis GET verification flag error:', error);
+        return false;
+    }
+};
+
+const deleteVerificationFlag = async (key) => {
+    try {
+        const client = getRedisClient();
+        if (!client) {
+            memoryVerifyStore.delete(String(key));
+            return true;
+        }
+        await client.del(`verify:${key}`);
+        return true;
+    } catch (error) {
+        console.error('Redis DEL verification flag error:', error);
+        return false;
+    }
+};
+
 // Rate limiting
 const checkRateLimit = async (identifier, maxRequests = 5, windowInSeconds = 60) => {
     try {
@@ -304,6 +363,9 @@ module.exports = {
     getOTP,
     incrementOTPAttempts,
     deleteOTP,
+    setVerificationFlag,
+    getVerificationFlag,
+    deleteVerificationFlag,
     checkRateLimit,
     cacheCollegeData,
     getCachedCollegeData,

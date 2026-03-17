@@ -11,6 +11,8 @@ const {
     register,
     requestOTP,
     verifyOTPLogin,
+    requestRegistrationOTP,
+    verifyRegistrationOTP,
     googleAuthUrl,
     googleCallback,
     setup2FA,
@@ -19,7 +21,6 @@ const {
     verify2FA,
 } = require('../controllers/auth-controller');
 const { authMiddleware } = require('../middleware/auth');
-const { requestRegistrationOTP, verifyRegistrationOTP } = require('../utils/otp-service');
 
 // Public routes
 router.post('/login', login);
@@ -47,17 +48,8 @@ router.get('/tenant', (req, res) => {
 router.post('/otp/request-login', requestOTP);
 router.post('/otp/verify-login', verifyOTPLogin);
 
-router.post('/otp/request-register', async (req, res) => {
-    const { phone } = req.body;
-    const result = await requestRegistrationOTP(phone);
-    res.json(result);
-});
-
-router.post('/otp/verify-register', async (req, res) => {
-    const { phone, otp } = req.body;
-    const result = await verifyRegistrationOTP(phone, otp);
-    res.json(result);
-});
+router.post('/otp/request-register', requestRegistrationOTP);
+router.post('/otp/verify-register', verifyRegistrationOTP);
 
 // Google OAuth
 router.get('/google/url', googleAuthUrl);

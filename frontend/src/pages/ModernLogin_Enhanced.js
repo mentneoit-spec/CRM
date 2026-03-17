@@ -17,7 +17,6 @@ import {
   CircularProgress,
   Card,
   CardContent,
-  Grid,
   Link,
   FormControlLabel,
   Checkbox,
@@ -30,7 +29,6 @@ import {
   Visibility,
   VisibilityOff,
   Google,
-  Phone,
   Email,
   School,
   ArrowBack,
@@ -215,6 +213,11 @@ const ModernLoginEnhanced = () => {
           setLoading(false);
           return;
         }
+        if (!formData.email) {
+          setError('Please enter your email address');
+          setLoading(false);
+          return;
+        }
         if (!otpSent) {
           setError('Please request OTP first');
           setLoading(false);
@@ -234,7 +237,7 @@ const ModernLoginEnhanced = () => {
         }
 
         response = await authAPI.verifyOTP({
-          phone: formData.phone,
+          email: formData.email,
           otp: formData.otp,
           collegeId,
         });
@@ -292,8 +295,8 @@ const ModernLoginEnhanced = () => {
       setError('OTP login is not available for Super Admin');
       return;
     }
-    if (!formData.phone) {
-      setError('Please enter your phone number');
+    if (!formData.email) {
+      setError('Please enter your email address');
       return;
     }
     setLoading(true);
@@ -305,11 +308,11 @@ const ModernLoginEnhanced = () => {
         return;
       }
 
-      const response = await authAPI.requestOTP({ phone: formData.phone, collegeId });
+      const response = await authAPI.requestOTP({ email: formData.email, collegeId });
       
       if (response.success) {
         setOtpSent(true);
-        setSuccess('OTP sent to your phone!');
+        setSuccess('OTP sent to your email!');
         setError('');
       } else {
         setError(response.message || 'Failed to send OTP');
@@ -478,7 +481,7 @@ const ModernLoginEnhanced = () => {
             }}
           >
             <Tab label="📧 Email & Password" icon={<Email />} iconPosition="start" />
-            <Tab label="📱 Phone & OTP" icon={<Phone />} iconPosition="start" />
+            <Tab label="📧 Email & OTP" icon={<Email />} iconPosition="start" />
           </Tabs>
 
           <form onSubmit={handleLogin}>
@@ -614,18 +617,18 @@ const ModernLoginEnhanced = () => {
                 )}
                 <TextField
                   fullWidth
-                  label="Phone Number"
-                  name="phone"
-                  type="tel"
-                  value={formData.phone}
+                  label="Email Address"
+                  name="email"
+                  type="email"
+                  value={formData.email}
                   onChange={handleChange}
-                  placeholder="+91 XXXXXXXXXX"
+                  placeholder="name@example.com"
                   variant="outlined"
                   disabled={loading || otpSent}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
-                        <Phone sx={{ color: 'text.secondary', mr: 1 }} />
+                        <Email sx={{ color: 'text.secondary', mr: 1 }} />
                       </InputAdornment>
                     ),
                   }}
@@ -637,7 +640,7 @@ const ModernLoginEnhanced = () => {
                     variant="outlined"
                     size="large"
                     onClick={handleRequestOTP}
-                    disabled={loading || !formData.phone}
+                    disabled={loading || !formData.email}
                     startIcon={<Send />}
                     sx={{ py: 1.5, fontSize: '1rem', fontWeight: 600 }}
                   >
@@ -648,7 +651,7 @@ const ModernLoginEnhanced = () => {
                 {otpSent && (
                   <>
                     <Alert severity="success" icon={<CheckCircle />}>
-                      OTP sent successfully! Check your phone.
+                      OTP sent successfully! Check your email.
                     </Alert>
 
                     <TextField

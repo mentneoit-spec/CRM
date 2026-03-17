@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Box,
   Container,
@@ -13,7 +13,6 @@ import {
   Alert,
   CircularProgress,
   MenuItem,
-  Grid,
   Link,
   Dialog,
   DialogTitle,
@@ -42,10 +41,12 @@ const ModernSignupEnhanced = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [otpTab, setOtpTab] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
+  const [otpVerified, setOtpVerified] = useState(false);
   const [openTerms, setOpenTerms] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [resolvedCollegeId, setResolvedCollegeId] = useState(() => localStorage.getItem('collegeId') || '');
+  const [showCollegeIdField, setShowCollegeIdField] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -61,8 +62,41 @@ const ModernSignupEnhanced = () => {
     employeeId: '', // For teachers
   });
 
+  const requiresCollege = formData.role !== 'SuperAdmin';
+  const activeCollegeId = resolvedCollegeId || localStorage.getItem('collegeId') || '';
+
+  // Tenant auto-detection (custom domain -> collegeId)
+  useEffect(() => {
+    let isMounted = true;
+    const tryDetectTenant = async () => {
+      try {
+        if (resolvedCollegeId) return;
+        if (!authAPI.getTenant) return;
+        const resp = await authAPI.getTenant();
+        const tenantCollegeId = resp?.data?.collegeId;
+        if (tenantCollegeId && isMounted) {
+          localStorage.setItem('collegeId', tenantCollegeId);
+          setResolvedCollegeId(tenantCollegeId);
+        }
+      } catch {
+        // ignore (tenant detection is best-effort)
+      }
+    };
+    tryDetectTenant();
+    return () => {
+      isMounted = false;
+    };
+  }, [resolvedCollegeId]);
+
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
+    setError('');
+  };
+
+  const handleCollegeIdChange = (e) => {
+    const value = (e.target.value || '').trim();
+    setResolvedCollegeId(value);
+    if (value) localStorage.setItem('collegeId', value);
     setError('');
   };
 
@@ -102,6 +136,17 @@ const ModernSignupEnhanced = () => {
       return;
     }
 
+    if (requiresCollege && !activeCollegeId) {
+      setShowCollegeIdField(true);
+      setError('College not identified. Please enter your College ID or use your college domain.');
+      return;
+    }
+
+    if (!otpVerified) {
+      setError('Please verify the OTP sent to your email before creating your account.');
+      return;
+    }
+
     setLoading(true);
     setError('');
 
@@ -120,7 +165,7 @@ const ModernSignupEnhanced = () => {
       
       // Add collegeId for non-SuperAdmin users
       if (formData.role !== 'SuperAdmin') {
-        signupData.collegeId = '2aad2902-caee-4a50-bcb9-0b75e0c75262';
+        signupData.collegeId = activeCollegeId;
       }
       
       const response = await authAPI.register(signupData);
@@ -135,6 +180,9 @@ const ModernSignupEnhanced = () => {
       }
     } catch (err) {
       console.error('Signup error:', err);
+      if (err?.requiresCollegeId) {
+        setShowCollegeIdField(true);
+      }
       setError(err.message || 'An error occurred. Please try again.');
     } finally {
       setLoading(false);
@@ -142,24 +190,33 @@ const ModernSignupEnhanced = () => {
   };
 
   const handleRequestOTP = async () => {
-    if (!formData.phone) {
-      setError('Please enter your phone number');
+    if (!formData.email) {
+      setError('Please enter your email address');
+      return;
+    }
+    if (requiresCollege && !activeCollegeId) {
+      setShowCollegeIdField(true);
+      setError('Please enter your College ID to request OTP.');
       return;
     }
     setLoading(true);
     try {
       const response = await authAPI.requestRegistrationOTP({
-        phone: formData.phone,
+        email: formData.email,
+        ...(requiresCollege && activeCollegeId ? { collegeId: activeCollegeId } : {}),
       });
 
       if (response.success) {
         setOtpSent(true);
-        setSuccess('OTP sent to your phone!');
+        setSuccess('OTP sent to your email!');
         setError('');
       } else {
         setError(response.message || 'Failed to send OTP');
       }
     } catch (err) {
+      if (err?.requiresCollegeId) {
+        setShowCollegeIdField(true);
+      }
       setError(err.message || 'Failed to send OTP. Please try again.');
     } finally {
       setLoading(false);
@@ -171,22 +228,31 @@ const ModernSignupEnhanced = () => {
       setError('Please enter the OTP');
       return;
     }
+    if (requiresCollege && !activeCollegeId) {
+      setShowCollegeIdField(true);
+      setError('Please enter your College ID to verify OTP.');
+      return;
+    }
     setLoading(true);
     try {
       const response = await authAPI.verifyRegistrationOTP({
-        phone: formData.phone,
+        email: formData.email,
         otp: formData.otp,
+        ...(requiresCollege && activeCollegeId ? { collegeId: activeCollegeId } : {}),
       });
 
       if (response.success) {
-        setSuccess('Phone verified successfully!');
-        setOtpTab(false);
+        setOtpVerified(true);
+        setSuccess('Email verified successfully!');
         // Continue with registration
         handleSignup({ preventDefault: () => { } });
       } else {
         setError(response.message || 'Invalid OTP');
       }
     } catch (err) {
+      if (err?.requiresCollegeId) {
+        setShowCollegeIdField(true);
+      }
       setError(err.message || 'Verification failed');
     } finally {
       setLoading(false);
@@ -277,7 +343,13 @@ const ModernSignupEnhanced = () => {
                 <Chip
                   key={role}
                   label={role}
-                  onClick={() => setFormData({ ...formData, role })}
+                  onClick={() => {
+                    setFormData({ ...formData, role, otp: '' });
+                    setOtpSent(false);
+                    setOtpVerified(false);
+                    setError('');
+                    setSuccess('');
+                  }}
                   color={formData.role === role ? 'primary' : 'default'}
                   variant={formData.role === role ? 'filled' : 'outlined'}
                   sx={{
@@ -291,6 +363,25 @@ const ModernSignupEnhanced = () => {
 
           <form onSubmit={handleSignup}>
             <Stack spacing={2.5}>
+              {requiresCollege && (!activeCollegeId || showCollegeIdField) && (
+                <TextField
+                  fullWidth
+                  label="College ID"
+                  value={resolvedCollegeId}
+                  onChange={handleCollegeIdChange}
+                  placeholder="Paste collegeId here"
+                  variant="outlined"
+                  disabled={loading}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <School sx={{ color: 'text.secondary', mr: 1 }} />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              )}
+
               {/* Full Name */}
               <TextField
                 fullWidth
@@ -320,7 +411,7 @@ const ModernSignupEnhanced = () => {
                 onChange={handleChange}
                 placeholder="name@example.com"
                 variant="outlined"
-                disabled={loading}
+                disabled={loading || otpSent || otpVerified}
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
@@ -340,7 +431,7 @@ const ModernSignupEnhanced = () => {
                 onChange={handleChange}
                 placeholder="+91 XXXXXXXXXX"
                 variant="outlined"
-                disabled={loading || otpSent}
+                disabled={loading}
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
@@ -351,24 +442,28 @@ const ModernSignupEnhanced = () => {
               />
 
               {/* OTP Verification */}
-              {!otpSent ? (
+              {otpVerified ? (
+                <Alert severity="success" icon={<CheckCircle />}>
+                  Email verified successfully!
+                </Alert>
+              ) : !otpSent ? (
                 <Button
                   fullWidth
                   variant="outlined"
                   onClick={handleRequestOTP}
-                  disabled={loading || !formData.phone}
+                  disabled={loading || !formData.email}
                   sx={{
                     py: 1.5,
                     fontSize: '0.9rem',
                     fontWeight: 600,
                   }}
                 >
-                  {loading ? <CircularProgress size={24} /> : 'Send OTP to Phone'}
+                  {loading ? <CircularProgress size={24} /> : 'Send OTP to Email'}
                 </Button>
               ) : (
                 <>
                   <Alert severity="success" icon={<CheckCircle />}>
-                    OTP sent successfully!
+                    OTP sent successfully! Check your email.
                   </Alert>
                   <TextField
                     fullWidth

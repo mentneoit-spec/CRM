@@ -13,9 +13,27 @@ import {
   Chip,
 } from '@mui/material';
 import { CheckCircle, Error, Refresh } from '@mui/icons-material';
-import api from '../config/api';
 
 const ConnectionTest = () => {
+  const apiBase = (() => {
+    try {
+      const protocol = window.location.protocol || 'http:';
+      const hostname = window.location.hostname;
+      const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
+      return isLocal ? 'http://localhost:5000/api' : `${protocol}//${hostname}:5000/api`;
+    } catch {
+      return 'http://localhost:5000/api';
+    }
+  })();
+
+  const frontendOrigin = (() => {
+    try {
+      return window.location.origin;
+    } catch {
+      return 'http://localhost:3000';
+    }
+  })();
+
   const [status, setStatus] = useState({
     backend: 'testing',
     database: 'testing',
@@ -30,7 +48,7 @@ const ConnectionTest = () => {
 
     try {
       // Test backend connection
-      const response = await fetch('http://localhost:5000/api/auth/me', {
+      const response = await fetch(`${apiBase}/auth/me`, {
         method: 'GET',
       });
 
@@ -38,7 +56,7 @@ const ConnectionTest = () => {
         // 401 is expected without token, means backend is running
         setStatus(prev => ({ ...prev, backend: 'success' }));
         setBackendInfo({
-          url: 'http://localhost:5000',
+          url: apiBase.replace(/\/api$/, ''),
           status: 'Connected',
           message: 'Backend server is running',
         });
@@ -173,13 +191,13 @@ const ConnectionTest = () => {
             Connection Details:
           </Typography>
           <Typography variant="body2" sx={{ fontFamily: 'monospace', mb: 1 }}>
-            Backend URL: http://localhost:5000/api
+            Backend URL: {apiBase}
           </Typography>
           <Typography variant="body2" sx={{ fontFamily: 'monospace', mb: 1 }}>
-            Frontend URL: http://localhost:3000
+            Frontend URL: {frontendOrigin}
           </Typography>
           <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-            CORS: Enabled for localhost:3000
+            CORS: Controlled by ALLOWED_ORIGINS
           </Typography>
         </Box>
       </Paper>

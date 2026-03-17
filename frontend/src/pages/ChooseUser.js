@@ -34,7 +34,7 @@ const ChooseUser = ({ visitor }) => {
         dispatch(loginUser(fields, user))
       }
       else {
-        navigate('/Adminlogin');
+        navigate('/login?role=Admin');
       }
     }
 
@@ -47,7 +47,7 @@ const ChooseUser = ({ visitor }) => {
         dispatch(loginUser(fields, user))
       }
       else {
-        navigate('/Studentlogin');
+        navigate('/login?role=Student');
       }
     }
 
@@ -59,7 +59,7 @@ const ChooseUser = ({ visitor }) => {
         dispatch(loginUser(fields, user))
       }
       else {
-        navigate('/Teacherlogin');
+        navigate('/login?role=Teacher');
       }
     }
   }

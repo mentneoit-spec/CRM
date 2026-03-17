@@ -11,11 +11,11 @@ import {
     Delete as DeleteIcon, Refresh as RefreshIcon, MenuBook as SubjectIcon
 } from '@mui/icons-material';
 import DashboardLayout from '../../components/DashboardLayout';
-import { fetchSubjects, createSubject, fetchClasses } from '../../redux/slices/adminSlice';
+import { fetchSubjects, createSubject, fetchClasses, fetchTeachers } from '../../redux/slices/adminSlice';
 
 const AdminSubjects = () => {
     const dispatch = useDispatch();
-    const { subjects, classes, loading } = useSelector((state) => state.admin);
+    const { subjects, classes, teachers, loading } = useSelector((state) => state.admin);
 
     // Table State
     const [page, setPage] = useState(0);
@@ -25,12 +25,13 @@ const AdminSubjects = () => {
     // Dialog State
     const [openAddDialog, setOpenAddDialog] = useState(false);
     const [newSubject, setNewSubject] = useState({
-        subName: '', subCode: '', sessions: '10', sclassId: '', maxMarks: 100, passingMarks: 40
+        subName: '', subCode: '', sessions: '10', sclassId: '', teacherId: '', maxMarks: 100, passingMarks: 40
     });
 
     useEffect(() => {
         dispatch(fetchSubjects());
         dispatch(fetchClasses());
+        dispatch(fetchTeachers());
     }, [dispatch]);
 
     const handleChangePage = (event, newPage) => setPage(newPage);
@@ -42,7 +43,7 @@ const AdminSubjects = () => {
         dispatch(createSubject(newSubject)).then((res) => {
             if (!res.error) {
                 setOpenAddDialog(false);
-                setNewSubject({ subName: '', subCode: '', sessions: '10', sclassId: '', maxMarks: 100, passingMarks: 40 });
+                setNewSubject({ subName: '', subCode: '', sessions: '10', sclassId: '', teacherId: '', maxMarks: 100, passingMarks: 40 });
                 dispatch(fetchSubjects()); // Refresh to get the associated class data
             }
         });
@@ -165,6 +166,22 @@ const AdminSubjects = () => {
                                     >
                                         {classes?.map((cls) => (
                                             <MenuItem key={cls.id} value={cls.id}>{cls.sclassName} ({cls.academicYear})</MenuItem>
+                                        ))}
+                                    </Select>
+                                </FormControl>
+                            </Grid>
+
+                            <Grid item xs={12}>
+                                <FormControl fullWidth>
+                                    <InputLabel>Assign Teacher (optional)</InputLabel>
+                                    <Select
+                                        value={newSubject.teacherId}
+                                        onChange={(e) => setNewSubject({ ...newSubject, teacherId: e.target.value })}
+                                        label="Assign Teacher (optional)"
+                                    >
+                                        <MenuItem value=""><em>Unassigned</em></MenuItem>
+                                        {teachers?.map((t) => (
+                                            <MenuItem key={t.id} value={t.id}>{t.name} ({t.email})</MenuItem>
                                         ))}
                                     </Select>
                                 </FormControl>

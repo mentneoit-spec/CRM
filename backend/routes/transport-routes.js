@@ -2,8 +2,12 @@ const express = require('express');
 const {
     createBusRoute,
     getAllBusRoutes,
+    updateBusRoute,
+    deleteBusRoute,
     createBus,
     getAllBuses,
+    updateBus,
+    deleteBus,
     assignStudentToBus,
     markBusAttendance,
     getBusAttendanceReport,
@@ -17,10 +21,14 @@ const router = express.Router();
 // ==================== BUS ROUTES ====================
 router.post('/routes', authorize('TransportTeam', 'Admin'), authorizeCollege, createBusRoute);
 router.get('/routes', authorize('TransportTeam', 'Admin'), authorizeCollege, getAllBusRoutes);
+router.put('/routes/:id', authorize('TransportTeam', 'Admin'), authorizeCollege, updateBusRoute);
+router.delete('/routes/:id', authorize('TransportTeam', 'Admin'), authorizeCollege, deleteBusRoute);
 
 // ==================== BUS MANAGEMENT ====================
 router.post('/buses', authorize('TransportTeam', 'Admin'), authorizeCollege, createBus);
 router.get('/buses', authorize('TransportTeam', 'Admin'), authorizeCollege, getAllBuses);
+router.put('/buses/:id', authorize('TransportTeam', 'Admin'), authorizeCollege, updateBus);
+router.delete('/buses/:id', authorize('TransportTeam', 'Admin'), authorizeCollege, deleteBus);
 router.put('/buses/:busId/assign', authorize('TransportTeam', 'Admin'), authorizeCollege, assignStudentToBus);
 
 // ==================== BUS ATTENDANCE ====================

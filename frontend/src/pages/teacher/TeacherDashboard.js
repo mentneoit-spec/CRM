@@ -16,13 +16,17 @@ import Logout from '../Logout'
 import AccountMenu from '../../components/AccountMenu';
 import { AppBar, Drawer } from '../../components/styles';
 import StudentAttendance from '../admin/studentRelated/StudentAttendance';
-
 import TeacherClassDetails from './TeacherClassDetails';
 import TeacherComplain from './TeacherComplain';
 import TeacherHomePage from './TeacherHomePage';
 import TeacherProfile from './TeacherProfile';
 import TeacherViewStudent from './TeacherViewStudent';
 import StudentExamMarks from '../admin/studentRelated/StudentExamMarks';
+import TeacherStudents from './TeacherStudents';
+import TeacherAttendance from './TeacherAttendance';
+import TeacherAssignments from './TeacherAssignments';
+import TeacherExams from './TeacherExams';
+import TeacherReports from './TeacherReports';
 
 const TeacherDashboard = () => {
     const [open, setOpen] = useState(true);
@@ -81,7 +85,13 @@ const TeacherDashboard = () => {
 
                         <Route path="/Teacher/complain" element={<TeacherComplain />} />
 
-                        <Route path="/Teacher/class" element={<TeacherClassDetails />} />
+                        <Route path="/Teacher/classes" element={<TeacherClassDetails />} />
+                        <Route path="/Teacher/students" element={<TeacherStudents />} />
+                        <Route path="/Teacher/attendance" element={<TeacherAttendance />} />
+                        <Route path="/Teacher/assignments" element={<TeacherAssignments />} />
+                        <Route path="/Teacher/exams" element={<TeacherExams />} />
+                        <Route path="/Teacher/reports" element={<TeacherReports />} />
+
                         <Route path="/Teacher/class/student/:id" element={<TeacherViewStudent />} />
 
                         <Route path="/Teacher/class/student/attendance/:studentID/:subjectID" element={<StudentAttendance situation="Subject" />} />

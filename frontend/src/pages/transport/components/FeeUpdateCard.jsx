@@ -2,7 +2,7 @@ import { Button } from "../../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/card";
 import { Badge } from "../../../components/ui/badge";
 
-function FeeUpdateCard({ fees }) {
+function FeeUpdateCard({ fees, onUpdateFee }) {
   return (
     <Card>
       <CardHeader>
@@ -17,7 +17,7 @@ function FeeUpdateCard({ fees }) {
             </div>
             <div className="flex items-center gap-2">
               <Badge variant={fee.paymentStatus === "Paid" ? "success" : "warning"}>{fee.paymentStatus}</Badge>
-              <Button type="button" variant="outline">Update Fee</Button>
+              <Button type="button" variant="outline" onClick={() => onUpdateFee?.(fee)} disabled={!onUpdateFee}>Update Fee</Button>
             </div>
           </div>
         ))}

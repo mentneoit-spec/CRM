@@ -2,7 +2,7 @@ import { Button } from "../../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/card";
 import { Badge } from "../../../components/ui/badge";
 
-function RefundForm({ refunds }) {
+function RefundForm({ refunds, onProcessRefund }) {
   return (
     <Card>
       <CardHeader>
@@ -17,7 +17,7 @@ function RefundForm({ refunds }) {
             </div>
             <div className="flex items-center gap-2">
               <Badge variant={refund.status === "Processed" ? "success" : "warning"}>{refund.status}</Badge>
-              <Button type="button" variant="outline">Process Refund</Button>
+              <Button type="button" variant="outline" onClick={() => onProcessRefund?.(refund)} disabled={!onProcessRefund}>Process Refund</Button>
             </div>
           </div>
         ))}

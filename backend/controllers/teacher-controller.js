@@ -117,6 +117,67 @@ const getMyClasses = async (req, res) => {
     }
 };
 
+// Get my students (across accessible classes) or filtered by classId
+const getMyStudents = async (req, res) => {
+    try {
+        const collegeId = req.collegeId;
+        const { classId } = req.query;
+
+        const teacher = await prisma.teacher.findUnique({
+            where: { userId: req.user.id },
+        });
+
+        if (!teacher) {
+            return res.status(404).json({ success: false, message: 'Teacher not found' });
+        }
+
+        if (classId) {
+            const students = await prisma.student.findMany({
+                where: {
+                    collegeId,
+                    sclassId: classId,
+                    isDeleted: false,
+                    isActive: true,
+                },
+                include: { sclass: true, section: true, parent: true },
+                orderBy: { rollNum: 'asc' },
+            });
+
+            return res.status(200).json({ success: true, data: students });
+        }
+
+        const classes = await prisma.sclass.findMany({
+            where: {
+                collegeId,
+                OR: [
+                    { classTeacherId: teacher.id },
+                    { Subjects: { some: { teacherId: teacher.id } } },
+                ],
+            },
+            select: { id: true },
+        });
+
+        const classIds = classes.map(c => c.id);
+
+        const students = await prisma.student.findMany({
+            where: {
+                collegeId,
+                isDeleted: false,
+                isActive: true,
+                sclassId: { in: classIds.length ? classIds : ['__none__'] },
+            },
+            include: { sclass: true, section: true, parent: true },
+            orderBy: [{ sclassId: 'asc' }, { rollNum: 'asc' }],
+        });
+
+        res.status(200).json({ success: true, data: students });
+    } catch (error) {
+        console.error('Get my students error:', error);
+        res.status(500).json({ success: false, message: 'Error fetching students' });
+    }
+
+};
+
 // Get students in class
 const getClassStudents = async (req, res) => {
     try {
@@ -215,11 +276,15 @@ const markAttendance = async (req, res) => {
 // Get attendance report
 const getAttendanceReport = async (req, res) => {
     try {
-        const { classId, subjectId, month, year } = req.query;
+        const classId = req.query.classId || req.params.classId;
+        const { subjectId, month, year } = req.query;
         const collegeId = req.collegeId;
 
         let filter = { collegeId };
         if (subjectId) filter.subjectId = subjectId;
+        if (classId) {
+            filter.subject = { is: { sclassId: classId } };
+        }
         if (month && year) {
             const startDate = new Date(year, month - 1, 1);
             const endDate = new Date(year, month, 0);
@@ -372,6 +437,9 @@ const getMarksReport = async (req, res) => {
 
         let filter = { collegeId };
         if (examId) filter.examId = examId;
+        if (classId) {
+            filter.student = { is: { sclassId: classId } };
+        }
 
         const results = await prisma.examResult.findMany({
             where: filter,
@@ -500,6 +568,80 @@ const getMyHomework = async (req, res) => {
     }
 };
 
+// Update homework
+const updateHomework = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const collegeId = req.collegeId;
+        const { subjectId, title, description, dueDate, instructions, totalMarks } = req.body;
+
+        const teacher = await prisma.teacher.findUnique({
+            where: { userId: req.user.id },
+        });
+
+        if (!teacher) {
+            return res.status(404).json({ success: false, message: 'Teacher not found' });
+        }
+
+        const existing = await prisma.homework.findFirst({
+            where: { id, teacherId: teacher.id, collegeId },
+        });
+
+        if (!existing) {
+            return res.status(404).json({ success: false, message: 'Homework not found' });
+        }
+
+        const homework = await prisma.homework.update({
+            where: { id },
+            data: {
+                subjectId: subjectId === undefined ? undefined : subjectId,
+                title: title === undefined ? undefined : title,
+                description: description === undefined ? undefined : description,
+                dueDate: dueDate === undefined ? undefined : new Date(dueDate),
+                instructions: instructions === undefined ? undefined : instructions,
+                totalMarks:
+                    totalMarks === undefined ? undefined : (totalMarks === null ? null : parseInt(totalMarks)),
+            },
+            include: { subject: true },
+        });
+
+        res.status(200).json({ success: true, message: 'Homework updated successfully', data: homework });
+    } catch (error) {
+        console.error('Update homework error:', error);
+        res.status(500).json({ success: false, message: 'Error updating homework' });
+    }
+};
+
+// Delete homework
+const deleteHomework = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const collegeId = req.collegeId;
+
+        const teacher = await prisma.teacher.findUnique({
+            where: { userId: req.user.id },
+        });
+
+        if (!teacher) {
+            return res.status(404).json({ success: false, message: 'Teacher not found' });
+        }
+
+        const existing = await prisma.homework.findFirst({
+            where: { id, teacherId: teacher.id, collegeId },
+        });
+
+        if (!existing) {
+            return res.status(404).json({ success: false, message: 'Homework not found' });
+        }
+
+        await prisma.homework.delete({ where: { id } });
+        res.status(200).json({ success: true, message: 'Homework deleted successfully' });
+    } catch (error) {
+        console.error('Delete homework error:', error);
+        res.status(500).json({ success: false, message: 'Error deleting homework' });
+    }
+};
+
 // ==================== DASHBOARD ====================
 
 // Get teacher dashboard
@@ -571,16 +713,148 @@ const getDashboard = async (req, res) => {
     }
 };
 
+// ==================== REPORTS ====================
+const getMyReports = async (req, res) => {
+    try {
+        const collegeId = req.collegeId;
+
+        const teacher = await prisma.teacher.findUnique({
+            where: { userId: req.user.id },
+            include: { Subjects: true },
+        });
+
+        if (!teacher) return res.status(404).json({ success: false, message: 'Teacher not found' });
+
+        const subjectIds = teacher.Subjects.map(s => s.id);
+
+        const [attendanceCount, marksCount, homeworkCount] = await Promise.all([
+            prisma.attendance.count({
+                where: {
+                    collegeId,
+                    subjectId: { in: subjectIds.length ? subjectIds : ['__none__'] },
+                },
+            }),
+            prisma.examResult.count({
+                where: {
+                    collegeId,
+                    subjectId: { in: subjectIds.length ? subjectIds : ['__none__'] },
+                },
+            }),
+            prisma.homework.count({
+                where: {
+                    collegeId,
+                    teacherId: teacher.id,
+                },
+            }),
+        ]);
+
+        res.status(200).json({
+            success: true,
+            data: {
+                counts: {
+                    attendanceRecords: attendanceCount,
+                    marksUploaded: marksCount,
+                    homeworkCreated: homeworkCount,
+                },
+            },
+        });
+    } catch (error) {
+        console.error('Get reports error:', error);
+        res.status(500).json({ success: false, message: 'Error fetching reports' });
+    }
+};
+
+// ==================== EXAMS ====================
+const getMyExams = async (req, res) => {
+    try {
+        const collegeId = req.collegeId;
+        const teacher = await prisma.teacher.findUnique({
+            where: { userId: req.user.id },
+        });
+
+        if (!teacher) {
+            return res.status(404).json({ success: false, message: 'Teacher not found' });
+        }
+
+        const classes = await prisma.sclass.findMany({
+            where: {
+                collegeId,
+                OR: [
+                    { classTeacherId: teacher.id },
+                    { Subjects: { some: { teacherId: teacher.id } } },
+                ],
+            },
+            select: { id: true, sclassName: true },
+        });
+
+        const classIds = classes.map(c => c.id);
+
+        const exams = await prisma.exam.findMany({
+            where: {
+                collegeId,
+                sclassId: { in: classIds.length ? classIds : ['__none__'] },
+            },
+            include: {
+                sclass: true,
+            },
+            orderBy: {
+                examDate: 'desc',
+            },
+        });
+
+        res.status(200).json({ success: true, data: exams });
+    } catch (error) {
+        console.error('Get exams error:', error);
+        res.status(500).json({ success: false, message: 'Error fetching exams' });
+    }
+};
+
+// ==================== ASSIGNMENTS ====================
+const getMyAssignments = async (req, res) => {
+    // This can be an alias for getMyHomework for now
+    return getMyHomework(req, res);
+};
+
+// ==================== NOTICES ====================
+const getMyNotices = async (req, res) => {
+    try {
+        const collegeId = req.collegeId;
+
+        const notices = await prisma.notice.findMany({
+            where: {
+                collegeId,
+                isActive: true,
+            },
+            orderBy: {
+                publishedDate: 'desc',
+            },
+        });
+
+        res.status(200).json({ success: true, data: notices });
+    } catch (error) {
+        console.error('Get notices error:', error);
+        res.status(500).json({ success: false, message: 'Error fetching notices' });
+    }
+};
+
+
 module.exports = {
     getTeacherProfile,
     updateTeacherProfile,
     getMyClasses,
     getClassStudents,
+    getMyStudents,
     markAttendance,
     getAttendanceReport,
     uploadMarks,
     getMarksReport,
     createHomework,
     getMyHomework,
+    updateHomework,
+    deleteHomework,
     getDashboard,
+    getMyReports,
+    getMyExams,
+    getMyAssignments,
+    getMyNotices,
 };

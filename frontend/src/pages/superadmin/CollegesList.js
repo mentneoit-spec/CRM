@@ -1,1 +1,1 @@
-export { default } from "./pages/CollegesList";
+export { default } from "./pages/CollegesList.jsx";

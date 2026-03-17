@@ -187,6 +187,132 @@ const getMyMarks = async (req, res) => {
     }
 };
 
+// Get exams for my class
+const getMyExams = async (req, res) => {
+    try {
+        const studentId = req.user.id;
+        const collegeId = req.collegeId;
+
+        const student = await prisma.student.findUnique({
+            where: { userId: studentId },
+            select: { id: true, collegeId: true, sclassId: true },
+        });
+
+        if (!student || student.collegeId !== collegeId) {
+            return res.status(404).json({ success: false, message: 'Student not found' });
+        }
+
+        if (!student.sclassId) {
+            return res.status(200).json({ success: true, data: [] });
+        }
+
+        const exams = await prisma.exam.findMany({
+            where: {
+                collegeId,
+                sclassId: student.sclassId,
+                isPublished: true,
+            },
+            orderBy: {
+                examDate: 'desc',
+            },
+        });
+
+        res.status(200).json({ success: true, data: exams });
+    } catch (error) {
+        console.error('Get exams error:', error);
+        res.status(500).json({ success: false, message: 'Error fetching exams' });
+    }
+};
+
+// ==================== COMPLAINTS ====================
+
+// Submit a complaint
+const submitComplaint = async (req, res) => {
+    try {
+        const studentUserId = req.user.id;
+        const collegeId = req.collegeId;
+        const { title, description, category, attachments } = req.body;
+
+        if (!title || !description) {
+            return res.status(400).json({ success: false, message: 'Required fields missing' });
+        }
+
+        const student = await prisma.student.findUnique({
+            where: { userId: studentUserId },
+            select: { id: true, collegeId: true },
+        });
+
+        if (!student || student.collegeId !== collegeId) {
+            return res.status(404).json({ success: false, message: 'Student not found' });
+        }
+
+        const complaint = await prisma.complain.create({
+            data: {
+                title,
+                description,
+                category: category || 'General',
+                status: 'pending',
+                attachments: attachments || [],
+                studentId: student.id,
+                collegeId,
+            },
+        });
+
+        res.status(201).json({ success: true, message: 'Complaint submitted successfully', data: complaint });
+    } catch (error) {
+        console.error('Submit complaint error:', error);
+        res.status(500).json({ success: false, message: 'Error submitting complaint' });
+    }
+};
+
+// Get my complaints
+const getMyComplaints = async (req, res) => {
+    try {
+        const studentUserId = req.user.id;
+        const collegeId = req.collegeId;
+        const { status, page = 1, limit = 10 } = req.query;
+
+        const student = await prisma.student.findUnique({
+            where: { userId: studentUserId },
+            select: { id: true, collegeId: true },
+        });
+
+        if (!student || student.collegeId !== collegeId) {
+            return res.status(404).json({ success: false, message: 'Student not found' });
+        }
+
+        const skip = (page - 1) * limit;
+        const filter = {
+            studentId: student.id,
+            collegeId,
+            ...(status ? { status } : {}),
+        };
+
+        const complaints = await prisma.complain.findMany({
+            where: filter,
+            skip: parseInt(skip),
+            take: parseInt(limit),
+            orderBy: { createdAt: 'desc' },
+        });
+
+        const total = await prisma.complain.count({ where: filter });
+
+        res.status(200).json({
+            success: true,
+            data: complaints,
+            pagination: {
+                total,
+                page: parseInt(page),
+                limit: parseInt(limit),
+                pages: Math.ceil(total / limit),
+            },
+        });
+    } catch (error) {
+        console.error('Get complaints error:', error);
+        res.status(500).json({ success: false, message: 'Error fetching complaints' });
+    }
+};
+
 // ==================== FEES ====================
 
 // Get my fees
@@ -322,19 +448,23 @@ const getMyHomework = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Student not found' });
         }
 
-        const homework = await prisma.homework.findMany({
-            where: {
-                collegeId,
-                subject: {
-                    sclassId: student.sclassId,
+        const homework = student.sclassId
+            ? await prisma.homework.findMany({
+                where: {
+                    collegeId,
+                    subject: {
+                        is: {
+                            sclassId: student.sclassId,
+                        },
+                    },
                 },
-            },
-            include: {
-                teacher: true,
-                subject: true,
-            },
-            orderBy: { dueDate: 'desc' },
-        });
+                include: {
+                    teacher: true,
+                    subject: true,
+                },
+                orderBy: { dueDate: 'desc' },
+            })
+            : [];
 
         const now = new Date();
         const categorized = {
@@ -385,13 +515,35 @@ const getMyTimetable = async (req, res) => {
         res.status(200).json({
             success: true,
             data: {
-                class: student.sclass,
-                subjects: student.sclass.Subjects,
+                class: student.sclass || null,
+                subjects: student.sclass?.Subjects || [],
             },
         });
     } catch (error) {
         console.error('Get timetable error:', error);
         res.status(500).json({ success: false, message: 'Error fetching timetable' });
+    }
+};
+
+// ==================== NOTICES ====================
+
+// Get college notices
+const getMyNotices = async (req, res) => {
+    try {
+        const collegeId = req.collegeId;
+
+        const notices = await prisma.notice.findMany({
+            where: {
+                collegeId,
+                isActive: true,
+            },
+            orderBy: { publishedDate: 'desc' },
+        });
+
+        res.status(200).json({ success: true, data: notices });
+    } catch (error) {
+        console.error('Get notices error:', error);
+        res.status(500).json({ success: false, message: 'Error fetching notices' });
     }
 };
 
@@ -448,14 +600,20 @@ const getDashboard = async (req, res) => {
         });
 
         // Get recent homework
-        const homework = await prisma.homework.findMany({
-            where: {
-                collegeId,
-                subject: { sclassId: student.sclassId },
-            },
-            take: 5,
-            orderBy: { dueDate: 'desc' },
-        });
+        const homework = student.sclassId
+            ? await prisma.homework.findMany({
+                where: {
+                    collegeId,
+                    subject: {
+                        is: {
+                            sclassId: student.sclassId,
+                        },
+                    },
+                },
+                take: 5,
+                orderBy: { dueDate: 'desc' },
+            })
+            : [];
 
         res.status(200).json({
             success: true,
@@ -487,14 +645,86 @@ const getDashboard = async (req, res) => {
     }
 };
 
+// ==================== SUBJECTS ====================
+const getMySubjects = async (req, res) => {
+    try {
+        const studentId = req.user.id;
+        const collegeId = req.collegeId;
+
+        const student = await prisma.student.findUnique({
+            where: { userId: studentId },
+        });
+
+        if (!student || student.collegeId !== collegeId) {
+            return res.status(404).json({ success: false, message: 'Student not found' });
+        }
+
+        const subjects = await prisma.subject.findMany({
+            where: {
+                sclassId: student.sclassId,
+                collegeId,
+            },
+            include: {
+                teacher: true,
+            },
+        });
+
+        res.status(200).json({ success: true, data: subjects });
+    } catch (error) {
+        console.error('Get subjects error:', error);
+        res.status(500).json({ success: false, message: 'Error fetching subjects' });
+    }
+};
+
+// ==================== TEACHERS ====================
+const getMyTeachers = async (req, res) => {
+    try {
+        const studentId = req.user.id;
+        const collegeId = req.collegeId;
+
+        const student = await prisma.student.findUnique({
+            where: { userId: studentId },
+        });
+
+        if (!student || student.collegeId !== collegeId) {
+            return res.status(404).json({ success: false, message: 'Student not found' });
+        }
+
+        const subjects = await prisma.subject.findMany({
+            where: {
+                sclassId: student.sclassId,
+                collegeId,
+            },
+            include: {
+                teacher: true,
+            },
+        });
+
+        const teachers = subjects.map(subject => subject.teacher).filter(Boolean);
+        const uniqueTeachers = [...new Map(teachers.map(item => [item.id, item])).values()];
+
+        res.status(200).json({ success: true, data: uniqueTeachers });
+    } catch (error) {
+        console.error('Get teachers error:', error);
+        res.status(500).json({ success: false, message: 'Error fetching teachers' });
+    }
+
+};
+
 module.exports = {
     getStudentProfile,
     updateStudentProfile,
     getMyAttendance,
     getMyMarks,
+    getMyExams,
     getMyFees,
     getMyPaymentHistory,
     getMyHomework,
     getMyTimetable,
+    getMyNotices,
+    submitComplaint,
+    getMyComplaints,
     getDashboard,
+    getMySubjects,
+    getMyTeachers,
 };

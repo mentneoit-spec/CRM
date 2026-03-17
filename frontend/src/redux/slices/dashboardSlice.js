@@ -7,7 +7,7 @@ export const fetchAdminDashboard = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const response = await adminAPI.getDashboard();
-      return response.data;
+      return response?.data ?? response;
     } catch (error) {
       return rejectWithValue(error.message);
     }
@@ -19,7 +19,7 @@ export const fetchTeacherDashboard = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const response = await teacherAPI.getDashboard();
-      return response.data;
+      return response?.data ?? response;
     } catch (error) {
       return rejectWithValue(error.message);
     }
@@ -31,7 +31,7 @@ export const fetchStudentProfile = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const response = await studentAPI.getProfile();
-      return response.data;
+      return response?.data ?? response;
     } catch (error) {
       return rejectWithValue(error.message);
     }

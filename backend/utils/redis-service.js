@@ -4,6 +4,9 @@ const redis = require('redis');
 let redisClient = null;
 let isRedisConnected = false;
 
+// In-memory fallback for OTPs (dev convenience when Redis is unavailable)
+const memoryOtpStore = new Map();
+
 // Initialize Redis client
 const initRedis = async () => {
     try {
@@ -139,7 +142,15 @@ const deleteSession = async (sessionId) => {
 const setOTP = async (phone, otp, expiryInSeconds = 600) => {
     try {
         const client = getRedisClient();
-        if (!client) return false;
+        if (!client) {
+            memoryOtpStore.set(String(phone), {
+                otp: String(otp),
+                attempts: 0,
+                createdAt: new Date().toISOString(),
+                expiresAt: Date.now() + expiryInSeconds * 1000,
+            });
+            return true;
+        }
 
         const otpData = {
             otp,
@@ -158,7 +169,15 @@ const setOTP = async (phone, otp, expiryInSeconds = 600) => {
 const getOTP = async (phone) => {
     try {
         const client = getRedisClient();
-        if (!client) return null;
+        if (!client) {
+            const entry = memoryOtpStore.get(String(phone));
+            if (!entry) return null;
+            if (Date.now() > entry.expiresAt) {
+                memoryOtpStore.delete(String(phone));
+                return null;
+            }
+            return { otp: entry.otp, attempts: entry.attempts, createdAt: entry.createdAt };
+        }
 
         const data = await client.get(`otp:${phone}`);
         return data ? JSON.parse(data) : null;
@@ -170,6 +189,20 @@ const getOTP = async (phone) => {
 
 const incrementOTPAttempts = async (phone) => {
     try {
+        const client = getRedisClient();
+        if (!client) {
+            const key = String(phone);
+            const entry = memoryOtpStore.get(key);
+            if (!entry) return false;
+            if (Date.now() > entry.expiresAt) {
+                memoryOtpStore.delete(key);
+                return false;
+            }
+            entry.attempts += 1;
+            memoryOtpStore.set(key, entry);
+            return true;
+        }
+
         const otpData = await getOTP(phone);
         if (!otpData) return false;
 
@@ -184,6 +217,11 @@ const incrementOTPAttempts = async (phone) => {
 };
 
 const deleteOTP = async (phone) => {
+    const client = getRedisClient();
+    if (!client) {
+        memoryOtpStore.delete(String(phone));
+        return true;
+    }
     return await cacheDel(`otp:${phone}`);
 };
 

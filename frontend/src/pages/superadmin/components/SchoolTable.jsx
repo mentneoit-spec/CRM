@@ -1,7 +1,6 @@
 import { Filter, MoreHorizontal, PlusCircle, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { colleges } from "../../../mockData/superAdminData";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
 import {
@@ -14,9 +13,14 @@ import {
 import { Input } from "../../../components/ui/input";
 import EmptyState from "./EmptyState";
 
-function SchoolTable() {
+function SchoolTable({ colleges = [] }) {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
+
+  const toAction = (path, collegeId) => {
+    const url = collegeId ? `${path}?collegeId=${encodeURIComponent(collegeId)}` : path;
+    navigate(url);
+  };
 
   const filtered = useMemo(() => {
     if (!query.trim()) {
@@ -24,11 +28,16 @@ function SchoolTable() {
     }
     const q = query.toLowerCase();
     return colleges.filter((college) =>
-      [college.name, college.admin, college.plan, college.status]
+      [
+        college.name,
+        college.email,
+        college.subscriptionPlan,
+        college.status,
+      ]
         .filter(Boolean)
         .some((value) => value.toLowerCase().includes(q))
     );
-  }, [query]);
+  }, [colleges, query]);
 
   return (
     <div className="space-y-4">
@@ -92,13 +101,13 @@ function SchoolTable() {
               filtered.map((college) => (
                 <tr key={college.id}>
                   <td className="px-4 py-4 font-medium text-gray-900 dark:text-gray-100">{college.name}</td>
-                  <td className="px-4 py-4">{college.admin}</td>
-                  <td className="px-4 py-4">{college.plan}</td>
-                  <td className="px-4 py-4">{college.storage}</td>
+                  <td className="px-4 py-4">{college.email || "-"}</td>
+                  <td className="px-4 py-4">{college.subscriptionPlan || "-"}</td>
+                  <td className="px-4 py-4">{`${college.storageUsed ?? 0}GB / ${college.storageLimit ?? 0}GB`}</td>
                   <td className="px-4 py-4">
-                    <Badge variant={college.status === "Active" ? "success" : "warning"}>{college.status}</Badge>
+                    <Badge variant={college.status === "active" ? "success" : "warning"}>{college.status}</Badge>
                   </td>
-                  <td className="px-4 py-4">{college.createdDate}</td>
+                  <td className="px-4 py-4">{college.createdAt ? new Date(college.createdAt).toLocaleDateString() : "-"}</td>
                   <td className="px-4 py-4 text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -107,12 +116,12 @@ function SchoolTable() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => navigate("/superadmin/colleges/edit")}>Edit</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => navigate("/superadmin/colleges/status")}>Suspend</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => navigate("/superadmin/colleges/status")}>Activate</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => navigate("/superadmin/colleges/plan")}>Assign Plan</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => toAction("/superadmin/colleges/edit", college.id)}>Edit</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => toAction("/superadmin/colleges/status", college.id)}>Suspend</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => toAction("/superadmin/colleges/status", college.id)}>Activate</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => toAction("/superadmin/colleges/plan", college.id)}>Assign Plan</DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => navigate("/superadmin/colleges/delete")}>Delete</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => toAction("/superadmin/colleges/delete", college.id)}>Delete</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </td>

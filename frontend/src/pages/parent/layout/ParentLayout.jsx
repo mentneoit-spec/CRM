@@ -3,7 +3,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import { cn } from "../../../lib/utils";
 import BottomNavigation from "../components/BottomNavigation";
 import MobileHeader from "../components/MobileHeader";
-import { CalendarCheck, ClipboardList, FileText, Home, MessageCircle, UserRound, Wallet } from "lucide-react";
+import { CalendarCheck, ClipboardList, FileText, Home, MessageCircle, UserRound, Wallet, Settings } from "lucide-react";
 
 const sidebarItems = [
   { label: "Dashboard", icon: Home, to: "/parent/dashboard" },
@@ -13,6 +13,7 @@ const sidebarItems = [
   { label: "Fees", icon: Wallet, to: "/parent/fees" },
   { label: "Payment History", icon: Wallet, to: "/parent/payment-history" },
   { label: "Profile", icon: UserRound, to: "/parent/profile" },
+  { label: "Settings", icon: Settings, to: "/parent/settings" },
   { label: "Feedback", icon: MessageCircle, to: "/parent/feedback" },
 ];
 

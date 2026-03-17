@@ -56,11 +56,13 @@ const AdminAdmissions = () => {
         });
     };
 
-    const filteredAdmissions = admissions?.filter((app) =>
-        app.studentName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        app.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        app.phone?.toLowerCase().includes(searchTerm.toLowerCase())
-    ) || [];
+    const filteredAdmissions = admissions?.filter((app) => {
+        const name = (app.applicantName || app.studentName || '').toLowerCase();
+        const email = (app.applicantEmail || app.email || '').toLowerCase();
+        const phone = (app.applicantPhone || app.phone || '').toLowerCase();
+        const term = searchTerm.toLowerCase();
+        return name.includes(term) || email.includes(term) || phone.includes(term);
+    }) || [];
 
     const paginatedAdmissions = filteredAdmissions.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
@@ -115,13 +117,13 @@ const AdminAdmissions = () => {
                             ) : (
                                 paginatedAdmissions.map((app) => (
                                     <TableRow hover key={app.id}>
-                                        <TableCell sx={{ fontWeight: 500 }}>{app.studentName}</TableCell>
+                                        <TableCell sx={{ fontWeight: 500 }}>{app.applicantName || app.studentName}</TableCell>
                                         <TableCell>
-                                            <Typography variant="body2">{app.email}</Typography>
-                                            <Typography variant="caption" color="text.secondary">{app.phone}</Typography>
+                                            <Typography variant="body2">{app.applicantEmail || app.email}</Typography>
+                                            <Typography variant="caption" color="text.secondary">{app.applicantPhone || app.phone}</Typography>
                                         </TableCell>
-                                        <TableCell>{app.sclass?.sclassName || 'N/A'}</TableCell>
-                                        <TableCell>{new Date(app.createdAt).toLocaleDateString()}</TableCell>
+                                        <TableCell>{app.appliedFor || app.sclass?.sclassName || 'N/A'}</TableCell>
+                                        <TableCell>{new Date(app.appliedDate || app.createdAt).toLocaleDateString()}</TableCell>
                                         <TableCell>
                                             <Chip label={app.status.toUpperCase()} size="small" color={getStatusColor(app.status)} />
                                         </TableCell>

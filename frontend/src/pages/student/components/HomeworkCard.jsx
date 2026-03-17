@@ -2,7 +2,10 @@ import { ClipboardList } from "lucide-react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/card";
 
-function HomeworkCard() {
+function HomeworkCard({ title, subtitle }) {
+  const line1 = title ?? "No tasks assigned yet";
+  const line2 = subtitle ?? "Check back later";
+
   return (
     <motion.div whileHover={{ y: -3 }}>
       <Card className="rounded-2xl">
@@ -13,8 +16,8 @@ function HomeworkCard() {
           </div>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-gray-500 dark:text-gray-400">No tasks assigned yet</p>
-          <p className="mt-2 text-xs uppercase tracking-wide text-indigo-500">Check back later</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{line1}</p>
+          <p className="mt-2 text-xs uppercase tracking-wide text-indigo-500">{line2}</p>
         </CardContent>
       </Card>
     </motion.div>

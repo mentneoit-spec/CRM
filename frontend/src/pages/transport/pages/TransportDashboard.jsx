@@ -1,12 +1,13 @@
 import { motion } from "framer-motion";
 import { ClipboardList, Map, Receipt, Route, Users } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../../../components/ui/button";
 import { Card, CardContent } from "../../../components/ui/card";
 import RouteCard from "../components/RouteCard";
 import BusCard from "../components/BusCard";
 import TransportLayout from "../layout/TransportLayout";
-import { transportStats } from "../../../mockData/transportData";
+import { transportAPI } from "../../../config/api";
 
 const quickActions = [
   { label: "Manage Routes", icon: Map, route: "/transport/routes" },
@@ -18,14 +19,56 @@ const quickActions = [
 
 function TransportDashboard() {
   const navigate = useNavigate();
+  const [dashboard, setDashboard] = useState({
+    totalRoutes: 0,
+    totalBuses: 0,
+    totalStudents: 0,
+    averageCapacityUsage: 0,
+  });
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        setError("");
+        const response = await transportAPI.getDashboard();
+        if (!cancelled && response?.success) {
+          setDashboard(response.data || {});
+        }
+      } catch (e) {
+        if (!cancelled) setError(e?.message || "Failed to load transport dashboard");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const cards = useMemo(() => {
+    return {
+      totalRoutes: dashboard?.totalRoutes ?? 0,
+      totalBuses: dashboard?.totalBuses ?? 0,
+      studentsUsingTransport: dashboard?.totalStudents ?? 0,
+      pendingTransportFees: 0,
+    };
+  }, [dashboard]);
 
   return (
     <TransportLayout title="Transport Dashboard">
+      {error ? (
+        <Card>
+          <CardContent className="py-4 text-sm text-gray-600 dark:text-gray-300">{error}</CardContent>
+        </Card>
+      ) : null}
+
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <RouteCard title="Total Routes" value={transportStats.totalRoutes} subtitle="Active routes" />
-        <BusCard title="Total Buses" value={transportStats.totalBuses} subtitle="Fleet size" />
-        <RouteCard title="Students Using Transport" value={transportStats.studentsUsingTransport} subtitle="Daily riders" />
-        <BusCard title="Pending Transport Fees" value={transportStats.pendingTransportFees} subtitle="Outstanding" />
+        <RouteCard title="Total Routes" value={cards.totalRoutes} subtitle="Active routes" />
+        <BusCard title="Total Buses" value={cards.totalBuses} subtitle="Fleet size" />
+        <RouteCard title="Students Using Transport" value={cards.studentsUsingTransport} subtitle="Daily riders" />
+        <BusCard title="Pending Transport Fees" value={cards.pendingTransportFees} subtitle="Not tracked" />
       </div>
 
       <Card>

@@ -1,1 +1,1 @@
-export { default } from "./pages/SuperAdminDashboard";
+export { default } from "./pages/SuperAdminDashboard.jsx";

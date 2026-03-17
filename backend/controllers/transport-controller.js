@@ -1,5 +1,4 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 // ==================== TRANSPORT ROUTES ====================
 
@@ -7,20 +6,38 @@ const prisma = new PrismaClient();
 const createBusRoute = async (req, res) => {
     try {
         const collegeId = req.collegeId;
-        const { routeName, startPoint, endPoint, distance, pickupTime, dropoffTime } = req.body;
+        const {
+            routeName,
+            routeNumber,
+            startPoint,
+            endPoint,
+            distance,
+            estimatedTime,
+            stopsCount,
+            fee,
+            description,
+            isActive,
+        } = req.body;
 
         if (!routeName || !startPoint || !endPoint) {
             return res.status(400).json({ success: false, message: 'Required fields missing' });
         }
 
+        const finalRouteNumber = routeNumber || `R-${Date.now()}`;
+        const finalFee = fee === undefined || fee === null ? 0 : parseFloat(fee);
+
         const route = await prisma.busRoute.create({
             data: {
                 routeName,
+                routeNumber: finalRouteNumber,
                 startPoint,
                 endPoint,
                 distance: parseFloat(distance) || null,
-                pickupTime,
-                dropoffTime,
+                estimatedTime: estimatedTime || null,
+                stopsCount: stopsCount === undefined || stopsCount === null ? null : parseInt(stopsCount),
+                fee: finalFee,
+                description: description || null,
+                isActive: isActive === undefined ? undefined : Boolean(isActive),
                 collegeId,
             },
         });
@@ -47,8 +64,8 @@ const getAllBusRoutes = async (req, res) => {
         const routes = await prisma.busRoute.findMany({
             where: { collegeId },
             include: {
-                buses: { select: { id: true, busNumber: true, capacity: true } },
-                _count: { select: { buses: true } },
+                Buses: { select: { id: true, busNumber: true, capacity: true, status: true } },
+                _count: { select: { Buses: true, Students: true } },
             },
             skip: parseInt(skip),
             take: parseInt(limit),
@@ -73,26 +90,112 @@ const getAllBusRoutes = async (req, res) => {
     }
 };
 
+// Update bus route
+const updateBusRoute = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const collegeId = req.collegeId;
+        const {
+            routeName,
+            startPoint,
+            endPoint,
+            distance,
+            estimatedTime,
+            stopsCount,
+            fee,
+            description,
+            isActive,
+        } = req.body;
+
+        const existing = await prisma.busRoute.findFirst({ where: { id, collegeId } });
+        if (!existing) {
+            return res.status(404).json({ success: false, message: 'Route not found' });
+        }
+
+        const updated = await prisma.busRoute.update({
+            where: { id },
+            data: {
+                routeName: routeName === undefined ? undefined : routeName,
+                startPoint: startPoint === undefined ? undefined : startPoint,
+                endPoint: endPoint === undefined ? undefined : endPoint,
+                distance: distance === undefined ? undefined : (distance === null ? null : parseFloat(distance)),
+                estimatedTime: estimatedTime === undefined ? undefined : estimatedTime,
+                stopsCount: stopsCount === undefined ? undefined : (stopsCount === null ? null : parseInt(stopsCount)),
+                fee: fee === undefined ? undefined : parseFloat(fee),
+                description: description === undefined ? undefined : description,
+                isActive: isActive === undefined ? undefined : Boolean(isActive),
+            },
+        });
+
+        res.status(200).json({ success: true, message: 'Route updated successfully', data: updated });
+    } catch (error) {
+        console.error('Update route error:', error);
+        res.status(500).json({ success: false, message: 'Error updating route' });
+    }
+};
+
+// Delete bus route
+const deleteBusRoute = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const collegeId = req.collegeId;
+
+        const existing = await prisma.busRoute.findFirst({ where: { id, collegeId } });
+        if (!existing) {
+            return res.status(404).json({ success: false, message: 'Route not found' });
+        }
+
+        await prisma.busRoute.delete({ where: { id } });
+        res.status(200).json({ success: true, message: 'Route deleted successfully' });
+    } catch (error) {
+        console.error('Delete route error:', error);
+        res.status(500).json({ success: false, message: 'Error deleting route' });
+    }
+};
+
 // ==================== BUS MANAGEMENT ====================
 
 // Create bus
 const createBus = async (req, res) => {
     try {
         const collegeId = req.collegeId;
-        const { busNumber, capacity, routeId, driverName, driverPhone, driverLicense } = req.body;
+        const {
+            busNumber,
+            regNumber,
+            capacity,
+            routeId,
+            driverName,
+            driverPhone,
+            driverLicense,
+            conductorName,
+            conductorPhone,
+            gpsDeviceId,
+            status,
+            lastServiceDate,
+            nextServiceDate,
+        } = req.body;
 
         if (!busNumber || !capacity || !routeId) {
             return res.status(400).json({ success: false, message: 'Required fields missing' });
         }
 
+        const finalRegNumber = regNumber || `${busNumber}-REG`;
+
         const bus = await prisma.bus.create({
             data: {
                 busNumber,
+                regNumber: finalRegNumber,
                 capacity: parseInt(capacity),
                 routeId,
-                driverName,
-                driverPhone,
+                driverName: driverName || 'Unknown',
+                driverPhone: driverPhone || 'N/A',
                 driverLicense,
+                conductorName: conductorName || null,
+                conductorPhone: conductorPhone || null,
+                gpsDeviceId: gpsDeviceId || null,
+                status: status || undefined,
+                lastServiceDate: lastServiceDate ? new Date(lastServiceDate) : null,
+                nextServiceDate: nextServiceDate ? new Date(nextServiceDate) : null,
                 collegeId,
             },
             include: { route: true },
@@ -124,8 +227,6 @@ const getAllBuses = async (req, res) => {
             where: filter,
             include: {
                 route: true,
-                students: { select: { name: true, id: true } },
-                _count: { select: { students: true } },
             },
             skip: parseInt(skip),
             take: parseInt(limit),
@@ -149,6 +250,78 @@ const getAllBuses = async (req, res) => {
     }
 };
 
+// Update bus
+const updateBus = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const collegeId = req.collegeId;
+        const {
+            busNumber,
+            regNumber,
+            capacity,
+            routeId,
+            driverName,
+            driverPhone,
+            driverLicense,
+            conductorName,
+            conductorPhone,
+            gpsDeviceId,
+            status,
+            lastServiceDate,
+            nextServiceDate,
+        } = req.body;
+
+        const existing = await prisma.bus.findFirst({ where: { id, collegeId } });
+        if (!existing) {
+            return res.status(404).json({ success: false, message: 'Bus not found' });
+        }
+
+        const updated = await prisma.bus.update({
+            where: { id },
+            data: {
+                busNumber: busNumber === undefined ? undefined : busNumber,
+                regNumber: regNumber === undefined ? undefined : regNumber,
+                capacity: capacity === undefined ? undefined : parseInt(capacity),
+                routeId: routeId === undefined ? undefined : routeId,
+                driverName: driverName === undefined ? undefined : driverName,
+                driverPhone: driverPhone === undefined ? undefined : driverPhone,
+                driverLicense: driverLicense === undefined ? undefined : driverLicense,
+                conductorName: conductorName === undefined ? undefined : conductorName,
+                conductorPhone: conductorPhone === undefined ? undefined : conductorPhone,
+                gpsDeviceId: gpsDeviceId === undefined ? undefined : gpsDeviceId,
+                status: status === undefined ? undefined : status,
+                lastServiceDate: lastServiceDate === undefined ? undefined : (lastServiceDate ? new Date(lastServiceDate) : null),
+                nextServiceDate: nextServiceDate === undefined ? undefined : (nextServiceDate ? new Date(nextServiceDate) : null),
+            },
+            include: { route: true },
+        });
+
+        res.status(200).json({ success: true, message: 'Bus updated successfully', data: updated });
+    } catch (error) {
+        console.error('Update bus error:', error);
+        res.status(500).json({ success: false, message: 'Error updating bus' });
+    }
+};
+
+// Delete bus
+const deleteBus = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const collegeId = req.collegeId;
+
+        const existing = await prisma.bus.findFirst({ where: { id, collegeId } });
+        if (!existing) {
+            return res.status(404).json({ success: false, message: 'Bus not found' });
+        }
+
+        await prisma.bus.delete({ where: { id } });
+        res.status(200).json({ success: true, message: 'Bus deleted successfully' });
+    } catch (error) {
+        console.error('Delete bus error:', error);
+        res.status(500).json({ success: false, message: 'Error deleting bus' });
+    }
+};
+
 // Assign student to bus
 const assignStudentToBus = async (req, res) => {
     try {
@@ -164,19 +337,11 @@ const assignStudentToBus = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Bus not found' });
         }
 
-        // Check bus capacity
-        const studentCount = await prisma.student.count({
-            where: { busId },
-        });
-
-        if (studentCount >= bus.capacity) {
-            return res.status(400).json({ success: false, message: 'Bus is at full capacity' });
-        }
-
+        // Assign student to the bus route (schema links students to BusRoute)
         const student = await prisma.student.update({
             where: { id: studentId },
-            data: { busId },
-            include: { sclass: true, bus: { include: { route: true } } },
+            data: { busRouteId: bus.routeId },
+            include: { sclass: true, busRoute: true },
         });
 
         res.status(200).json({
@@ -195,37 +360,10 @@ const assignStudentToBus = async (req, res) => {
 // Mark bus attendance
 const markBusAttendance = async (req, res) => {
     try {
-        const { busId } = req.params;
-        const { attendanceData } = req.body; // Array: [{studentId, status}]
-        const collegeId = req.collegeId;
-
-        const bus = await prisma.bus.findUnique({
-            where: { id: busId },
-        });
-
-        if (!bus || bus.collegeId !== collegeId) {
-            return res.status(404).json({ success: false, message: 'Bus not found' });
-        }
-
-        const attendanceRecords = [];
-
-        for (const record of attendanceData) {
-            const attendance = await prisma.busAttendance.create({
-                data: {
-                    studentId: record.studentId,
-                    busId,
-                    date: new Date(),
-                    status: record.status, // present, absent, sick
-                    collegeId,
-                },
-            });
-            attendanceRecords.push(attendance);
-        }
-
-        res.status(201).json({
-            success: true,
-            message: 'Bus attendance marked successfully',
-            data: attendanceRecords,
+        // NOTE: Bus attendance model is not present in current Prisma schema.
+        res.status(501).json({
+            success: false,
+            message: 'Transport attendance is not implemented in the current database schema',
         });
     } catch (error) {
         console.error('Mark attendance error:', error);
@@ -236,42 +374,10 @@ const markBusAttendance = async (req, res) => {
 // Get bus attendance report
 const getBusAttendanceReport = async (req, res) => {
     try {
-        const { busId } = req.params;
-        const { month, year } = req.query;
-        const collegeId = req.collegeId;
-
-        const bus = await prisma.bus.findUnique({
-            where: { id: busId },
-        });
-
-        if (!bus || bus.collegeId !== collegeId) {
-            return res.status(404).json({ success: false, message: 'Bus not found' });
-        }
-
-        let filter = { busId };
-
-        if (month && year) {
-            const startDate = new Date(year, month - 1, 1);
-            const endDate = new Date(year, month, 0);
-            filter.date = { gte: startDate, lte: endDate };
-        }
-
-        const attendance = await prisma.busAttendance.findMany({
-            where: filter,
-            include: { student: { select: { name: true, sclass: { select: { name: true } } } } },
-            orderBy: { date: 'desc' },
-        });
-
-        const summary = {
-            total: attendance.length,
-            present: attendance.filter(a => a.status === 'present').length,
-            absent: attendance.filter(a => a.status === 'absent').length,
-            sick: attendance.filter(a => a.status === 'sick').length,
-        };
-
-        res.status(200).json({
-            success: true,
-            data: { attendance, summary },
+        // NOTE: Bus attendance model is not present in current Prisma schema.
+        res.status(501).json({
+            success: false,
+            message: 'Transport attendance reporting is not implemented in the current database schema',
         });
     } catch (error) {
         console.error('Get report error:', error);
@@ -285,17 +391,31 @@ const getBusAttendanceReport = async (req, res) => {
 const defineTransportFee = async (req, res) => {
     try {
         const collegeId = req.collegeId;
-        const { routeId, feeAmount, month } = req.body;
+        const {
+            routeId,
+            amount,
+            feeAmount,
+            frequency,
+            dueDate,
+            discountPercent,
+            description,
+        } = req.body;
 
-        if (!routeId || !feeAmount) {
+        const finalAmount = amount === undefined ? feeAmount : amount;
+
+        if (!routeId || finalAmount === undefined || finalAmount === null) {
             return res.status(400).json({ success: false, message: 'Required fields missing' });
         }
 
         const fee = await prisma.transportFee.create({
             data: {
                 routeId,
-                feeAmount: parseFloat(feeAmount),
-                month,
+                amount: parseFloat(finalAmount),
+                frequency: frequency || undefined,
+                dueDate: dueDate ? new Date(dueDate) : null,
+                discountPercent:
+                    discountPercent === undefined || discountPercent === null ? undefined : parseFloat(discountPercent),
+                description: description || null,
                 collegeId,
             },
             include: { route: true },
@@ -354,8 +474,12 @@ const getTransportDashboard = async (req, res) => {
 module.exports = {
     createBusRoute,
     getAllBusRoutes,
+    updateBusRoute,
+    deleteBusRoute,
     createBus,
     getAllBuses,
+    updateBus,
+    deleteBus,
     assignStudentToBus,
     markBusAttendance,
     getBusAttendanceReport,

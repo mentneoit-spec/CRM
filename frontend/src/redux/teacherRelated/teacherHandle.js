@@ -5,7 +5,8 @@ import {
     getFailed,
     getError,
     postDone,
-    doneSuccess
+    doneSuccess,
+    setMyStudentsSuccess
 } from './teacherSlice';
 
 export const getAllTeachers = (id) => async (dispatch) => {
@@ -48,3 +49,22 @@ export const updateTeachSubject = (teacherId, teachSubject) => async (dispatch) 
         dispatch(getError(error));
     }
 }
+
+export const getMyStudents = () => async (dispatch, getState) => {
+    dispatch(getRequest());
+    const { currentUser } = getState().user;
+    const token = currentUser.token;
+
+    try {
+        const result = await axios.get(`${process.env.REACT_APP_BASE_URL}/teacher/students`, {
+            headers: { Authorization: `Bearer ${token}` },
+        });
+        if (result.data.success) {
+            dispatch(setMyStudentsSuccess(result.data.data));
+        } else {
+            dispatch(getFailed(result.data.message));
+        }
+    } catch (error) {
+        dispatch(getError(error));
+    }
+};

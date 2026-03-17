@@ -1,14 +1,39 @@
 import { ArrowUpRight } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../../../components/ui/button";
 import { Card, CardContent } from "../../../components/ui/card";
 import SkeletonLoader from "../components/SkeletonLoader";
 import SchoolTable from "../components/SchoolTable";
 import SuperAdminLayout from "../layout/SuperAdminLayout";
+import { superAdminAPI } from "../../../config/api";
 
 function CollegesList() {
   const navigate = useNavigate();
-  const isLoading = false;
+  const [isLoading, setIsLoading] = useState(true);
+  const [colleges, setColleges] = useState([]);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        setIsLoading(true);
+        setError("");
+        const response = await superAdminAPI.getColleges({ page: 1, limit: 50 });
+        if (!cancelled && response?.success) setColleges(response.data || []);
+      } catch (e) {
+        if (!cancelled) setError(e?.message || "Failed to load colleges");
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <SuperAdminLayout>
@@ -30,7 +55,10 @@ function CollegesList() {
               <h2 className="text-xl font-semibold">School Directory</h2>
               <p className="text-sm text-gray-500 dark:text-gray-400">Search, filter, and manage all colleges in one place.</p>
             </div>
-            {isLoading ? <SkeletonLoader /> : <SchoolTable />}
+            {error ? (
+              <div className="text-sm text-gray-600 dark:text-gray-300">{error}</div>
+            ) : null}
+            {isLoading ? <SkeletonLoader /> : <SchoolTable colleges={colleges} />}
           </CardContent>
         </Card>
       </div>

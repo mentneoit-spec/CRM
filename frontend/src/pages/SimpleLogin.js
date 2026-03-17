@@ -13,10 +13,20 @@ import {
 
 const SimpleLogin = () => {
   const navigate = useNavigate();
-  const [email, setEmail] = useState('testsignupfix@example.com');
-  const [password, setPassword] = useState('test123');
+  const [email, setEmail] = useState('student@school.com');
+  const [password, setPassword] = useState('Student@123');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const normalizeApiBaseUrl = (url) => {
+    const fallback = 'http://localhost:5000/api';
+    if (!url) return fallback;
+    const trimmed = String(url).replace(/\/+$/, '');
+    if (trimmed.endsWith('/api')) return trimmed;
+    return `${trimmed}/api`;
+  };
+
+  const API_BASE_URL = normalizeApiBaseUrl(process.env.REACT_APP_API_URL);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -26,7 +36,7 @@ const SimpleLogin = () => {
     try {
       console.log('Attempting login with:', { email });
       
-      const response = await fetch('http://localhost:5001/api/auth/login', {
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

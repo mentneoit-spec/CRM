@@ -3,6 +3,7 @@ import { createSlice } from "@reduxjs/toolkit";
 const initialState = {
     teachersList: [],
     teacherDetails: [],
+    myStudents: [],
     loading: false,
     error: null,
     response: null,
@@ -23,6 +24,12 @@ const teacherSlice = createSlice({
         },
         getSuccess: (state, action) => {
             state.teachersList = action.payload;
+            state.loading = false;
+            state.error = null;
+            state.response = null;
+        },
+        setMyStudentsSuccess: (state, action) => {
+            state.myStudents = action.payload;
             state.loading = false;
             state.error = null;
             state.response = null;
@@ -50,7 +57,8 @@ export const {
     getFailed,
     getError,
     doneSuccess,
-    postDone
+    postDone,
+    setMyStudentsSuccess
 } = teacherSlice.actions;
 
 export const teacherReducer = teacherSlice.reducer;

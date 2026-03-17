@@ -27,15 +27,39 @@ const login = async (req, res) => {
                 include: { college: true },
             });
         } else {
-            // SuperAdmin or non-college user login
-            // Use findFirst since email alone is not unique
+            // No collegeId provided:
+            // 1) Prefer a non-college user (collegeId null)
+            // 2) Otherwise, if exactly one college user exists for this email, use it
+            // 3) If multiple college users exist, require collegeId
+
             user = await prisma.user.findFirst({
                 where: {
                     email,
-                    collegeId: null
+                    collegeId: null,
                 },
                 include: { college: true },
             });
+
+            if (!user) {
+                const matches = await prisma.user.findMany({
+                    where: {
+                        email,
+                        collegeId: { not: null },
+                    },
+                    include: { college: true },
+                    take: 2,
+                });
+
+                if (matches.length === 1) {
+                    user = matches[0];
+                } else if (matches.length > 1) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Multiple accounts found for this email. Please provide collegeId.',
+                        requiresCollegeId: true,
+                    });
+                }
+            }
         }
 
         if (!user) {
@@ -102,7 +126,7 @@ const login = async (req, res) => {
 
 const superAdminLogin = async (req, res) => {
     try {
-        const { email, password } = req.body;
+        const { email, password, twoFAToken } = req.body;
 
         if (!email || !password) {
             return res.status(400).json({
@@ -140,22 +164,89 @@ const superAdminLogin = async (req, res) => {
             });
         }
 
-        // Generate token
-        const token = generateToken(superAdmin.id, 'SuperAdmin', null);
+        // Enforce 2FA if enabled for SuperAdmin
+        if (superAdmin.twoFAEnabled) {
+            // If 2FA is "enabled" but secret is missing, treat it as not configured.
+            // Auto-disable so login isn't permanently blocked.
+            if (!superAdmin.twoFASecret) {
+                await prisma.superAdmin.update({
+                    where: { id: superAdmin.id },
+                    data: { twoFAEnabled: false },
+                });
+            } else {
+                if (!twoFAToken) {
+                    return res.status(400).json({
+                        success: false,
+                        message: '2FA token is required',
+                        requires2FA: true,
+                    });
+                }
 
-        // Update last login
-        await prisma.superAdmin.update({
-            where: { id: superAdmin.id },
-            data: { lastLogin: new Date() },
+                const speakeasy = require('speakeasy');
+                const verified = speakeasy.totp.verify({
+                    secret: superAdmin.twoFASecret,
+                    encoding: 'base32',
+                    token: String(twoFAToken),
+                    window: 2,
+                });
+
+                if (!verified) {
+                    return res.status(401).json({
+                        success: false,
+                        message: 'Invalid 2FA token',
+                        requires2FA: true,
+                    });
+                }
+            }
+        }
+
+        // Ensure a matching `User` exists for authMiddleware-protected routes.
+        // (authMiddleware loads from `User`, not `SuperAdmin`.)
+        let user = await prisma.user.findFirst({
+            where: {
+                email,
+                collegeId: null,
+                role: 'SuperAdmin',
+            },
         });
 
-        const { password: _, ...adminWithoutPassword } = superAdmin;
+        if (!user) {
+            user = await prisma.user.create({
+                data: {
+                    name: superAdmin.name,
+                    email: superAdmin.email,
+                    phone: superAdmin.phone,
+                    password: superAdmin.password,
+                    role: 'SuperAdmin',
+                    collegeId: null,
+                    isEmailVerified: true,
+                    isActive: superAdmin.isActive,
+                },
+            });
+        }
+
+        // Generate token based on `User.id` so authMiddleware works everywhere
+        const token = generateToken(user.id, 'SuperAdmin', null);
+
+        // Update last login
+        await Promise.all([
+            prisma.superAdmin.update({
+                where: { id: superAdmin.id },
+                data: { lastLogin: new Date() },
+            }),
+            prisma.user.update({
+                where: { id: user.id },
+                data: { lastLogin: new Date() },
+            }),
+        ]);
+
+        const { password: __, ...userWithoutPassword } = user;
 
         res.status(200).json({
             success: true,
             message: 'Login successful',
             data: {
-                user: adminWithoutPassword,
+                user: userWithoutPassword,
                 token,
             },
         });
@@ -200,6 +291,118 @@ const getCurrentUser = async (req, res) => {
     } catch (error) {
         console.error('Get current user error:', error);
         res.status(500).json({ success: false, message: 'Error fetching user' });
+    }
+};
+
+// ==================== MY PROFILE ====================
+
+const getMyProfile = async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'Not authenticated' });
+        }
+
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                phone: true,
+                profileImage: true,
+                role: true,
+                collegeId: true,
+                twoFAEnabled: true,
+                isActive: true,
+                createdAt: true,
+                updatedAt: true,
+                college: {
+                    select: {
+                        id: true,
+                        name: true,
+                    },
+                },
+            },
+        });
+
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        res.status(200).json({ success: true, data: user });
+    } catch (error) {
+        console.error('Get my profile error:', error);
+        res.status(500).json({ success: false, message: 'Error fetching profile' });
+    }
+};
+
+const updateMyProfile = async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'Not authenticated' });
+        }
+
+        const { name, phone, profileImage } = req.body || {};
+
+        const dataToUpdate = {};
+        if (typeof name === 'string' && name.trim()) dataToUpdate.name = name.trim();
+        if (typeof phone === 'string') dataToUpdate.phone = phone.trim() || null;
+        if (typeof profileImage === 'string') dataToUpdate.profileImage = profileImage.trim() || null;
+
+        if (!Object.keys(dataToUpdate).length) {
+            return res.status(400).json({ success: false, message: 'No updatable fields provided' });
+        }
+
+        const updatedUser = await prisma.user.update({
+            where: { id: userId },
+            data: dataToUpdate,
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                phone: true,
+                profileImage: true,
+                role: true,
+                collegeId: true,
+                twoFAEnabled: true,
+                isActive: true,
+                createdAt: true,
+                updatedAt: true,
+            },
+        });
+
+        // Best-effort sync into role-specific tables if they exist
+        const sync = async (fn) => {
+            try {
+                await fn();
+            } catch (e) {
+                const code = e?.code;
+                if (code !== 'P2025') {
+                    console.warn('Profile sync warning:', e?.message || e);
+                }
+            }
+        };
+
+        await Promise.all([
+            sync(() => prisma.student.update({ where: { userId }, data: { name: updatedUser.name, phone: updatedUser.phone, profileImage: updatedUser.profileImage } })),
+            sync(() => prisma.teacher.update({ where: { userId }, data: { name: updatedUser.name, phone: updatedUser.phone, profileImage: updatedUser.profileImage } })),
+            sync(() => prisma.parent.update({ where: { userId }, data: { name: updatedUser.name, phone: updatedUser.phone, profileImage: updatedUser.profileImage } })),
+            sync(() => prisma.admin.update({ where: { userId }, data: { name: updatedUser.name, phone: updatedUser.phone, profileImage: updatedUser.profileImage } })),
+            sync(() => prisma.accountsTeam.update({ where: { userId }, data: { name: updatedUser.name, phone: updatedUser.phone, profileImage: updatedUser.profileImage } })),
+            sync(() => prisma.transportTeam.update({ where: { userId }, data: { name: updatedUser.name, phone: updatedUser.phone, profileImage: updatedUser.profileImage } })),
+            sync(() => prisma.admissionTeam.update({ where: { userId }, data: { name: updatedUser.name, phone: updatedUser.phone, profileImage: updatedUser.profileImage } })),
+        ]);
+
+        res.status(200).json({
+            success: true,
+            message: 'Profile updated successfully',
+            data: updatedUser,
+        });
+    } catch (error) {
+        console.error('Update my profile error:', error);
+        res.status(500).json({ success: false, message: 'Error updating profile' });
     }
 };
 
@@ -664,9 +867,25 @@ const googleCallback = async (req, res) => {
         const result = await handleGoogleCallback(code, state);
 
         if (!result.success) {
+            // If the browser hit this endpoint directly, send them back to the frontend with an error.
+            if (req.accepts('html')) {
+                const frontendBase = process.env.FRONTEND_URL || 'http://localhost:3000';
+                const url = new URL('/login', frontendBase);
+                url.hash = `googleError=${encodeURIComponent(result.message || 'Google login failed')}`;
+                return res.redirect(url.toString());
+            }
             return res.status(400).json(result);
         }
 
+        // Browser flow: redirect back to frontend with token in hash.
+        if (req.accepts('html')) {
+            const frontendBase = process.env.FRONTEND_URL || 'http://localhost:3000';
+            const url = new URL('/login', frontendBase);
+            url.hash = `googleToken=${encodeURIComponent(result.token)}`;
+            return res.redirect(url.toString());
+        }
+
+        // API flow: return JSON
         res.status(200).json(result);
     } catch (error) {
         console.error('Google callback error:', error);
@@ -762,6 +981,8 @@ module.exports = {
     superAdminLogin,
     logout,
     getCurrentUser,
+    getMyProfile,
+    updateMyProfile,
     changePassword,
     register,
     requestOTP,

@@ -13,16 +13,24 @@ function AttendanceTable({ rows }) {
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 text-gray-700 dark:divide-gray-900 dark:text-gray-200">
-          {rows.map((row) => (
-            <tr key={row.id}>
-              <td className="px-4 py-4 font-medium text-gray-900 dark:text-gray-100">{row.student}</td>
-              <td className="px-4 py-4">{row.route}</td>
-              <td className="px-4 py-4">{row.busNumber}</td>
-              <td className="px-4 py-4">
-                <Badge variant={row.status === "Present" ? "success" : "warning"}>{row.status}</Badge>
+          {rows.length === 0 ? (
+            <tr>
+              <td className="px-4 py-6 text-sm text-gray-500 dark:text-gray-400" colSpan={4}>
+                No attendance data available.
               </td>
             </tr>
-          ))}
+          ) : (
+            rows.map((row) => (
+              <tr key={row.id}>
+                <td className="px-4 py-4 font-medium text-gray-900 dark:text-gray-100">{row.student}</td>
+                <td className="px-4 py-4">{row.route}</td>
+                <td className="px-4 py-4">{row.busNumber}</td>
+                <td className="px-4 py-4">
+                  <Badge variant={row.status === "Present" ? "success" : "warning"}>{row.status}</Badge>
+                </td>
+              </tr>
+            ))
+          )}
         </tbody>
       </table>
     </div>

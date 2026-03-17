@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Box,
   Container,
@@ -39,11 +39,12 @@ import {
   Lock,
   Info,
 } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { authAPI } from '../config/api';
 
 const ModernLoginEnhanced = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [tabValue, setTabValue] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -52,14 +53,110 @@ const ModernLoginEnhanced = () => {
   const [otpSent, setOtpSent] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [openTests, setOpenTests] = useState(false);
+  const [resolvedCollegeId, setResolvedCollegeId] = useState(() => localStorage.getItem('collegeId') || '');
+  const [superAdmin2FARequired, setSuperAdmin2FARequired] = useState(false);
+  const [showCollegeIdField, setShowCollegeIdField] = useState(false);
 
   const [formData, setFormData] = useState({
     email: '',
     password: '',
     phone: '',
     otp: '',
+    twoFAToken: '',
     role: 'Student',
   });
+
+  const requiresCollege = formData.role !== 'SuperAdmin';
+  const activeCollegeId = resolvedCollegeId || localStorage.getItem('collegeId') || '';
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const roleParam = params.get('role');
+    const collegeIdParam = params.get('collegeId');
+    const allowedRoles = ['Student', 'Teacher', 'Parent', 'Admin', 'SuperAdmin'];
+
+    if (roleParam && allowedRoles.includes(roleParam)) {
+      setFormData((prev) => ({ ...prev, role: roleParam }));
+    }
+
+    if (collegeIdParam) {
+      localStorage.setItem('collegeId', collegeIdParam);
+      setResolvedCollegeId(collegeIdParam);
+    }
+  }, [location.search]);
+
+  // Tenant auto-detection (custom domain -> collegeId)
+  useEffect(() => {
+    let isMounted = true;
+    const tryDetectTenant = async () => {
+      try {
+        if (resolvedCollegeId) return;
+        if (!authAPI.getTenant) return;
+        const resp = await authAPI.getTenant();
+        const tenantCollegeId = resp?.data?.collegeId;
+        if (tenantCollegeId && isMounted) {
+          localStorage.setItem('collegeId', tenantCollegeId);
+          setResolvedCollegeId(tenantCollegeId);
+        }
+      } catch {
+        // ignore (tenant detection is best-effort)
+      }
+    };
+    tryDetectTenant();
+    return () => {
+      isMounted = false;
+    };
+  }, [resolvedCollegeId]);
+
+  // Google OAuth return handling (backend redirects to /login#googleToken=...)
+  useEffect(() => {
+    const hash = (location.hash || '').replace(/^#/, '');
+    if (!hash) return;
+
+    const params = new URLSearchParams(hash);
+    const googleToken = params.get('googleToken');
+    const googleError = params.get('googleError');
+
+    if (googleError) {
+      setError(decodeURIComponent(googleError));
+      navigate(location.pathname + location.search, { replace: true });
+      return;
+    }
+
+    if (!googleToken) return;
+
+    (async () => {
+      try {
+        setLoading(true);
+        localStorage.setItem('token', googleToken);
+        const me = await authAPI.getCurrentUser();
+        if (me?.success && me?.data) {
+          localStorage.setItem('user', JSON.stringify(me.data));
+          if (me.data.collegeId) {
+            localStorage.setItem('collegeId', me.data.collegeId);
+            setResolvedCollegeId(me.data.collegeId);
+          }
+
+          const roleRoutes = {
+            Student: '/student/dashboard',
+            Teacher: '/teacher/dashboard',
+            Parent: '/parent/dashboard',
+            Admin: '/admin/dashboard',
+            SuperAdmin: '/superadmin/dashboard',
+          };
+          navigate(roleRoutes[me.data.role] || '/dashboard', { replace: true });
+        } else {
+          setError(me?.message || 'Google login failed');
+        }
+      } catch (err) {
+        setError(err?.message || 'Google login failed');
+      } finally {
+        setLoading(false);
+        navigate(location.pathname + location.search, { replace: true });
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.hash]);
 
   const testCredentials = {
     Student: { email: 'student@school.com', password: 'Student@123' },
@@ -71,6 +168,13 @@ const ModernLoginEnhanced = () => {
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
+    setError('');
+  };
+
+  const handleCollegeIdChange = (e) => {
+    const value = (e.target.value || '').trim();
+    setResolvedCollegeId(value);
+    if (value) localStorage.setItem('collegeId', value);
     setError('');
   };
 
@@ -90,19 +194,27 @@ const ModernLoginEnhanced = () => {
           return;
         }
         
-        const loginData = {
-          email: formData.email,
-          password: formData.password,
-        };
-        
-        // Add collegeId for non-superadmin users
-        if (formData.role !== 'SuperAdmin') {
-          loginData.collegeId = '2aad2902-caee-4a50-bcb9-0b75e0c75262';
+        if (formData.role === 'SuperAdmin') {
+          response = await authAPI.superAdminLogin({
+            email: formData.email,
+            password: formData.password,
+            twoFAToken: formData.twoFAToken || undefined,
+          });
+        } else {
+          const collegeId = activeCollegeId;
+          response = await authAPI.login({
+            email: formData.email,
+            password: formData.password,
+            ...(collegeId ? { collegeId } : {}),
+          });
         }
-        
-        response = await authAPI.login(loginData);
       } else {
         // OTP login
+        if (formData.role === 'SuperAdmin') {
+          setError('OTP login is not available for Super Admin');
+          setLoading(false);
+          return;
+        }
         if (!otpSent) {
           setError('Please request OTP first');
           setLoading(false);
@@ -114,17 +226,18 @@ const ModernLoginEnhanced = () => {
           return;
         }
         
-        const otpData = {
+        const collegeId = activeCollegeId;
+        if (!collegeId) {
+          setError('College not identified. Open the login link with ?collegeId=... or use your college domain.');
+          setLoading(false);
+          return;
+        }
+
+        response = await authAPI.verifyOTP({
           phone: formData.phone,
           otp: formData.otp,
-        };
-        
-        // Add collegeId for non-superadmin users
-        if (formData.role !== 'SuperAdmin') {
-          otpData.collegeId = '2aad2902-caee-4a50-bcb9-0b75e0c75262';
-        }
-        
-        response = await authAPI.verifyOTP(otpData);
+          collegeId,
+        });
       }
       
       if (response.success && response.data) {
@@ -140,6 +253,9 @@ const ModernLoginEnhanced = () => {
         }
         
         setSuccess('Login successful! Redirecting...');
+        setSuperAdmin2FARequired(false);
+        setShowCollegeIdField(false);
+        setFormData((prev) => ({ ...prev, twoFAToken: '' }));
         
         const roleRoutes = {
           Student: '/student/dashboard',
@@ -157,29 +273,39 @@ const ModernLoginEnhanced = () => {
       }
     } catch (err) {
       console.error('Login error:', err);
-      setError(err.message || 'Invalid credentials. Please try again.');
+      if (formData.role === 'SuperAdmin' && err?.requires2FA) {
+        setSuperAdmin2FARequired(true);
+        setError(err?.message || '2FA token is required');
+      } else if (err?.requiresCollegeId) {
+        setShowCollegeIdField(true);
+        setError(err?.message || 'College ID is required');
+      } else {
+        setError(err?.message || 'Invalid credentials. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const handleRequestOTP = async () => {
+    if (formData.role === 'SuperAdmin') {
+      setError('OTP login is not available for Super Admin');
+      return;
+    }
     if (!formData.phone) {
       setError('Please enter your phone number');
       return;
     }
     setLoading(true);
     try {
-      const otpData = {
-        phone: formData.phone,
-      };
-      
-      // Add collegeId for non-superadmin users
-      if (formData.role !== 'SuperAdmin') {
-        otpData.collegeId = '2aad2902-caee-4a50-bcb9-0b75e0c75262';
+      const collegeId = activeCollegeId;
+      if (!collegeId) {
+        setShowCollegeIdField(true);
+        setError('Please enter your College ID to request OTP.');
+        return;
       }
-      
-      const response = await authAPI.requestOTP(otpData);
+
+      const response = await authAPI.requestOTP({ phone: formData.phone, collegeId });
       
       if (response.success) {
         setOtpSent(true);
@@ -196,9 +322,38 @@ const ModernLoginEnhanced = () => {
     }
   };
 
+  const handleGoogleLogin = async () => {
+    setError('');
+    setSuccess('');
+    if (formData.role === 'SuperAdmin') {
+      setError('Google login is not available for Super Admin');
+      return;
+    }
+    const collegeId = activeCollegeId;
+    if (!collegeId) {
+      setShowCollegeIdField(true);
+      setError('Please enter your College ID to continue with Google.');
+      return;
+    }
+    try {
+      setLoading(true);
+      const resp = await authAPI.getGoogleAuthURL(collegeId);
+      if (resp?.success && resp?.authUrl) {
+        window.location.assign(resp.authUrl);
+        return;
+      }
+      setError(resp?.message || 'Failed to start Google login');
+    } catch (err) {
+      setError(err?.message || 'Failed to start Google login');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const fillTestCredentials = (role) => {
     const creds = testCredentials[role];
-    setFormData({ ...formData, ...creds, role });
+    setFormData({ ...formData, ...creds, role, twoFAToken: '' });
+    setSuperAdmin2FARequired(false);
     setOpenTests(false);
   };
 
@@ -278,8 +433,10 @@ const ModernLoginEnhanced = () => {
                   key={role}
                   label={role === 'SuperAdmin' ? 'Super Admin' : role}
                   onClick={() => {
-                    setFormData({ ...formData, role });
+                    setFormData({ ...formData, role, twoFAToken: '' });
                     setOtpSent(false);
+                    setSuperAdmin2FARequired(false);
+                    setShowCollegeIdField(false);
                   }}
                   color={formData.role === role ? 'primary' : 'default'}
                   variant={formData.role === role ? 'filled' : 'outlined'}
@@ -308,6 +465,9 @@ const ModernLoginEnhanced = () => {
               setTabValue(newValue);
               setError('');
               setOtpSent(false);
+              setSuperAdmin2FARequired(false);
+              setShowCollegeIdField(false);
+              setFormData((prev) => ({ ...prev, twoFAToken: '' }));
             }}
             fullWidth
             sx={{
@@ -325,6 +485,17 @@ const ModernLoginEnhanced = () => {
             {/* Email/Password Tab */}
             {tabValue === 0 && (
               <Stack spacing={2}>
+                {requiresCollege && !activeCollegeId && showCollegeIdField && (
+                  <TextField
+                    fullWidth
+                    label="College ID"
+                    value={resolvedCollegeId}
+                    onChange={handleCollegeIdChange}
+                    placeholder="Paste collegeId here"
+                    variant="outlined"
+                    disabled={loading}
+                  />
+                )}
                 <TextField
                   fullWidth
                   label="Email Address"
@@ -374,6 +545,21 @@ const ModernLoginEnhanced = () => {
                   }}
                 />
 
+                {(formData.role === 'SuperAdmin' && (superAdmin2FARequired || formData.twoFAToken)) && (
+                  <TextField
+                    fullWidth
+                    label="2FA Code"
+                    name="twoFAToken"
+                    value={formData.twoFAToken}
+                    onChange={handleChange}
+                    placeholder="123456"
+                    variant="outlined"
+                    disabled={loading}
+                    inputProps={{ inputMode: 'numeric', pattern: '[0-9]*' }}
+                    helperText="Enter the 6-digit code from your authenticator app"
+                  />
+                )}
+
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <FormControlLabel
                     control={
@@ -415,6 +601,17 @@ const ModernLoginEnhanced = () => {
             {/* OTP Tab */}
             {tabValue === 1 && (
               <Stack spacing={2}>
+                {requiresCollege && !activeCollegeId && (
+                  <TextField
+                    fullWidth
+                    label="College ID"
+                    value={resolvedCollegeId}
+                    onChange={handleCollegeIdChange}
+                    placeholder="Paste collegeId here"
+                    variant="outlined"
+                    disabled={loading}
+                  />
+                )}
                 <TextField
                   fullWidth
                   label="Phone Number"
@@ -518,8 +715,9 @@ const ModernLoginEnhanced = () => {
                 fontWeight: 600,
                 borderColor: '#D3D3D3',
               }}
+              onClick={handleGoogleLogin}
             >
-              Continue with Google (Coming Soon)
+              Continue with Google
             </Button>
 
             {/* Test Credentials */}

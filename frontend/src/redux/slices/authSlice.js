@@ -35,13 +35,16 @@ export const login = createAsyncThunk(
       const response = await authAPI.login(credentials);
       
       // Save to localStorage
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
-      if (response.data.user.collegeId) {
-        localStorage.setItem('collegeId', response.data.user.collegeId);
+      if (response?.success && response?.data?.token && response?.data?.user) {
+        localStorage.setItem('token', response.data.token);
+        localStorage.setItem('user', JSON.stringify(response.data.user));
+        if (response.data.user.collegeId) {
+          localStorage.setItem('collegeId', response.data.user.collegeId);
+        }
+        return response.data;
       }
-      
-      return response.data;
+
+      return rejectWithValue(response?.message || 'Login failed');
     } catch (error) {
       return rejectWithValue(error.message || 'Login failed');
     }
@@ -54,10 +57,13 @@ export const superAdminLogin = createAsyncThunk(
     try {
       const response = await authAPI.superAdminLogin(credentials);
       
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
-      
-      return response.data;
+      if (response?.success && response?.data?.token && response?.data?.user) {
+        localStorage.setItem('token', response.data.token);
+        localStorage.setItem('user', JSON.stringify(response.data.user));
+        return response.data;
+      }
+
+      return rejectWithValue(response?.message || 'Login failed');
     } catch (error) {
       return rejectWithValue(error.message || 'Login failed');
     }
@@ -70,13 +76,16 @@ export const verifyOTP = createAsyncThunk(
     try {
       const response = await authAPI.verifyOTP(data);
       
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
-      if (response.data.user.collegeId) {
-        localStorage.setItem('collegeId', response.data.user.collegeId);
+      if (response?.success && response?.data?.token && response?.data?.user) {
+        localStorage.setItem('token', response.data.token);
+        localStorage.setItem('user', JSON.stringify(response.data.user));
+        if (response.data.user.collegeId) {
+          localStorage.setItem('collegeId', response.data.user.collegeId);
+        }
+        return response.data;
       }
-      
-      return response.data;
+
+      return rejectWithValue(response?.message || 'OTP verification failed');
     } catch (error) {
       return rejectWithValue(error.message || 'OTP verification failed');
     }
@@ -88,7 +97,10 @@ export const getCurrentUser = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const response = await authAPI.getCurrentUser();
-      return response.data;
+      if (response?.success) {
+        return response.data;
+      }
+      return rejectWithValue(response?.message || 'Failed to fetch user');
     } catch (error) {
       return rejectWithValue(error.message || 'Failed to fetch user');
     }

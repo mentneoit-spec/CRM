@@ -2,7 +2,10 @@ import { FileText } from "lucide-react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/card";
 
-function MarksCard() {
+function MarksCard({ label, dateText }) {
+  const subjectLine = label ?? "Subject --";
+  const dateLine = dateText ?? "Date -- / --";
+
   return (
     <motion.div whileHover={{ y: -3 }}>
       <Card className="rounded-2xl">
@@ -13,8 +16,8 @@ function MarksCard() {
           </div>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Subject --</p>
-          <p className="mt-2 text-lg font-semibold text-gray-900 dark:text-gray-100">Date -- / --</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{subjectLine}</p>
+          <p className="mt-2 text-lg font-semibold text-gray-900 dark:text-gray-100">{dateLine}</p>
         </CardContent>
       </Card>
     </motion.div>

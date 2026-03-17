@@ -1,11 +1,12 @@
 import { motion } from "framer-motion";
 import { Banknote, FileText, Receipt, RotateCcw, UploadCloud } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../../../components/ui/button";
 import { Card, CardContent } from "../../../components/ui/card";
 import PaymentStatsCards from "../components/PaymentStatsCards";
 import AccountsLayout from "../layout/AccountsLayout";
-import { paymentStats } from "../../../mockData/accountsData";
+import { accountsAPI } from "../../../config/api";
 
 const quickActions = [
   { label: "View All Payments", icon: Banknote, route: "/accounts/payments" },
@@ -18,10 +19,51 @@ const quickActions = [
 
 function AccountsDashboard() {
   const navigate = useNavigate();
+  const [stats, setStats] = useState({
+    totalPayments: 0,
+    pendingPayments: 0,
+    totalRevenue: 0,
+    refundRequests: 0,
+  });
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        setError("");
+        const response = await accountsAPI.getDashboard();
+        if (cancelled) return;
+
+        if (response?.success) {
+          const data = response.data || {};
+          setStats({
+            totalPayments: data.completedTransactions ?? 0,
+            pendingPayments: data.pendingFees ?? 0,
+            totalRevenue: data.totalRevenue ?? 0,
+            refundRequests: 0,
+          });
+        }
+      } catch (e) {
+        if (!cancelled) setError(e?.message || "Failed to load accounts dashboard");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <AccountsLayout title="Accounts Dashboard">
-      <PaymentStatsCards stats={paymentStats} />
+      {error ? (
+        <Card>
+          <CardContent className="py-4 text-sm text-gray-600 dark:text-gray-300">{error}</CardContent>
+        </Card>
+      ) : null}
+
+      <PaymentStatsCards stats={stats} />
 
       <Card>
         <CardContent className="flex flex-wrap items-center justify-between gap-4 py-6">

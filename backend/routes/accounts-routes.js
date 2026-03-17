@@ -20,11 +20,15 @@ router.post('/payments/manual', authorize('AccountsTeam', 'Admin'), authorizeCol
 
 // ==================== REFUNDS ====================
 router.post('/refunds/:paymentId', authorize('AccountsTeam', 'Admin'), authorizeCollege, processRefund);
+// Alias for frontend: POST /accounts/payments/:paymentId/refund
+router.post('/payments/:paymentId/refund', authorize('AccountsTeam', 'Admin'), authorizeCollege, processRefund);
 router.get('/refunds/:refundId', authorize('AccountsTeam', 'Admin'), authorizeCollege, getRefundStatus);
 
 // ==================== REPORTS ====================
 router.get('/reports/payment', authorize('AccountsTeam', 'Admin'), authorizeCollege, getPaymentReport);
 router.get('/dashboard', authorize('AccountsTeam', 'Admin'), authorizeCollege, getRevenueDashboard);
 router.get('/export', authorize('AccountsTeam', 'Admin'), authorizeCollege, exportPaymentData);
+// Alias for frontend: GET /accounts/payments/export
+router.get('/payments/export', authorize('AccountsTeam', 'Admin'), authorizeCollege, exportPaymentData);
 
 module.exports = router;

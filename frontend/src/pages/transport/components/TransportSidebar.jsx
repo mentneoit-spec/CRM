@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { Bus, ClipboardList, FileText, Home, Map, Receipt, Users } from "lucide-react";
+import { Bus, ClipboardList, FileText, Home, Map, Receipt, Users, UserRound, Settings } from "lucide-react";
 import { cn } from "../../../lib/utils";
 
 const sidebarItems = [
@@ -9,6 +9,8 @@ const sidebarItems = [
   { label: "Bus Attendance", icon: Users, to: "/transport/attendance" },
   { label: "Transport Fees", icon: Receipt, to: "/transport/fees" },
   { label: "Reports", icon: FileText, to: "/transport/reports" },
+  { label: "Profile", icon: UserRound, to: "/transport/profile" },
+  { label: "Settings", icon: Settings, to: "/transport/settings" },
 ];
 
 function TransportSidebar() {

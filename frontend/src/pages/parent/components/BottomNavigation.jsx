@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { CalendarCheck, ClipboardList, Home, UserRound, Wallet } from "lucide-react";
+import { CalendarCheck, ClipboardList, Home, UserRound, Wallet, Settings } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "../../../lib/utils";
 
@@ -9,6 +9,7 @@ const navItems = [
   { label: "Homework", icon: ClipboardList, to: "/parent/homework" },
   { label: "Fees", icon: Wallet, to: "/parent/fees" },
   { label: "Profile", icon: UserRound, to: "/parent/profile" },
+  { label: "Settings", icon: Settings, to: "/parent/settings" },
 ];
 
 function BottomNavigation() {

@@ -23,31 +23,20 @@ const AdminDashboardModern = () => {
   const stats = data?.stats || { students: 0, teachers: 0, classes: 0, revenue: 0, pendingAdmissions: 0 };
   const recentPayments = data?.recentPayments || [];
 
-  // Temporary mock data for charts until fully implemented in backend aggregation
-  const revenueData = [
-    { month: 'Jan', revenue: 450000 },
-    { month: 'Feb', revenue: 520000 },
-    { month: 'Mar', revenue: 480000 },
-    { month: 'Apr', revenue: 550000 },
-    { month: 'May', revenue: stats?.revenue || 600000 },
-  ];
+  // Chart/list data comes from backend aggregates (no mock values)
+  const revenueData = Array.isArray(data?.revenueByMonth) ? data.revenueByMonth : [];
 
-  const admissionData = [
-    { status: 'Approved', value: 145 },
-    { status: 'Pending', value: stats.pendingAdmissions || 32 },
-    { status: 'Rejected', value: 8 },
-  ];
+  const admissionData = Array.isArray(data?.admissionsByStatus)
+    ? data.admissionsByStatus
+    : [
+      { status: 'Approved', value: 0 },
+      { status: 'Pending', value: stats.pendingAdmissions || 0 },
+      { status: 'Rejected', value: 0 },
+    ];
 
-  const departmentData = [
-    { dept: 'Grade 10', students: stats.students > 0 ? Math.floor(stats.students * 0.4) : 450 },
-    { dept: 'Grade 11', students: stats.students > 0 ? Math.floor(stats.students * 0.3) : 380 },
-    { dept: 'Grade 12', students: stats.students > 0 ? Math.floor(stats.students * 0.3) : 320 },
-  ];
-
-  const pendingApprovals = [
-    { type: 'Student Admission', count: stats.pendingAdmissions, priority: 'high' },
-    { type: 'Leave Requests', count: 12, priority: 'medium' },
-  ];
+  const pendingApprovals = stats.pendingAdmissions > 0
+    ? [{ type: 'Student Admission', count: stats.pendingAdmissions, priority: 'high' }]
+    : [];
 
   const COLORS = ['#2e7d32', '#ed6c02', '#d32f2f'];
 
@@ -189,7 +178,9 @@ const AdminDashboardModern = () => {
                   <Chip icon={<Warning />} label={pendingApprovals.length} size="small" color="warning" />
                 </Box>
                 <List>
-                  {pendingApprovals.map((item, index) => (
+                  {pendingApprovals.length === 0 ? (
+                    <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>No pending approvals.</Typography>
+                  ) : pendingApprovals.map((item, index) => (
                     <React.Fragment key={index}>
                       <ListItem>
                         <ListItemAvatar>

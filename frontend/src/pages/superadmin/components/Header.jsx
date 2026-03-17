@@ -1,4 +1,5 @@
 import { Bell, Search, UserCircle } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import {
@@ -12,6 +13,15 @@ import {
 import ThemeToggle from "./ThemeToggle";
 
 function Header() {
+  const navigate = useNavigate();
+
+  const logout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    localStorage.removeItem("collegeId");
+    navigate("/login");
+  };
+
   return (
     <header className="sticky top-0 z-40 w-full border-b border-gray-200 bg-white/70 backdrop-blur-xl dark:border-gray-900 dark:bg-gray-950/60">
       <div className="flex items-center justify-between gap-4 px-6 py-4">
@@ -34,10 +44,10 @@ function Header() {
             <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuLabel>Account</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>Profile</DropdownMenuItem>
-              <DropdownMenuItem>Preferences</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate("/superadmin/profile")}>Profile</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate("/superadmin/settings")}>Preferences</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>Sign out</DropdownMenuItem>
+              <DropdownMenuItem onClick={logout}>Sign out</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

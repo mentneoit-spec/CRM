@@ -30,7 +30,7 @@ Content-Type: application/json
 
 ### 1.2 Super Admin Login
 ```http
-POST /api/auth/superadmin/login
+POST /api/auth/superadmin-login
 Content-Type: application/json
 
 {
@@ -41,7 +41,7 @@ Content-Type: application/json
 
 ### 1.3 Request OTP
 ```http
-POST /api/auth/otp/request
+POST /api/auth/otp/request-login
 Content-Type: application/json
 
 {
@@ -52,7 +52,7 @@ Content-Type: application/json
 
 ### 1.4 Verify OTP Login
 ```http
-POST /api/auth/otp/verify
+POST /api/auth/otp/verify-login
 Content-Type: application/json
 
 {

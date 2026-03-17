@@ -2,7 +2,9 @@ import { CalendarCheck } from "lucide-react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/card";
 
-function AttendanceCard() {
+function AttendanceCard({ status }) {
+  const displayStatus = status ?? "--";
+
   return (
     <motion.div whileHover={{ y: -3 }}>
       <Card className="rounded-2xl">
@@ -14,7 +16,7 @@ function AttendanceCard() {
         </CardHeader>
         <CardContent>
           <p className="text-sm text-gray-500 dark:text-gray-400">Today</p>
-          <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">Present</p>
+          <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">{displayStatus}</p>
         </CardContent>
       </Card>
     </motion.div>

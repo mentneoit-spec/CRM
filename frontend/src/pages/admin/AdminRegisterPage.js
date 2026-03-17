@@ -180,7 +180,7 @@ const AdminRegisterPage = () => {
                                     Already have an account?
                                 </Grid>
                                 <Grid item sx={{ ml: 2 }}>
-                                    <StyledLink to="/Adminlogin">
+                                        <StyledLink to="/login?role=Admin">
                                         Log in
                                     </StyledLink>
                                 </Grid>

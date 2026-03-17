@@ -1,32 +1,94 @@
 const prisma = require('../lib/prisma');
+const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
+
+function normalizeDate(value) {
+    if (!value) return null;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+}
+
+async function generateAdmissionNumber(collegeId) {
+    // Readable + very low collision chance, scoped by unique constraint.
+    const year = new Date().getFullYear();
+    const suffix = crypto.randomBytes(3).toString('hex').toUpperCase();
+    return `ADM${year}-${collegeId.slice(0, 4).toUpperCase()}-${suffix}`;
+}
 
 // ==================== ADMISSION FORM ====================
 
 // Create admission form
 const createAdmissionForm = async (req, res) => {
     try {
-        const collegeId = req.collegeId;
-        const { studentName, fatherName, motherName, dateOfBirth, gender, email, phone, address, sclassId } = req.body;
+        const collegeId = req.collegeId || req.query.collegeId || req.body.collegeId;
 
-        if (!studentName || !fatherName || !email || !phone || !address || !sclassId) {
-            return res.status(400).json({ success: false, message: 'All fields are required' });
+        const {
+            // New schema names
+            applicantName,
+            applicantEmail,
+            applicantPhone,
+            appliedFor,
+            dateOfBirth,
+            gender,
+            fatherName,
+            motherName,
+            address,
+            previousSchool,
+            previousGrade,
+            documents,
+            comments,
+
+            // Backwards-compatible aliases (older frontend/controller)
+            studentName,
+            email,
+            phone,
+        } = req.body;
+
+        const finalApplicantName = applicantName || studentName;
+        const finalApplicantEmail = applicantEmail || email;
+        const finalApplicantPhone = applicantPhone || phone;
+
+        if (!collegeId || !finalApplicantName || !finalApplicantEmail || !finalApplicantPhone || !address) {
+            return res.status(400).json({
+                success: false,
+                message: 'Required fields missing (collegeId, applicantName, applicantEmail, applicantPhone, address)',
+            });
         }
 
-        const admission = await prisma.admission.create({
-            data: {
-                studentName,
-                fatherName,
-                motherName,
-                dateOfBirth: new Date(dateOfBirth),
-                gender,
-                email,
-                phone,
-                address,
-                collegeId,
-                sclassId,
-                status: 'pending',
-            },
-        });
+        const dob = normalizeDate(dateOfBirth);
+
+        // Generate admissionNumber with retry on unique collision
+        let admission;
+        for (let attempt = 0; attempt < 3; attempt++) {
+            const admissionNumber = await generateAdmissionNumber(collegeId);
+            try {
+                admission = await prisma.admission.create({
+                    data: {
+                        admissionNumber,
+                        applicantName: finalApplicantName,
+                        applicantEmail: finalApplicantEmail,
+                        applicantPhone: finalApplicantPhone,
+                        appliedFor: appliedFor || null,
+                        dateOfBirth: dob,
+                        gender: gender || null,
+                        fatherName: fatherName || null,
+                        motherName: motherName || null,
+                        address,
+                        previousSchool: previousSchool || null,
+                        previousGrade: previousGrade || null,
+                        documents: documents || null,
+                        comments: comments || null,
+                        collegeId,
+                        status: 'pending',
+                    },
+                });
+                break;
+            } catch (err) {
+                // Prisma unique constraint violation
+                if (err?.code === 'P2002' && attempt < 2) continue;
+                throw err;
+            }
+        }
 
         res.status(201).json({
             success: true,
@@ -42,7 +104,7 @@ const createAdmissionForm = async (req, res) => {
 // Get all admission forms
 const getAllAdmissions = async (req, res) => {
     try {
-        const collegeId = req.collegeId;
+        const collegeId = req.collegeId || req.query.collegeId;
         const { status, page = 1, limit = 10 } = req.query;
 
         let filter = { collegeId };
@@ -52,7 +114,6 @@ const getAllAdmissions = async (req, res) => {
 
         const admissions = await prisma.admission.findMany({
             where: filter,
-            include: { sclass: true },
             skip: parseInt(skip),
             take: parseInt(limit),
             orderBy: { createdAt: 'desc' },
@@ -84,7 +145,7 @@ const getAdmissionDetails = async (req, res) => {
 
         const admission = await prisma.admission.findUnique({
             where: { id: admissionId },
-            include: { sclass: true },
+            include: { admissionTeam: true },
         });
 
         if (!admission || admission.collegeId !== collegeId) {
@@ -103,7 +164,22 @@ const updateAdmissionDetails = async (req, res) => {
     try {
         const { admissionId } = req.params;
         const collegeId = req.collegeId;
-        const { studentName, fatherName, motherName, dateOfBirth, gender, email, phone, address, sclassId, documents } = req.body;
+        const {
+            applicantName,
+            applicantEmail,
+            applicantPhone,
+            fatherName,
+            motherName,
+            dateOfBirth,
+            gender,
+            address,
+            previousSchool,
+            previousGrade,
+            documents,
+            status,
+            appliedFor,
+            comments,
+        } = req.body;
 
         const admission = await prisma.admission.findUnique({
             where: { id: admissionId },
@@ -116,18 +192,21 @@ const updateAdmissionDetails = async (req, res) => {
         const updated = await prisma.admission.update({
             where: { id: admissionId },
             data: {
-                studentName: studentName || admission.studentName,
-                fatherName: fatherName || admission.fatherName,
-                motherName: motherName || admission.motherName,
-                dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : admission.dateOfBirth,
-                gender: gender || admission.gender,
-                email: email || admission.email,
-                phone: phone || admission.phone,
-                address: address || admission.address,
-                sclassId: sclassId || admission.sclassId,
-                documents: documents || admission.documents,
+                applicantName: applicantName ?? admission.applicantName,
+                applicantEmail: applicantEmail ?? admission.applicantEmail,
+                applicantPhone: applicantPhone ?? admission.applicantPhone,
+                fatherName: fatherName ?? admission.fatherName,
+                motherName: motherName ?? admission.motherName,
+                dateOfBirth: dateOfBirth ? normalizeDate(dateOfBirth) : admission.dateOfBirth,
+                gender: gender ?? admission.gender,
+                address: address ?? admission.address,
+                previousSchool: previousSchool ?? admission.previousSchool,
+                previousGrade: previousGrade ?? admission.previousGrade,
+                documents: documents ?? admission.documents,
+                appliedFor: appliedFor ?? admission.appliedFor,
+                comments: comments ?? admission.comments,
+                status: status ?? admission.status,
             },
-            include: { sclass: true },
         });
 
         res.status(200).json({
@@ -190,45 +269,66 @@ const approveAdmission = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Admission not found' });
         }
 
-        // Create user for admitted student
-        const hashedPassword = await require('bcryptjs').hash(admission.email.split('@')[0], 10);
+        if (admission.status !== 'pending') {
+            return res.status(400).json({ success: false, message: `Admission is already ${admission.status}` });
+        }
 
-        const user = await prisma.user.create({
-            data: {
-                name: admission.studentName,
-                email: admission.email,
-                password: hashedPassword,
-                phone: admission.phone,
-                role: 'Student',
-                collegeId,
-            },
+        const existingUser = await prisma.user.findFirst({
+            where: { email: admission.applicantEmail, collegeId },
         });
+        if (existingUser) {
+            return res.status(400).json({ success: false, message: 'A user with this email already exists' });
+        }
 
-        // Create student record
-        await prisma.student.create({
-            data: {
-                userId: user.id,
-                name: admission.studentName,
-                email: admission.email,
-                phone: admission.phone,
-                dateOfBirth: admission.dateOfBirth,
-                gender: admission.gender,
-                address: admission.address,
-                sclassId: admission.sclassId,
-                collegeId,
-            },
-        });
+        // Default password = part before @ (can be changed later)
+        const basePassword = (admission.applicantEmail || '').split('@')[0] || 'student@123';
+        const hashedPassword = await bcrypt.hash(basePassword, 10);
+        const studentId = admission.admissionNumber;
 
-        // Update admission status
-        const updated = await prisma.admission.update({
-            where: { id: admissionId },
-            data: { status: 'approved', approvedAt: new Date() },
+        const result = await prisma.$transaction(async (tx) => {
+            const createdUser = await tx.user.create({
+                data: {
+                    name: admission.applicantName,
+                    email: admission.applicantEmail,
+                    password: hashedPassword,
+                    phone: admission.applicantPhone,
+                    role: 'Student',
+                    collegeId,
+                    isEmailVerified: true,
+                    isActive: true,
+                },
+            });
+
+            await tx.student.create({
+                data: {
+                    userId: createdUser.id,
+                    name: admission.applicantName,
+                    studentId,
+                    email: admission.applicantEmail,
+                    phone: admission.applicantPhone,
+                    password: hashedPassword,
+                    dateOfBirth: admission.dateOfBirth,
+                    gender: admission.gender,
+                    parentName: admission.fatherName || null,
+                    address: admission.address,
+                    admissionYear: new Date().getFullYear(),
+                    admissionNumber: admission.admissionNumber,
+                    collegeId,
+                },
+            });
+
+            const updatedAdmission = await tx.admission.update({
+                where: { id: admissionId },
+                data: { status: 'approved', approvedDate: new Date() },
+            });
+
+            return { updatedAdmission };
         });
 
         res.status(200).json({
             success: true,
             message: 'Admission approved successfully',
-            data: updated,
+            data: result.updatedAdmission,
         });
     } catch (error) {
         console.error('Approve admission error:', error);
@@ -240,7 +340,7 @@ const approveAdmission = async (req, res) => {
 const rejectAdmission = async (req, res) => {
     try {
         const { admissionId } = req.params;
-        const { reason } = req.body;
+        const reason = req.body?.rejectionReason || req.body?.reason;
         const collegeId = req.collegeId;
 
         const admission = await prisma.admission.findUnique({
@@ -251,12 +351,16 @@ const rejectAdmission = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Admission not found' });
         }
 
+        if (!reason) {
+            return res.status(400).json({ success: false, message: 'Rejection reason is required' });
+        }
+
         const updated = await prisma.admission.update({
             where: { id: admissionId },
             data: { 
                 status: 'rejected',
                 rejectionReason: reason,
-                rejectedAt: new Date(),
+                approvedDate: null,
             },
         });
 
@@ -288,13 +392,18 @@ const sendMessageToParent = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Admission not found' });
         }
 
-        // Store message in audit log or separate messages table
+        if (!message) {
+            return res.status(400).json({ success: false, message: 'Message is required' });
+        }
+
         const auditLog = await prisma.auditLog.create({
             data: {
                 action: 'ADMISSION_MESSAGE',
-                description: `Message sent to ${admission.studentName}/${admission.fatherName}: ${message}`,
+                entityType: 'Admission',
+                entityId: admissionId,
+                changes: `Message sent to ${admission.applicantName}${admission.fatherName ? `/${admission.fatherName}` : ''}: ${message}`,
                 collegeId,
-                performedBy: req.user.id,
+                userId: req.user?.id || null,
             },
         });
 

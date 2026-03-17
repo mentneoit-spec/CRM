@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { CalendarCheck, ClipboardList, Home, UserRound, FileText } from "lucide-react";
+import { CalendarCheck, ClipboardList, Home, UserRound, FileText, Settings } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "../../../lib/utils";
 
@@ -9,6 +9,7 @@ const navItems = [
   { label: "Tests", icon: FileText, to: "/student/tests" },
   { label: "Attendance", icon: CalendarCheck, to: "/student/attendance" },
   { label: "Profile", icon: UserRound, to: "/student/profile" },
+  { label: "Settings", icon: Settings, to: "/student/settings" },
 ];
 
 function BottomNavigation() {

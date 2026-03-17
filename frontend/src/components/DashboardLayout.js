@@ -36,6 +36,7 @@ import {
   DirectionsBus,
   Announcement,
 } from '@mui/icons-material';
+import { useSelector } from 'react-redux';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 const drawerWidth = 280;
@@ -45,6 +46,8 @@ const DashboardLayout = ({ children, role = 'student' }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
+  const authUser = useSelector((state) => state?.auth?.user);
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
@@ -62,7 +65,44 @@ const DashboardLayout = ({ children, role = 'student' }) => {
   };
 
   const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    localStorage.removeItem('collegeId');
     navigate('/login');
+  };
+
+  const getProfilePath = () => {
+    switch (role) {
+      case 'admin':
+        return '/admin/profile';
+      case 'student':
+        return '/student/profile';
+      case 'parent':
+        return '/parent/profile';
+      case 'teacher':
+        return '/teacher/profile';
+      case 'superadmin':
+        return '/superadmin/profile';
+      default:
+        return '/';
+    }
+  };
+
+  const getSettingsPath = () => {
+    switch (role) {
+      case 'admin':
+        return '/admin/settings';
+      case 'superadmin':
+        return '/superadmin/settings';
+      case 'teacher':
+        return '/teacher/settings';
+      case 'student':
+        return '/student/settings';
+      case 'parent':
+        return '/parent/settings';
+      default:
+        return '/';
+    }
   };
 
   // Role-based menu items
@@ -203,10 +243,10 @@ const DashboardLayout = ({ children, role = 'student' }) => {
           </Avatar>
           <Box sx={{ flexGrow: 1 }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-              John Doe
+              {authUser?.name || 'User'}
             </Typography>
             <Typography variant="caption" color="text.secondary">
-              {role}@college.com
+              {authUser?.email || ''}
             </Typography>
           </Box>
         </Box>
@@ -314,13 +354,13 @@ const DashboardLayout = ({ children, role = 'student' }) => {
         transformOrigin={{ horizontal: 'right', vertical: 'top' }}
         anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
       >
-        <MenuItem onClick={() => { navigate('/profile'); handleProfileMenuClose(); }}>
+        <MenuItem onClick={() => { navigate(getProfilePath()); handleProfileMenuClose(); }}>
           <ListItemIcon>
             <Person fontSize="small" />
           </ListItemIcon>
           My Profile
         </MenuItem>
-        <MenuItem onClick={() => { navigate('/settings'); handleProfileMenuClose(); }}>
+        <MenuItem onClick={() => { navigate(getSettingsPath()); handleProfileMenuClose(); }}>
           <ListItemIcon>
             <Settings fontSize="small" />
           </ListItemIcon>

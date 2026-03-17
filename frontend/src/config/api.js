@@ -1,7 +1,15 @@
 import axios from 'axios';
 
+const normalizeApiBaseUrl = (url) => {
+  const fallback = 'http://localhost:5000/api';
+  if (!url) return fallback;
+  const trimmed = String(url).replace(/\/+$/, '');
+  if (trimmed.endsWith('/api')) return trimmed;
+  return `${trimmed}/api`;
+};
+
 // API Base URL
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = normalizeApiBaseUrl(process.env.REACT_APP_API_URL);
 
 // Create axios instance
 const api = axios.create({
@@ -40,6 +48,27 @@ api.interceptors.response.use(
   },
   (error) => {
     if (error.response) {
+      try {
+        const data = error?.response?.data;
+        if (error.response.status === 404 && data?.message === 'Route not found') {
+          const method = (data?.method || error?.config?.method || 'GET').toUpperCase();
+          const path = data?.path || error?.config?.url || '';
+
+          const baseURL = error?.config?.baseURL || '';
+          const url = error?.config?.url || '';
+          const fullUrl = /^https?:\/\//i.test(url)
+            ? url
+            : `${String(baseURL).replace(/\/+$/, '')}/${String(url).replace(/^\/+/, '')}`;
+
+          error.response.data = {
+            ...data,
+            message: `Route not found: ${method} ${path} (${fullUrl})`,
+          };
+        }
+      } catch {
+        // ignore
+      }
+
       // Handle 401 Unauthorized
       if (error.response.status === 401) {
         localStorage.removeItem('token');
@@ -64,11 +93,14 @@ export const authAPI = {
   // Login with email/password
   login: (credentials) => api.post('/auth/login', credentials),
 
+  // Tenant discovery (custom domain -> college)
+  getTenant: () => api.get('/auth/tenant'),
+
   // Register new user
   register: (data) => api.post('/auth/register', data),
 
   // Super admin login
-  superAdminLogin: (credentials) => api.post('/auth/superadmin/login', credentials),
+  superAdminLogin: (credentials) => api.post('/auth/superadmin-login', credentials),
 
   // Request Login OTP
   requestOTP: (data) => api.post('/auth/otp/request-login', data),
@@ -99,6 +131,10 @@ export const authAPI = {
 
   // Get current user
   getCurrentUser: () => api.get('/auth/me'),
+
+  // My profile (role-agnostic)
+  getMyProfile: () => api.get('/auth/profile'),
+  updateMyProfile: (data) => api.put('/auth/profile', data),
 };
 
 // ==================== SUPER ADMIN APIs ====================
@@ -109,10 +145,19 @@ export const superAdminAPI = {
   getColleges: (params) => api.get('/superadmin/colleges', { params }),
   getCollege: (id) => api.get(`/superadmin/colleges/${id}`),
   updateCollege: (id, data) => api.put(`/superadmin/colleges/${id}`, data),
-  suspendCollege: (id) => api.post(`/superadmin/colleges/${id}/suspend`),
+  suspendCollege: (id) => api.patch(`/superadmin/colleges/${id}/suspend`),
+
+  // Domains
+  createCollegeDomain: (collegeId, data) => api.post(`/superadmin/colleges/${collegeId}/domains`, data),
+  listCollegeDomains: (collegeId) => api.get(`/superadmin/colleges/${collegeId}/domains`),
+  verifyDomain: (domainId, dnsToken) => api.post(`/superadmin/domains/${domainId}/verify`, { dnsToken }),
+  approveDomain: (domainId) => api.patch(`/superadmin/domains/${domainId}/approve`),
+  deactivateDomain: (domainId) => api.patch(`/superadmin/domains/${domainId}/deactivate`),
+  setPrimaryDomain: (domainId) => api.patch(`/superadmin/domains/${domainId}/set-primary`),
 
   // Admins
   createAdmin: (data) => api.post('/superadmin/admins', data),
+  resetAdminPassword: (adminId, newPassword) => api.patch(`/superadmin/admins/${adminId}/reset-password`, { newPassword }),
 
   // Analytics
   getAnalytics: () => api.get('/superadmin/analytics'),
@@ -126,6 +171,14 @@ export const superAdminAPI = {
 export const adminAPI = {
   // Dashboard
   getDashboard: () => api.get('/admin/dashboard'),
+
+  // Profile
+  getProfile: () => api.get('/admin/profile'),
+  updateProfile: (data) => api.put('/admin/profile', data),
+
+  // College Settings / Branding
+  getCollege: () => api.get('/admin/college'),
+  updateCollege: (data) => api.put('/admin/college', data),
 
   // Teachers
   createTeacher: (data) => api.post('/admin/teachers', data),
@@ -252,9 +305,15 @@ export const admissionAPI = {
 export const accountsAPI = {
   // Payments
   getPayments: (params) => api.get('/accounts/payments', { params }),
+  getPaymentDetails: (paymentId) => api.get(`/accounts/payments/${paymentId}`),
   createManualPayment: (data) => api.post('/accounts/payments/manual', data),
   processRefund: (id, reason) => api.post(`/accounts/payments/${id}/refund`, { reason }),
+  getRefundStatus: (refundId) => api.get(`/accounts/refunds/${refundId}`),
   exportPayments: (params) => api.get('/accounts/payments/export', { params, responseType: 'blob' }),
+
+  // Dashboard & reports
+  getDashboard: () => api.get('/accounts/dashboard'),
+  getPaymentReport: (params) => api.get('/accounts/reports/payment', { params }),
 };
 
 // ==================== TRANSPORT APIs ====================
@@ -271,6 +330,19 @@ export const transportAPI = {
   getBuses: () => api.get('/transport/buses'),
   updateBus: (id, data) => api.put(`/transport/buses/${id}`, data),
   deleteBus: (id) => api.delete(`/transport/buses/${id}`),
+
+  // Assignments
+  assignStudentToBus: (busId, studentId) => api.put(`/transport/buses/${busId}/assign`, { studentId }),
+
+  // Attendance
+  markBusAttendance: (busId, data) => api.post(`/transport/buses/${busId}/attendance`, data),
+  getBusAttendanceReport: (busId) => api.get(`/transport/buses/${busId}/report`),
+
+  // Fees
+  defineTransportFee: (data) => api.post('/transport/fees', data),
+
+  // Dashboard
+  getDashboard: () => api.get('/transport/dashboard'),
 };
 
 // ==================== FILE UPLOAD APIs ====================

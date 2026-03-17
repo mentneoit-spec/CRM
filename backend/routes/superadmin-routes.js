@@ -6,6 +6,12 @@ const {
     getCollegeDetails,
     editCollege,
     suspendCollege,
+    createCollegeDomain,
+    listCollegeDomains,
+    verifyCollegeDomain,
+    approveCollegeDomain,
+    deactivateCollegeDomain,
+    setPrimaryCollegeDomain,
     createCollegeAdmin,
     resetAdminPassword,
     getPlatformAnalytics,
@@ -30,6 +36,51 @@ router.put('/colleges/:collegeId', authorize('SuperAdmin'), checkPermission('edi
 
 // Suspend college
 router.patch('/colleges/:collegeId/suspend', authorize('SuperAdmin'), suspendCollege);
+
+// ==================== DOMAIN MANAGEMENT ====================
+
+// Create a (pending) additional domain for a college
+router.post(
+    '/colleges/:collegeId/domains',
+    authorize('SuperAdmin'),
+    checkPermission('approve_domain'),
+    createCollegeDomain
+);
+
+// List domains for a college
+router.get('/colleges/:collegeId/domains', authorize('SuperAdmin'), listCollegeDomains);
+
+// Verify DNS token (simple token-based verification)
+router.post(
+    '/domains/:domainId/verify',
+    authorize('SuperAdmin'),
+    checkPermission('approve_domain'),
+    verifyCollegeDomain
+);
+
+// Approve/activate a domain (requires dnsVerified)
+router.patch(
+    '/domains/:domainId/approve',
+    authorize('SuperAdmin'),
+    checkPermission('approve_domain'),
+    approveCollegeDomain
+);
+
+// Deactivate a domain
+router.patch(
+    '/domains/:domainId/deactivate',
+    authorize('SuperAdmin'),
+    checkPermission('approve_domain'),
+    deactivateCollegeDomain
+);
+
+// Set a domain as primary for a college
+router.patch(
+    '/domains/:domainId/set-primary',
+    authorize('SuperAdmin'),
+    checkPermission('approve_domain'),
+    setPrimaryCollegeDomain
+);
 
 // ==================== ADMIN MANAGEMENT ====================
 

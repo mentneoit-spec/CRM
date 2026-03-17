@@ -782,6 +782,80 @@ const getDashboard = async (req, res) => {
     }
 };
 
+// ==================== NOTICES ====================
+
+// Get college notices
+const getMyNotices = async (req, res) => {
+    try {
+        const collegeId = req.collegeId;
+
+        const notices = await prisma.notice.findMany({
+            where: {
+                collegeId,
+                isActive: true,
+            },
+            orderBy: { publishedDate: 'desc' },
+        });
+
+        res.status(200).json({ success: true, data: notices });
+    } catch (error) {
+        console.error('Get notices error:', error);
+        res.status(500).json({ success: false, message: 'Error fetching notices' });
+    }
+};
+
+// ==================== COMPLAINTS (ALL) ====================
+
+// Get all complaints related to this parent and their children
+const getMyComplaintsAll = async (req, res) => {
+    try {
+        const collegeId = req.collegeId;
+        const { status, page = 1, limit = 10 } = req.query;
+
+        const parent = await prisma.parent.findUnique({
+            where: { userId: req.user.id },
+            select: { id: true },
+        });
+
+        if (!parent) {
+            return res.status(404).json({ success: false, message: 'Parent not found' });
+        }
+
+        const skip = (page - 1) * limit;
+        const filter = {
+            collegeId,
+            ...(status ? { status } : {}),
+            OR: [
+                { parentId: parent.id },
+                { student: { is: { parentId: parent.id } } },
+            ],
+        };
+
+        const complaints = await prisma.complain.findMany({
+            where: filter,
+            skip: parseInt(skip),
+            take: parseInt(limit),
+            orderBy: { createdAt: 'desc' },
+        });
+
+        const total = await prisma.complain.count({ where: filter });
+
+        res.status(200).json({
+            success: true,
+            data: complaints,
+            pagination: {
+                total,
+                page: parseInt(page),
+                limit: parseInt(limit),
+                pages: Math.ceil(total / limit),
+            },
+        });
+    } catch (error) {
+        console.error('Get complaints error:', error);
+        res.status(500).json({ success: false, message: 'Error fetching complaints' });
+    }
+};
+
 module.exports = {
     getParentProfile,
     updateParentProfile,
@@ -796,6 +870,8 @@ module.exports = {
     getStudentHomework,
     raiseComplaint,
     getMyComplaints,
+    getMyComplaintsAll,
+    getMyNotices,
     downloadReportCard,
     getDashboard,
 };

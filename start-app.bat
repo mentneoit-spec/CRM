@@ -22,6 +22,7 @@ echo.
 echo [2/3] Starting Backend Server...
 start "Backend Server - Port 5000" cmd /k "cd backend && echo Starting Backend... && npm start"
 echo [OK] Backend server starting on http://localhost:5000
+echo If port 5000 is busy, the backend will exit with an error.
 echo.
 
 echo Waiting 5 seconds for backend to initialize...

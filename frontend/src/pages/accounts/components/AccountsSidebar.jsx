@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { Banknote, BarChart3, FileText, Home, Receipt, RotateCcw, UploadCloud } from "lucide-react";
+import { Banknote, BarChart3, FileText, Home, Receipt, RotateCcw, UploadCloud, UserRound, Settings } from "lucide-react";
 import { cn } from "../../../lib/utils";
 
 const sidebarItems = [
@@ -10,6 +10,8 @@ const sidebarItems = [
   { label: "Refunds", icon: RotateCcw, to: "/accounts/refunds" },
   { label: "Payment Reports", icon: BarChart3, to: "/accounts/reports" },
   { label: "Export CSV", icon: FileText, to: "/accounts/export" },
+  { label: "Profile", icon: UserRound, to: "/accounts/profile" },
+  { label: "Settings", icon: Settings, to: "/accounts/settings" },
 ];
 
 function AccountsSidebar() {

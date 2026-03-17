@@ -1,6 +1,14 @@
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
+const normalizeApiBaseUrl = (url) => {
+  const fallback = 'http://localhost:5000/api';
+  if (!url) return fallback;
+  const trimmed = String(url).replace(/\/+$/, '');
+  if (trimmed.endsWith('/api')) return trimmed;
+  return `${trimmed}/api`;
+};
+
+const API_URL = normalizeApiBaseUrl(process.env.REACT_APP_API_URL);
 
 // Create axios instance with default config
 const api = axios.create({
@@ -28,6 +36,28 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    try {
+      const data = error?.response?.data;
+      const message = data?.message;
+      if (error?.response?.status === 404 && message === 'Route not found') {
+        const method = (data?.method || error?.config?.method || 'GET').toUpperCase();
+        const path = data?.path || error?.config?.url || '';
+
+        const baseURL = error?.config?.baseURL || '';
+        const url = error?.config?.url || '';
+        const fullUrl = /^https?:\/\//i.test(url)
+          ? url
+          : `${String(baseURL).replace(/\/+$/, '')}/${String(url).replace(/^\/+/, '')}`;
+
+        error.response.data = {
+          ...data,
+          message: `Route not found: ${method} ${path} (${fullUrl})`,
+        };
+      }
+    } catch {
+      // ignore
+    }
+
     if (error.response?.status === 401) {
       // Token expired or invalid
       localStorage.removeItem('token');
@@ -44,6 +74,8 @@ export const authAPI = {
   register: (userData) => api.post('/auth/register', userData),
   logout: () => api.post('/auth/logout'),
   getCurrentUser: () => api.get('/auth/me'),
+  getMyProfile: () => api.get('/auth/profile'),
+  updateMyProfile: (data) => api.put('/auth/profile', data),
   changePassword: (passwords) => api.post('/auth/change-password', passwords),
 };
 
@@ -52,9 +84,12 @@ export const studentAPI = {
   getDashboard: () => api.get('/student/dashboard'),
   getProfile: () => api.get('/student/profile'),
   updateProfile: (data) => api.put('/student/profile', data),
-  getAttendance: () => api.get('/student/attendance'),
+  getAttendance: (params) => api.get('/student/attendance', params ? { params } : undefined),
   getExams: () => api.get('/student/exams'),
+  getMarks: (params) => api.get('/student/marks', params ? { params } : undefined),
   getResults: () => api.get('/student/results'),
+  getFees: () => api.get('/student/fees'),
+  getPaymentHistory: (params) => api.get('/student/payments', params ? { params } : undefined),
   getSubjects: () => api.get('/student/subjects'),
   getHomework: () => api.get('/student/homework'),
   getNotices: () => api.get('/student/notices'),
@@ -70,10 +105,19 @@ export const teacherAPI = {
   getClasses: () => api.get('/teacher/classes'),
   getStudents: (classId) => api.get(`/teacher/classes/${classId}/students`),
   markAttendance: (data) => api.post('/teacher/attendance', data),
-  getAttendance: (classId) => api.get(`/teacher/attendance/${classId}`),
+  getAttendance: (classId, params) => {
+    if (classId) return api.get(`/teacher/attendance/${classId}`, params ? { params } : undefined);
+    return api.get('/teacher/attendance', params ? { params } : undefined);
+  },
   createHomework: (data) => api.post('/teacher/homework', data),
   getHomework: () => api.get('/teacher/homework'),
+  updateHomework: (id, data) => api.put(`/teacher/homework/${id}`, data),
+  deleteHomework: (id) => api.delete(`/teacher/homework/${id}`),
   addMarks: (data) => api.post('/teacher/marks', data),
+  getMarks: (params) => api.get('/teacher/marks', params ? { params } : undefined),
+  getReports: () => api.get('/teacher/reports'),
+  getExams: () => api.get('/teacher/exams'),
+  getAssignments: () => api.get('/teacher/assignments'),
   getNotices: () => api.get('/teacher/notices'),
 };
 
@@ -83,11 +127,18 @@ export const parentAPI = {
   getProfile: () => api.get('/parent/profile'),
   updateProfile: (data) => api.put('/parent/profile', data),
   getChildren: () => api.get('/parent/children'),
-  getChildAttendance: (studentId) => api.get(`/parent/children/${studentId}/attendance`),
+  getChildProfile: (studentId) => api.get(`/parent/children/${studentId}`),
+  getChildAttendance: (studentId, params) => api.get(`/parent/children/${studentId}/attendance`, params ? { params } : undefined),
   getChildResults: (studentId) => api.get(`/parent/children/${studentId}/results`),
+  getChildFees: (studentId) => api.get(`/parent/children/${studentId}/fees`),
+  getChildHomework: (studentId) => api.get(`/parent/children/${studentId}/homework`),
+  getChildPayments: (studentId, params) => api.get(`/parent/students/${studentId}/payments`, params ? { params } : undefined),
+  createPayment: (data) => api.post('/parent/payments', data),
+  verifyPayment: (data) => api.post('/parent/payments/verify', data),
   getNotices: () => api.get('/parent/notices'),
   submitComplaint: (data) => api.post('/parent/complaints', data),
   getComplaints: () => api.get('/parent/complaints'),
+  downloadReportCard: (studentId) => api.get(`/parent/students/${studentId}/report-card`),
 };
 
 // Admin APIs

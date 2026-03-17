@@ -14,7 +14,9 @@ const AdminProfile = () => {
 
     // const navigate = useNavigate()
     // const dispatch = useDispatch();
-        const { currentUser } = useSelector((state) => state.user);
+        const authUser = useSelector((state) => state?.auth?.user);
+        const legacyUser = useSelector((state) => state?.user?.currentUser);
+        const currentUser = authUser || legacyUser;
     // const { currentUser, response, error } = useSelector((state) => state.user);
     // const address = "Admin"
 
@@ -46,12 +48,18 @@ const AdminProfile = () => {
 
     return (
         <div>
-            Name: {currentUser.name}
+            {!currentUser ? (
+                <div>Not logged in</div>
+            ) : (
+                <>
+                    Name: {currentUser.name}
             <br />
-            Email: {currentUser.email}
+                    Email: {currentUser.email}
             <br />
-            School: {currentUser.schoolName}
+                    School: {currentUser.schoolName || currentUser?.college?.name || ''}
             <br />
+                </>
+            )}
             {/* <Button variant="contained" color="error" onClick={deleteHandler}>Delete</Button> */}
             {/* <Button variant="contained" sx={styles.showButton}
                 onClick={() => setShowTab(!showTab)}>

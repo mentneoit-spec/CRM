@@ -3,7 +3,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import { cn } from "../../../lib/utils";
 import StudentHeader from "../components/StudentHeader";
 import BottomNavigation from "../components/BottomNavigation";
-import { CalendarCheck, ClipboardList, FileText, Home, MessageCircle, UserRound, Wallet, Medal } from "lucide-react";
+import { CalendarCheck, ClipboardList, FileText, Home, MessageCircle, UserRound, Wallet, Medal, Settings } from "lucide-react";
 
 const sidebarItems = [
   { label: "Dashboard", icon: Home, to: "/student/dashboard" },
@@ -13,6 +13,7 @@ const sidebarItems = [
   { label: "Attendance", icon: CalendarCheck, to: "/student/attendance" },
   { label: "Fees", icon: Wallet, to: "/student/fees" },
   { label: "Profile", icon: UserRound, to: "/student/profile" },
+  { label: "Settings", icon: Settings, to: "/student/settings" },
   { label: "Complaints", icon: MessageCircle, to: "/student/complaints" },
 ];
 

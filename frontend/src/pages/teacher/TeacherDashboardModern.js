@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box,
   Grid,
@@ -21,40 +21,145 @@ import {
   Assignment,
   CheckCircle,
   Schedule,
-  TrendingUp,
   Notifications,
   Book,
-  Assessment,
 } from '@mui/icons-material';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import DashboardLayout from '../../components/DashboardLayout';
+import { teacherAPI } from '../../services/api';
 
 const TeacherDashboardModern = () => {
-  // Sample data
-  const classData = [
-    { name: 'Class A', students: 45, attendance: 92 },
-    { name: 'Class B', students: 42, attendance: 88 },
-    { name: 'Class C', students: 48, attendance: 95 },
-  ];
+  const [loading, setLoading] = useState(true);
+  const [dashboard, setDashboard] = useState(null);
+  const [classes, setClasses] = useState([]);
+  const [avgAttendance, setAvgAttendance] = useState(null);
+  const [performanceData, setPerformanceData] = useState([]);
 
-  const performanceData = [
-    { subject: 'Math', average: 85 },
-    { subject: 'Science', average: 78 },
-    { subject: 'English', average: 82 },
-    { subject: 'History', average: 76 },
-  ];
+  useEffect(() => {
+    let isMounted = true;
 
-  const upcomingClasses = [
-    { class: 'Class A - Mathematics', time: '09:00 AM', room: 'Room 101' },
-    { class: 'Class B - Physics', time: '11:00 AM', room: 'Room 203' },
-    { class: 'Class C - Chemistry', time: '02:00 PM', room: 'Lab 1' },
-  ];
+    const load = async () => {
+      setLoading(true);
+      try {
+        const now = new Date();
+        const month = now.getMonth() + 1;
+        const year = now.getFullYear();
 
-  const pendingTasks = [
-    { task: 'Grade Math Assignments', count: 45, deadline: 'Today' },
-    { task: 'Prepare Quiz Questions', count: 1, deadline: 'Tomorrow' },
-    { task: 'Update Attendance', count: 3, deadline: 'Today' },
-  ];
+        const [dashboardRes, classesRes] = await Promise.all([
+          teacherAPI.getDashboard(),
+          teacherAPI.getClasses(),
+        ]);
+
+        if (!isMounted) return;
+
+        const dashboardData = dashboardRes?.data?.data ?? null;
+        const classesData = classesRes?.data?.data ?? [];
+        setDashboard(dashboardData);
+        setClasses(Array.isArray(classesData) ? classesData : []);
+
+        const firstClassId = classesData?.[0]?.id;
+        if (firstClassId) {
+          const attendanceRes = await teacherAPI.getAttendance(firstClassId, { month, year });
+          const byStudent = attendanceRes?.data?.data?.byStudent ?? [];
+          const percentages = byStudent
+            .map((s) => Number.parseFloat(s?.percentage))
+            .filter((n) => Number.isFinite(n));
+          if (percentages.length) {
+            const avg = percentages.reduce((a, b) => a + b, 0) / percentages.length;
+            setAvgAttendance(avg);
+          } else {
+            setAvgAttendance(null);
+          }
+
+          // Build subject performance chart from real marks (average percentage per subject)
+          try {
+            const marksRes = await teacherAPI.getMarks({ classId: firstClassId });
+            const results = marksRes?.data?.data?.results ?? [];
+            const bySubject = new Map();
+            for (const r of results) {
+              const subjectName = r?.subject?.subName || 'Subject';
+              const pct = Number.parseFloat(r?.percentage);
+              if (!Number.isFinite(pct)) continue;
+              const prev = bySubject.get(subjectName) || { sum: 0, count: 0 };
+              prev.sum += pct;
+              prev.count += 1;
+              bySubject.set(subjectName, prev);
+            }
+
+            const computed = Array.from(bySubject.entries())
+              .map(([subject, agg]) => ({
+                subject,
+                average: agg.count ? Math.round(agg.sum / agg.count) : 0,
+              }))
+              .sort((a, b) => b.average - a.average)
+              .slice(0, 8);
+            setPerformanceData(computed);
+          } catch (e) {
+            setPerformanceData([]);
+          }
+        } else {
+          setAvgAttendance(null);
+          setPerformanceData([]);
+        }
+      } catch (e) {
+        if (!isMounted) return;
+        setDashboard(null);
+        setClasses([]);
+        setAvgAttendance(null);
+        setPerformanceData([]);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    load();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const stats = dashboard?.stats || { totalStudents: 0, classes: 0, subjects: 0, homeworkCount: 0 };
+
+  const classData = useMemo(() => {
+    if (!classes?.length) {
+      return [
+        { name: 'Class --', students: 0, attendance: 0 },
+      ];
+    }
+    return classes.slice(0, 6).map((c) => ({
+      name: c?.sclassName || 'Class',
+      students: c?._count?.Students ?? 0,
+      attendance: 0,
+    }));
+  }, [classes]);
+
+  const upcomingClasses = useMemo(() => {
+    if (!classes?.length) {
+      return [
+        { class: 'No classes assigned', details: '' },
+      ];
+    }
+    return classes.slice(0, 3).map((c) => ({
+      class: `${c?.sclassName || 'Class'}${c?.Subjects?.length ? ` • ${c.Subjects.length} subjects` : ''}`,
+      details: Array.isArray(c?.Subjects)
+        ? c.Subjects.map((s) => s?.subName).filter(Boolean).join(', ')
+        : '',
+    }));
+  }, [classes]);
+
+  const pendingTasks = useMemo(() => {
+    const items = dashboard?.recentHomework || [];
+    if (!items.length) {
+      return [
+        { task: 'No pending tasks', count: 0, deadline: '--' },
+      ];
+    }
+    return items.slice(0, 3).map((h) => ({
+      task: h?.title || 'Homework',
+      count: 1,
+      deadline: h?.dueDate ? new Date(h.dueDate).toLocaleDateString() : '--',
+    }));
+  }, [dashboard]);
 
   const COLORS = ['#1976d2', '#2e7d32', '#ed6c02', '#d32f2f'];
 
@@ -75,7 +180,7 @@ const TeacherDashboardModern = () => {
             Welcome Back, Professor! 👨‍🏫
           </Typography>
           <Typography variant="body1" sx={{ opacity: 0.9 }}>
-            You have 3 classes scheduled today and 45 assignments to review
+            {loading ? 'Loading your schedule…' : `You have ${stats.classes} classes and ${stats.homeworkCount} recent assignments`}
           </Typography>
         </Paper>
 
@@ -90,7 +195,7 @@ const TeacherDashboardModern = () => {
                   </Avatar>
                   <Box>
                     <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                      135
+                      {loading ? '--' : stats.totalStudents}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
                       Total Students
@@ -111,7 +216,7 @@ const TeacherDashboardModern = () => {
                   </Avatar>
                   <Box>
                     <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                      92%
+                      {loading ? '--' : `${avgAttendance === null ? '--' : Math.round(avgAttendance)}%`}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
                       Avg Attendance
@@ -132,7 +237,7 @@ const TeacherDashboardModern = () => {
                   </Avatar>
                   <Box>
                     <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                      45
+                      {loading ? '--' : stats.homeworkCount}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
                       Pending Reviews
@@ -153,7 +258,7 @@ const TeacherDashboardModern = () => {
                   </Avatar>
                   <Box>
                     <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                      6
+                      {loading ? '--' : stats.subjects}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
                       Subjects
@@ -227,7 +332,12 @@ const TeacherDashboardModern = () => {
                   <Typography variant="h6" sx={{ fontWeight: 600 }}>
                     Today's Schedule
                   </Typography>
-                  <Chip icon={<Schedule />} label="3 Classes" size="small" color="primary" />
+                  <Chip
+                    icon={<Schedule />}
+                    label={classes.length ? `${classes.length} Classes` : 'No Classes'}
+                    size="small"
+                    color="primary"
+                  />
                 </Box>
                 <List>
                   {upcomingClasses.map((item, index) => (
@@ -240,7 +350,7 @@ const TeacherDashboardModern = () => {
                         </ListItemAvatar>
                         <ListItemText
                           primary={item.class}
-                          secondary={`${item.time} • ${item.room}`}
+                          secondary={item.details || null}
                         />
                         <Button size="small" variant="outlined">
                           View

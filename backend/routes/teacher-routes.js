@@ -5,13 +5,20 @@ const {
     updateTeacherProfile,
     getMyClasses,
     getClassStudents,
+    getMyStudents,
     markAttendance,
     getAttendanceReport,
     uploadMarks,
     getMarksReport,
     createHomework,
     getMyHomework,
+    updateHomework,
+    deleteHomework,
     getDashboard,
+    getMyReports,
+    getMyExams,
+    getMyAssignments,
+    getMyNotices,
 } = require('../controllers/teacher-controller');
 const { authorize, authorizeCollege } = require('../middleware/auth');
 
@@ -23,17 +30,35 @@ router.put('/profile', authorize('Teacher'), authorizeCollege, updateTeacherProf
 // ==================== CLASSES & STUDENTS ====================
 router.get('/classes', authorize('Teacher'), authorizeCollege, getMyClasses);
 router.get('/classes/:classId/students', authorize('Teacher'), authorizeCollege, getClassStudents);
+router.get('/students', authorize('Teacher'), authorizeCollege, getMyStudents);
 
 // ==================== ATTENDANCE ====================
 router.post('/attendance', authorize('Teacher'), authorizeCollege, markAttendance);
+router.get('/attendance', authorize('Teacher'), authorizeCollege, getAttendanceReport);
+router.get('/attendance/:classId', authorize('Teacher'), authorizeCollege, getAttendanceReport);
 router.get('/attendance-report', authorize('Teacher'), authorizeCollege, getAttendanceReport);
 
 // ==================== MARKS ====================
 router.post('/marks', authorize('Teacher'), authorizeCollege, uploadMarks);
+router.get('/marks', authorize('Teacher'), authorizeCollege, getMarksReport);
 router.get('/marks-report', authorize('Teacher'), authorizeCollege, getMarksReport);
 
 // ==================== HOMEWORK ====================
 router.post('/homework', authorize('Teacher'), authorizeCollege, createHomework);
 router.get('/homework', authorize('Teacher'), authorizeCollege, getMyHomework);
+router.put('/homework/:id', authorize('Teacher'), authorizeCollege, updateHomework);
+router.delete('/homework/:id', authorize('Teacher'), authorizeCollege, deleteHomework);
+
+// ==================== REPORTS ====================
+router.get('/reports', authorize('Teacher'), authorizeCollege, getMyReports);
+
+// ==================== EXAMS ====================
+router.get('/exams', authorize('Teacher'), authorizeCollege, getMyExams);
+
+// ==================== ASSIGNMENTS ====================
+router.get('/assignments', authorize('Teacher'), authorizeCollege, getMyAssignments);
+
+// ==================== NOTICES ====================
+router.get('/notices', authorize('Teacher'), authorizeCollege, getMyNotices);
 
 module.exports = router;

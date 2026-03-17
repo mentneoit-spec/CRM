@@ -174,8 +174,11 @@ function startServer(port) {
 
   server.on("error", (err) => {
     if (err.code === "EADDRINUSE") {
-      console.log(`⚠ Port ${port} is busy. Trying ${port + 1}...`);
-      startServer(port + 1);
+      console.error(`✗ Port ${port} is already in use.`);
+      console.error(
+        "Stop the other backend process using this port, then restart this server."
+      );
+      process.exit(1);
     } else {
       console.error("Server Error:", err);
       process.exit(1);

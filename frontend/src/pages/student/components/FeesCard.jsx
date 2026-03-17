@@ -2,7 +2,9 @@ import { Wallet } from "lucide-react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/card";
 
-function FeesCard() {
+function FeesCard({ totalDue }) {
+  const amount = typeof totalDue === "number" ? totalDue : null;
+
   return (
     <motion.div whileHover={{ y: -3 }}>
       <Card className="rounded-2xl">
@@ -14,7 +16,7 @@ function FeesCard() {
         </CardHeader>
         <CardContent>
           <p className="text-sm text-gray-500 dark:text-gray-400">Outstanding</p>
-          <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">₹ --</p>
+          <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">₹ {amount === null ? "--" : amount.toLocaleString()}</p>
         </CardContent>
       </Card>
     </motion.div>

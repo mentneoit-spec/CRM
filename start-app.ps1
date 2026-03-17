@@ -24,6 +24,7 @@ Write-Host "[2/3] Starting Backend Server..." -ForegroundColor Yellow
 $backendPath = Join-Path $PSScriptRoot "backend"
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$backendPath'; Write-Host 'Starting Backend Server...' -ForegroundColor Green; npm start" -WindowStyle Normal
 Write-Host "[OK] Backend server starting on http://localhost:5000" -ForegroundColor Green
+Write-Host "If port 5000 is busy, the backend will exit with an error." -ForegroundColor DarkYellow
 
 Write-Host "`nWaiting 5 seconds for backend to initialize..." -ForegroundColor Yellow
 Start-Sleep -Seconds 5

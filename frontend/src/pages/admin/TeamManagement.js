@@ -4,18 +4,18 @@ import {
     Box, Paper, Typography, Button, Table, TableBody, TableCell,
     TableContainer, TableHead, TableRow, TablePagination, TextField,
     InputAdornment, Chip, IconButton, Dialog, DialogTitle,
-    DialogContent, DialogActions, Grid, CircularProgress, Tooltip, MenuItem, Select, InputLabel, FormControl
+    DialogContent, DialogActions, Grid, CircularProgress, Tooltip, MenuItem, Select, InputLabel, FormControl, Alert
 } from '@mui/material';
 import {
     Search as SearchIcon, Add as AddIcon, Edit as EditIcon,
     Delete as DeleteIcon, Refresh as RefreshIcon, SupervisorAccount as TeamIcon
 } from '@mui/icons-material';
 import DashboardLayout from '../../components/DashboardLayout';
-import { fetchTeams, createTeamMember } from '../../redux/slices/adminSlice';
+import { fetchTeams, createTeamMember, clearAdminError, clearAdminSuccess } from '../../redux/slices/adminSlice';
 
 const TeamManagement = () => {
     const dispatch = useDispatch();
-    const { teams, loading } = useSelector((state) => state.admin);
+    const { teams, loading, error, success, message } = useSelector((state) => state.admin);
 
     // Table State
     const [page, setPage] = useState(0);
@@ -30,6 +30,8 @@ const TeamManagement = () => {
     });
 
     useEffect(() => {
+        dispatch(clearAdminError());
+        dispatch(clearAdminSuccess());
         dispatch(fetchTeams());
     }, [dispatch]);
 
@@ -69,6 +71,17 @@ const TeamManagement = () => {
 
     return (
         <DashboardLayout role="admin">
+            {error && (
+                <Alert severity="error" sx={{ mb: 2 }} onClose={() => dispatch(clearAdminError())}>
+                    {error}
+                </Alert>
+            )}
+            {success && message && (
+                <Alert severity="success" sx={{ mb: 2 }} onClose={() => dispatch(clearAdminSuccess())}>
+                    {message}
+                </Alert>
+            )}
+
             <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Typography variant="h4" sx={{ fontWeight: 700, color: 'text.primary' }}>
                     Team Management

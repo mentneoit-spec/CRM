@@ -5,127 +5,172 @@ import { adminAPI, transportAPI } from '../../config/api';
 export const fetchTeachers = createAsyncThunk('admin/fetchTeachers', async (params = {}, { rejectWithValue }) => {
     try {
         const response = await adminAPI.getTeachers(params);
-        return response.data;
-    } catch (error) { return rejectWithValue(error.message); }
+        return response?.data || [];
+    } catch (error) {
+        return rejectWithValue(error?.message || error?.response?.data?.message || 'Failed to fetch teachers');
+    }
 });
 
 export const createTeacher = createAsyncThunk('admin/createTeacher', async (data, { rejectWithValue }) => {
     try {
         const response = await adminAPI.createTeacher(data);
-        return response.data;
-    } catch (error) { return rejectWithValue(error.message); }
+        // backend returns { success, data: { user, teacher } }
+        return response?.data?.teacher || response?.data || null;
+    } catch (error) {
+        return rejectWithValue(error?.message || error?.response?.data?.message || 'Failed to create teacher');
+    }
 });
 
 export const fetchStudents = createAsyncThunk('admin/fetchStudents', async (params = {}, { rejectWithValue }) => {
     try {
         const response = await adminAPI.getStudents(params);
-        return response.data;
-    } catch (error) { return rejectWithValue(error.message); }
+        return response?.data || [];
+    } catch (error) {
+        return rejectWithValue(error?.message || error?.response?.data?.message || 'Failed to fetch students');
+    }
 });
 
 export const createStudent = createAsyncThunk('admin/createStudent', async (data, { rejectWithValue }) => {
     try {
         const response = await adminAPI.createStudent(data);
-        return response.data;
-    } catch (error) { return rejectWithValue(error.message); }
+        // backend returns { success, data: { user, student } }
+        return response?.data?.student || response?.data || null;
+    } catch (error) {
+        return rejectWithValue(error?.message || error?.response?.data?.message || 'Failed to create student');
+    }
 });
 
 export const fetchClasses = createAsyncThunk('admin/fetchClasses', async (_, { rejectWithValue }) => {
     try {
         const response = await adminAPI.getClasses();
-        return response.data;
-    } catch (error) { return rejectWithValue(error.message); }
+        return response?.data || [];
+    } catch (error) {
+        return rejectWithValue(error?.message || error?.response?.data?.message || 'Failed to fetch classes');
+    }
 });
 
 export const createClass = createAsyncThunk('admin/createClass', async (data, { rejectWithValue }) => {
     try {
         const response = await adminAPI.createClass(data);
-        return response.data;
-    } catch (error) { return rejectWithValue(error.message); }
+        return response?.data || null;
+    } catch (error) {
+        return rejectWithValue(error?.message || error?.response?.data?.message || 'Failed to create class');
+    }
 });
 
 export const fetchAdmissions = createAsyncThunk('admin/fetchAdmissions', async (params = {}, { rejectWithValue }) => {
     try {
         const response = await adminAPI.getAdmissions(params);
-        return response.data;
-    } catch (error) { return rejectWithValue(error.message); }
+        return response?.data || [];
+    } catch (error) {
+        return rejectWithValue(error?.message || error?.response?.data?.message || 'Failed to fetch admissions');
+    }
 });
 
 export const fetchSubjects = createAsyncThunk('admin/fetchSubjects', async (params = {}, { rejectWithValue }) => {
     try {
         const response = await adminAPI.getSubjects(params);
-        return response.data;
-    } catch (error) { return rejectWithValue(error.message); }
+        return response?.data || [];
+    } catch (error) {
+        return rejectWithValue(error?.message || error?.response?.data?.message || 'Failed to fetch subjects');
+    }
 });
 
 export const createSubject = createAsyncThunk('admin/createSubject', async (data, { rejectWithValue }) => {
     try {
         const response = await adminAPI.createSubject(data);
-        return response.data;
-    } catch (error) { return rejectWithValue(error.message); }
+        return response?.data || null;
+    } catch (error) {
+        return rejectWithValue(error?.message || error?.response?.data?.message || 'Failed to create subject');
+    }
 });
 
 export const fetchTeams = createAsyncThunk('admin/fetchTeams', async (params = {}, { rejectWithValue }) => {
     try {
         const response = await adminAPI.getTeams(params);
-        return response.data;
-    } catch (error) { return rejectWithValue(error.message); }
+        return response?.data || [];
+    } catch (error) {
+        return rejectWithValue(error?.message || error?.response?.data?.message || 'Failed to fetch team members');
+    }
 });
 
 export const createTeamMember = createAsyncThunk('admin/createTeamMember', async (data, { rejectWithValue }) => {
     try {
         const response = await adminAPI.createTeamMember(data);
-        return response.data;
-    } catch (error) { return rejectWithValue(error.message); }
+        // backend returns { success, data: { user, teamProfile } }
+        const teamProfile = response?.data?.teamProfile;
+        const user = response?.data?.user;
+        const role = data?.role;
+        if (teamProfile && role) {
+            return { ...teamProfile, role, user };
+        }
+        return response?.data || null;
+    } catch (error) {
+        return rejectWithValue(error?.message || error?.response?.data?.message || 'Failed to create team member');
+    }
 });
 
 export const fetchRoutes = createAsyncThunk('admin/fetchRoutes', async (_, { rejectWithValue }) => {
     try {
         const response = await transportAPI.getRoutes();
-        return response.data;
-    } catch (error) { return rejectWithValue(error.message); }
+        return response?.data || [];
+    } catch (error) {
+        return rejectWithValue(error?.message || error?.response?.data?.message || 'Failed to fetch routes');
+    }
 });
 
 export const createRoute = createAsyncThunk('admin/createRoute', async (data, { rejectWithValue }) => {
     try {
         const response = await transportAPI.createRoute(data);
-        return response.data;
-    } catch (error) { return rejectWithValue(error.message); }
+        return response?.data || null;
+    } catch (error) {
+        return rejectWithValue(error?.message || error?.response?.data?.message || 'Failed to create route');
+    }
 });
 
 export const fetchBuses = createAsyncThunk('admin/fetchBuses', async (_, { rejectWithValue }) => {
     try {
         const response = await transportAPI.getBuses();
-        return response.data;
-    } catch (error) { return rejectWithValue(error.message); }
+        return response?.data || [];
+    } catch (error) {
+        return rejectWithValue(error?.message || error?.response?.data?.message || 'Failed to fetch buses');
+    }
 });
 
 export const createBus = createAsyncThunk('admin/createBus', async (data, { rejectWithValue }) => {
     try {
         const response = await transportAPI.createBus(data);
-        return response.data;
-    } catch (error) { return rejectWithValue(error.message); }
+        return response?.data || null;
+    } catch (error) {
+        return rejectWithValue(error?.message || error?.response?.data?.message || 'Failed to create bus');
+    }
 });
 
 export const approveAdmission = createAsyncThunk('admin/approveAdmission', async (id, { rejectWithValue }) => {
     try {
         const response = await adminAPI.approveAdmission(id);
-        return response.data;
-    } catch (error) { return rejectWithValue(error.message); }
+        return response?.data || null;
+    } catch (error) {
+        return rejectWithValue(error?.message || error?.response?.data?.message || 'Failed to approve admission');
+    }
 });
 
 export const rejectAdmission = createAsyncThunk('admin/rejectAdmission', async ({ id, reason }, { rejectWithValue }) => {
     try {
         const response = await adminAPI.rejectAdmission(id, reason);
-        return response.data;
-    } catch (error) { return rejectWithValue(error.message); }
+        return response?.data || null;
+    } catch (error) {
+        return rejectWithValue(error?.message || error?.response?.data?.message || 'Failed to reject admission');
+    }
 });
 
 export const fetchFees = createAsyncThunk('admin/fetchFees', async (params = {}, { rejectWithValue }) => {
     try {
         const response = await adminAPI.getFees(params);
-        return response.data;
-    } catch (error) { return rejectWithValue(error.message); }
+        return response?.data || [];
+    } catch (error) {
+        return rejectWithValue(error?.message || error?.response?.data?.message || 'Failed to fetch fees');
+    }
 });
 
 const initialState = {

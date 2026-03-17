@@ -5,8 +5,8 @@ require('dotenv').config();
 const transporter = nodemailer.createTransport({
     service: process.env.EMAIL_SERVICE || 'gmail',
     auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASSWORD,
+        user: process.env.EMAIL_USER, // e.g., svljyothikanookala30@gmail.com
+        pass: process.env.EMAIL_PASSWORD, // your 16-char App Password
     },
 });
 
@@ -24,12 +24,17 @@ const emailTemplates = {
     }),
 
     otpLogin: (name, otp) => ({
-        subject: 'Your Login OTP',
+        subject: 'Your Gravity CRM Verification Code',
         html: `
-            <h2>OTP Verification</h2>
-            <p>Dear ${name},</p>
-            <p>Your One-Time Password (OTP) for login/registration is: <strong>${otp}</strong></p>
-            <p>This OTP is valid for 10 minutes. Please do not share it with anyone.</p>
+            <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+                <h2 style="color: #4A90E2;">OTP Verification</h2>
+                <p>Dear ${name},</p>
+                <p>Your One-Time Password (OTP) for login/registration is:</p>
+                <h1 style="background: #f4f4f4; padding: 15px; display: inline-block; letter-spacing: 5px; color: #333; border-radius: 5px;">${otp}</h1>
+                <p>This OTP is valid for <strong>10 minutes</strong>. Please do not share it with anyone.</p>
+                <hr style="border: none; border-top: 1px solid #eee;" />
+                <p style="font-size: 12px; color: #888;">If you did not request this, please ignore this email.</p>
+            </div>
         `,
     }),
 
@@ -134,14 +139,14 @@ const sendEmail = async (to, templateName, variables) => {
         const emailContent = template(...variables);
 
         const mailOptions = {
-            from: process.env.EMAIL_USER,
+            from: `"Gravity CRM" <${process.env.EMAIL_USER}>`,
             to,
             subject: emailContent.subject,
             html: emailContent.html,
         };
 
-        await transporter.sendMail(mailOptions);
-        console.log(`Email sent to ${to} - Template: ${templateName}`);
+        const info = await transporter.sendMail(mailOptions);
+        console.log(`Email sent to ${to} - Template: ${templateName} - ID: ${info.messageId}`);
 
         return { success: true, message: 'Email sent successfully' };
     } catch (error) {
@@ -170,11 +175,9 @@ const sendBulkEmails = async (recipients, templateName, variables) => {
     }
 };
 
-// Schedule email (queue-based in production)
+// Schedule email 
 const scheduleEmail = async (to, templateName, variables, scheduleTime) => {
     try {
-        // In production, use a job queue like Bull or RabbitMQ
-        // For now, use setTimeout
         const delay = new Date(scheduleTime).getTime() - Date.now();
 
         if (delay < 0) {

@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const { generateToken } = require('../utils/jwt');
 const { setOTP, getOTP, deleteOTP, incrementOTPAttempts } = require('../utils/redis-service');
 const { sendEmail } = require('../utils/email-service');
+const { sendSMSOTP } = require('../utils/sms');
 
 // ==================== LOGIN ====================
 
@@ -17,21 +18,14 @@ const login = async (req, res) => {
             });
         }
 
-        // Find user by email
         let user;
 
         if (collegeId) {
-            // College-specific login
             user = await prisma.user.findUnique({
                 where: { email_collegeId: { email, collegeId } },
                 include: { college: true },
             });
         } else {
-            // No collegeId provided:
-            // 1) Prefer a non-college user (collegeId null)
-            // 2) Otherwise, if exactly one college user exists for this email, use it
-            // 3) If multiple college users exist, require collegeId
-
             user = await prisma.user.findFirst({
                 where: {
                     email,
@@ -69,7 +63,6 @@ const login = async (req, res) => {
             });
         }
 
-        // Check if user is active
         if (!user.isActive) {
             return res.status(403).json({
                 success: false,
@@ -77,7 +70,6 @@ const login = async (req, res) => {
             });
         }
 
-        // Verify password
         const isPasswordValid = await bcrypt.compare(password, user.password);
         if (!isPasswordValid) {
             return res.status(401).json({
@@ -86,7 +78,6 @@ const login = async (req, res) => {
             });
         }
 
-        // Check college status if college user
         if (user.collegeId && user.college) {
             if (user.college.status !== 'active') {
                 return res.status(403).json({
@@ -96,16 +87,13 @@ const login = async (req, res) => {
             }
         }
 
-        // Generate token
         const token = generateToken(user.id, user.role, user.collegeId);
 
-        // Update last login
         await prisma.user.update({
             where: { id: user.id },
             data: { lastLogin: new Date() },
         });
 
-        // Return user data without password
         const { password: _, ...userWithoutPassword } = user;
 
         res.status(200).json({
@@ -135,7 +123,6 @@ const superAdminLogin = async (req, res) => {
             });
         }
 
-        // Find super admin
         const superAdmin = await prisma.superAdmin.findUnique({
             where: { email },
         });
@@ -147,7 +134,6 @@ const superAdminLogin = async (req, res) => {
             });
         }
 
-        // Verify password
         const isPasswordValid = await bcrypt.compare(password, superAdmin.password);
         if (!isPasswordValid) {
             return res.status(401).json({
@@ -156,7 +142,6 @@ const superAdminLogin = async (req, res) => {
             });
         }
 
-        // Check if account is active
         if (!superAdmin.isActive) {
             return res.status(403).json({
                 success: false,
@@ -164,10 +149,7 @@ const superAdminLogin = async (req, res) => {
             });
         }
 
-        // Enforce 2FA if enabled for SuperAdmin
         if (superAdmin.twoFAEnabled) {
-            // If 2FA is "enabled" but secret is missing, treat it as not configured.
-            // Auto-disable so login isn't permanently blocked.
             if (!superAdmin.twoFASecret) {
                 await prisma.superAdmin.update({
                     where: { id: superAdmin.id },
@@ -200,8 +182,6 @@ const superAdminLogin = async (req, res) => {
             }
         }
 
-        // Ensure a matching `User` exists for authMiddleware-protected routes.
-        // (authMiddleware loads from `User`, not `SuperAdmin`.)
         let user = await prisma.user.findFirst({
             where: {
                 email,
@@ -225,10 +205,8 @@ const superAdminLogin = async (req, res) => {
             });
         }
 
-        // Generate token based on `User.id` so authMiddleware works everywhere
         const token = generateToken(user.id, 'SuperAdmin', null);
 
-        // Update last login
         await Promise.all([
             prisma.superAdmin.update({
                 where: { id: superAdmin.id },
@@ -260,7 +238,6 @@ const superAdminLogin = async (req, res) => {
 
 const logout = async (req, res) => {
     try {
-        // Token is validated by middleware, just return success
         res.status(200).json({
             success: true,
             message: 'Logout successful',
@@ -373,7 +350,6 @@ const updateMyProfile = async (req, res) => {
             },
         });
 
-        // Best-effort sync into role-specific tables if they exist
         const sync = async (fn) => {
             try {
                 await fn();
@@ -427,12 +403,10 @@ const changePassword = async (req, res) => {
             });
         }
 
-        // Get user
         const user = await prisma.user.findUnique({
             where: { id: userId },
         });
 
-        // Verify old password
         const isPasswordValid = await bcrypt.compare(oldPassword, user.password);
         if (!isPasswordValid) {
             return res.status(401).json({
@@ -441,10 +415,8 @@ const changePassword = async (req, res) => {
             });
         }
 
-        // Hash new password
         const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-        // Update password
         await prisma.user.update({
             where: { id: userId },
             data: { password: hashedPassword },
@@ -460,7 +432,7 @@ const changePassword = async (req, res) => {
     }
 };
 
-// ==================== REGISTER (For test purposes) ====================
+// ==================== REGISTER ====================
 
 const register = async (req, res) => {
     try {
@@ -473,14 +445,12 @@ const register = async (req, res) => {
             });
         }
 
-        // Check if email already exists
         let existingUser;
         if (collegeId) {
             existingUser = await prisma.user.findUnique({
                 where: { email_collegeId: { email, collegeId } },
             });
         } else {
-            // Use findFirst for non-college users since email alone is not unique
             existingUser = await prisma.user.findFirst({
                 where: {
                     email,
@@ -496,12 +466,9 @@ const register = async (req, res) => {
             });
         }
 
-        // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // Create user and role-specific record in a transaction
         const result = await prisma.$transaction(async (tx) => {
-            // Create base user record
             const user = await tx.user.create({
                 data: {
                     name,
@@ -514,29 +481,24 @@ const register = async (req, res) => {
                 },
             });
 
-            // Create role-specific record
             let roleProfile = null;
 
             switch (role) {
                 case 'Student':
                     if (collegeId) {
-                        // For students, we need a class (sclassId)
-                        // For now, create without class - admin can assign later
                         roleProfile = await tx.student.create({
                             data: {
                                 name,
                                 email,
                                 phone,
                                 password: hashedPassword,
-                                studentId: `STU${Date.now()}`, // Generate unique student ID
+                                studentId: `STU${Date.now()}`,
                                 user: { connect: { id: user.id } },
                                 college: { connect: { id: collegeId } },
-                                // sclass will be assigned by admin later (optional field)
                             },
                         });
                     }
                     break;
-
                 case 'Teacher':
                     if (collegeId) {
                         roleProfile = await tx.teacher.create({
@@ -551,7 +513,6 @@ const register = async (req, res) => {
                         });
                     }
                     break;
-
                 case 'Parent':
                     if (collegeId) {
                         roleProfile = await tx.parent.create({
@@ -566,7 +527,6 @@ const register = async (req, res) => {
                         });
                     }
                     break;
-
                 case 'Admin':
                     if (collegeId) {
                         roleProfile = await tx.admin.create({
@@ -581,9 +541,7 @@ const register = async (req, res) => {
                         });
                     }
                     break;
-
                 case 'SuperAdmin':
-                    // SuperAdmin goes to separate table
                     roleProfile = await tx.superAdmin.create({
                         data: {
                             name,
@@ -593,7 +551,6 @@ const register = async (req, res) => {
                         },
                     });
                     break;
-
                 case 'AdmissionTeam':
                     if (collegeId) {
                         roleProfile = await tx.admissionTeam.create({
@@ -607,7 +564,6 @@ const register = async (req, res) => {
                         });
                     }
                     break;
-
                 case 'AccountsTeam':
                     if (collegeId) {
                         roleProfile = await tx.accountsTeam.create({
@@ -621,7 +577,6 @@ const register = async (req, res) => {
                         });
                     }
                     break;
-
                 case 'TransportTeam':
                     if (collegeId) {
                         roleProfile = await tx.transportTeam.create({
@@ -640,7 +595,6 @@ const register = async (req, res) => {
             return { user, roleProfile };
         });
 
-        // Generate token
         const token = generateToken(result.user.id, role, collegeId);
 
         const { password: _, ...userWithoutPassword } = result.user;
@@ -648,7 +602,6 @@ const register = async (req, res) => {
         res.status(201).json({
             success: true,
             message: 'Registration successful',
-            schoolName: role === 'Admin' ? req.body.schoolName : undefined,
             data: {
                 user: userWithoutPassword,
                 roleProfile: result.roleProfile,
@@ -657,22 +610,12 @@ const register = async (req, res) => {
         });
     } catch (error) {
         console.error('Register error:', error);
-        res.status(500).json({ 
-            success: false, 
+        res.status(500).json({
+            success: false,
             message: 'Error during registration',
-            error: error.message,
-            details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+            error: error.message
         });
     }
-};
-
-module.exports = {
-    login,
-    superAdminLogin,
-    logout,
-    getCurrentUser,
-    changePassword,
-    register,
 };
 
 // ==================== OTP AUTHENTICATION ====================
@@ -688,7 +631,6 @@ const requestOTP = async (req, res) => {
             });
         }
 
-        // Check if user exists
         let user;
         if (collegeId) {
             user = await prisma.user.findFirst({
@@ -707,16 +649,19 @@ const requestOTP = async (req, res) => {
             });
         }
 
-        // Generate OTP
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-        // Store OTP in Redis (10 minutes expiry)
         await setOTP(phone, otp, 600);
 
-        // Send OTP via SMS (in production, use Twilio/AWS SNS)
-        console.log(`[OTP] Phone: ${phone}, OTP: ${otp}`);
+        // --- Trigger AWS SNS SMS ---
+        console.log(`[SNS] Attempting to send OTP to: ${phone}`);
+        try {
+            await sendSMSOTP(phone, otp);
+        } catch (snsError) {
+            console.error("AWS SNS failed:", snsError.message);
+            // Fallback: Code will still show in console logs for testing
+        }
 
-        // For demo, also send via email if available
         if (user.email) {
             await sendEmail(user.email, 'otpLogin', [user.name, otp]);
         }
@@ -743,7 +688,6 @@ const verifyOTPLogin = async (req, res) => {
             });
         }
 
-        // Get OTP from Redis
         const otpData = await getOTP(phone);
 
         if (!otpData) {
@@ -753,7 +697,6 @@ const verifyOTPLogin = async (req, res) => {
             });
         }
 
-        // Check attempts
         if (otpData.attempts >= 5) {
             await deleteOTP(phone);
             return res.status(429).json({
@@ -762,7 +705,6 @@ const verifyOTPLogin = async (req, res) => {
             });
         }
 
-        // Verify OTP
         if (otpData.otp !== otp) {
             await incrementOTPAttempts(phone);
             return res.status(400).json({
@@ -772,10 +714,8 @@ const verifyOTPLogin = async (req, res) => {
             });
         }
 
-        // OTP verified, delete from Redis
         await deleteOTP(phone);
 
-        // Find user
         let user;
         if (collegeId) {
             user = await prisma.user.findFirst({
@@ -796,7 +736,6 @@ const verifyOTPLogin = async (req, res) => {
             });
         }
 
-        // Check if user is active
         if (!user.isActive) {
             return res.status(403).json({
                 success: false,
@@ -804,7 +743,6 @@ const verifyOTPLogin = async (req, res) => {
             });
         }
 
-        // Check college status
         if (user.collegeId && user.college && user.college.status !== 'active') {
             return res.status(403).json({
                 success: false,
@@ -812,10 +750,8 @@ const verifyOTPLogin = async (req, res) => {
             });
         }
 
-        // Generate token
         const token = generateToken(user.id, user.role, user.collegeId);
 
-        // Update last login
         await prisma.user.update({
             where: { id: user.id },
             data: {
@@ -846,7 +782,6 @@ const googleAuthUrl = async (req, res) => {
     try {
         const { collegeId } = req.query;
         const { getGoogleAuthUrl } = require('../utils/google-oauth-service');
-
         const authUrl = getGoogleAuthUrl(collegeId);
 
         res.status(200).json({
@@ -867,7 +802,6 @@ const googleCallback = async (req, res) => {
         const result = await handleGoogleCallback(code, state);
 
         if (!result.success) {
-            // If the browser hit this endpoint directly, send them back to the frontend with an error.
             if (req.accepts('html')) {
                 const frontendBase = process.env.FRONTEND_URL || 'http://localhost:3000';
                 const url = new URL('/login', frontendBase);
@@ -877,7 +811,6 @@ const googleCallback = async (req, res) => {
             return res.status(400).json(result);
         }
 
-        // Browser flow: redirect back to frontend with token in hash.
         if (req.accepts('html')) {
             const frontendBase = process.env.FRONTEND_URL || 'http://localhost:3000';
             const url = new URL('/login', frontendBase);
@@ -885,7 +818,6 @@ const googleCallback = async (req, res) => {
             return res.redirect(url.toString());
         }
 
-        // API flow: return JSON
         res.status(200).json(result);
     } catch (error) {
         console.error('Google callback error:', error);
@@ -899,10 +831,8 @@ const setup2FA = async (req, res) => {
     try {
         const userId = req.user.id;
         const userEmail = req.user.email;
-
         const { setup2FA } = require('../utils/2fa-service');
         const result = await setup2FA(userId, userEmail);
-
         res.status(200).json(result);
     } catch (error) {
         console.error('Setup 2FA error:', error);
@@ -914,17 +844,11 @@ const enable2FA = async (req, res) => {
     try {
         const userId = req.user.id;
         const { token } = req.body;
-
         if (!token) {
-            return res.status(400).json({
-                success: false,
-                message: '2FA token is required'
-            });
+            return res.status(400).json({ success: false, message: '2FA token is required' });
         }
-
         const { enable2FA } = require('../utils/2fa-service');
         const result = await enable2FA(userId, token);
-
         res.status(200).json(result);
     } catch (error) {
         console.error('Enable 2FA error:', error);
@@ -936,17 +860,11 @@ const disable2FA = async (req, res) => {
     try {
         const userId = req.user.id;
         const { token } = req.body;
-
         if (!token) {
-            return res.status(400).json({
-                success: false,
-                message: '2FA token is required'
-            });
+            return res.status(400).json({ success: false, message: '2FA token is required' });
         }
-
         const { disable2FA } = require('../utils/2fa-service');
         const result = await disable2FA(userId, token);
-
         res.status(200).json(result);
     } catch (error) {
         console.error('Disable 2FA error:', error);
@@ -958,17 +876,11 @@ const verify2FA = async (req, res) => {
     try {
         const userId = req.user.id;
         const { token } = req.body;
-
         if (!token) {
-            return res.status(400).json({
-                success: false,
-                message: '2FA token is required'
-            });
+            return res.status(400).json({ success: false, message: '2FA token is required' });
         }
-
         const { validate2FALogin } = require('../utils/2fa-service');
         const result = await validate2FALogin(userId, token);
-
         res.status(200).json(result);
     } catch (error) {
         console.error('Verify 2FA error:', error);

@@ -25,6 +25,27 @@ const getDefaultApiBaseUrl = () => {
 const normalizeApiBaseUrl = (url) => {
   const fallback = getDefaultApiBaseUrl();
   if (!url) return fallback;
+
+  // Safety: if someone accidentally sets REACT_APP_API_URL to localhost but the
+  // site is opened on a real host/IP, browsers will block it (PNA/CORS). In
+  // that case, ignore the env value and use a sane default.
+  try {
+    if (typeof window !== 'undefined' && window.location) {
+      const currentHost = window.location.hostname;
+      const currentIsLocal = currentHost === 'localhost' || currentHost === '127.0.0.1';
+
+      const asUrl = new URL(String(url), window.location.href);
+      const envHost = asUrl.hostname;
+      const envIsLocal = envHost === 'localhost' || envHost === '127.0.0.1';
+
+      if (!currentIsLocal && envIsLocal) {
+        return fallback;
+      }
+    }
+  } catch {
+    // ignore
+  }
+
   const trimmed = String(url).replace(/\/+$/, '');
   if (trimmed.endsWith('/api')) return trimmed;
   return `${trimmed}/api`;

@@ -22,6 +22,24 @@ const getDefaultApiBaseUrl = () => {
 const normalizeApiBaseUrl = (url) => {
   const fallback = getDefaultApiBaseUrl();
   if (!url) return fallback;
+
+  try {
+    if (typeof window !== 'undefined' && window.location) {
+      const currentHost = window.location.hostname;
+      const currentIsLocal = currentHost === 'localhost' || currentHost === '127.0.0.1';
+
+      const asUrl = new URL(String(url), window.location.href);
+      const envHost = asUrl.hostname;
+      const envIsLocal = envHost === 'localhost' || envHost === '127.0.0.1';
+
+      if (!currentIsLocal && envIsLocal) {
+        return fallback;
+      }
+    }
+  } catch {
+    // ignore
+  }
+
   const trimmed = String(url).replace(/\/+$/, '');
   if (trimmed.endsWith('/api')) return trimmed;
   return `${trimmed}/api`;

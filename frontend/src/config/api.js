@@ -1,7 +1,29 @@
 import axios from 'axios';
 
+const getDefaultApiBaseUrl = () => {
+  // In production deployments, using localhost breaks because the browser will
+  // try to call the user's own machine (and modern browsers block it).
+  try {
+    if (typeof window !== 'undefined' && window.location) {
+      const protocol = window.location.protocol || 'http:';
+      const hostname = window.location.hostname;
+
+      if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        return 'http://localhost:5000/api';
+      }
+
+      // Common deployment: frontend on :80/:443 and backend on :5000
+      return `${protocol}//${hostname}:5000/api`;
+    }
+  } catch {
+    // ignore
+  }
+
+  return 'http://localhost:5000/api';
+};
+
 const normalizeApiBaseUrl = (url) => {
-  const fallback = 'http://localhost:5000/api';
+  const fallback = getDefaultApiBaseUrl();
   if (!url) return fallback;
   const trimmed = String(url).replace(/\/+$/, '');
   if (trimmed.endsWith('/api')) return trimmed;

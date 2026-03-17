@@ -16,14 +16,43 @@ const PORT = parseInt(process.env.PORT) || 5000;
 app.use(helmet());
 
 // CORS
+const parseAllowedOrigins = (value) => {
+  if (!value) return [];
+  return String(value)
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+};
+
+const allowedOrigins = parseAllowedOrigins(process.env.ALLOWED_ORIGINS);
+
+// Required for Chrome's Private Network Access preflight when applicable.
+app.use((req, res, next) => {
+  if (req.headers["access-control-request-private-network"]) {
+    res.setHeader("Access-Control-Allow-Private-Network", "true");
+  }
+  next();
+});
+
 app.use(
   cors({
-    origin:
-      process.env.ALLOWED_ORIGINS?.split(",") || [
-        "http://localhost:3000",
-        "http://localhost:3001",
-      ],
+    origin: (origin, callback) => {
+      // Non-browser clients (curl, server-to-server) often have no Origin header.
+      if (!origin) return callback(null, true);
+
+      // If ALLOWED_ORIGINS is unset OR explicitly '*', allow all origins.
+      if (allowedOrigins.length === 0 || allowedOrigins.includes("*")) {
+        return callback(null, true);
+      }
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error(`Not allowed by CORS: ${origin}`));
+    },
     credentials: true,
+    optionsSuccessStatus: 204,
   })
 );
 

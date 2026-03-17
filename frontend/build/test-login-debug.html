@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login Debug</title>
+    <style>
+        body { font-family: Arial; padding: 20px; }
+        .log { background: #f5f5f5; padding: 10px; margin: 10px 0; border-left: 3px solid #2196f3; }
+        .error { border-left-color: #f44336; background: #ffebee; }
+        .success { border-left-color: #4caf50; background: #e8f5e9; }
+        input, button { padding: 10px; margin: 5px; }
+        input { width: 300px; }
+    </style>
+</head>
+<body>
+    <h1>Login Debug Tool</h1>
+    
+    <div>
+        <input type="email" id="email" placeholder="Email" value="testsignupfix@example.com">
+        <input type="password" id="password" placeholder="Password" value="test123">
+        <button onclick="testLogin()">Test Login</button>
+        <button onclick="clearLogs()">Clear Logs</button>
+    </div>
+    
+    <div id="logs"></div>
+    
+    <script>
+        function log(message, type = 'log') {
+            const logsDiv = document.getElementById('logs');
+            const logEntry = document.createElement('div');
+            logEntry.className = `log ${type}`;
+            logEntry.innerHTML = `<strong>${new Date().toLocaleTimeString()}</strong>: ${message}`;
+            logsDiv.insertBefore(logEntry, logsDiv.firstChild);
+        }
+        
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+        }
+        
+        async function testLogin() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            log('🔄 Starting login test...');
+            log(`Email: ${email}`);
+            
+            try {
+                log('📤 Sending POST request to /api/auth/login');
+                
+                const response = await fetch('http://localhost:5001/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email: email,
+                        password: password,
+                        collegeId: '2aad2902-caee-4a50-bcb9-0b75e0c75262'
+                    })
+                });
+                
+                log(`📥 Response status: ${response.status} ${response.statusText}`);
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    log('✅ Login successful!', 'success');
+                    log(`User: ${data.data.user.name}`);
+                    log(`Role: ${data.data.user.role}`);
+                    log(`Token: ${data.data.token.substring(0, 30)}...`);
+                    
+                    // Store in localStorage
+                    localStorage.setItem('token', data.data.token);
+                    localStorage.setItem('user', JSON.stringify(data.data.user));
+                    localStorage.setItem('collegeId', data.data.user.collegeId);
+                    
+                    log('💾 Stored in localStorage', 'success');
+                    log(`Token in storage: ${localStorage.getItem('token') ? 'YES' : 'NO'}`);
+                    log(`User in storage: ${localStorage.getItem('user') ? 'YES' : 'NO'}`);
+                    
+                    // Determine dashboard URL
+                    const roleRoutes = {
+                        Student: '/student/dashboard',
+                        Teacher: '/teacher/dashboard',
+                        Parent: '/parent/dashboard',
+                        Admin: '/admin/dashboard',
+                        SuperAdmin: '/superadmin/dashboard',
+                    };
+                    
+                    const dashboardUrl = roleRoutes[data.data.user.role];
+                    log(`🎯 Dashboard URL: ${dashboardUrl}`, 'success');
+                    log(`<a href="${dashboardUrl}" target="_blank">Click here to open dashboard</a>`, 'success');
+                    
+                    // Auto redirect after 2 seconds
+                    setTimeout(() => {
+                        log('🔄 Redirecting to dashboard...');
+                        window.location.href = dashboardUrl;
+                    }, 2000);
+                    
+                } else {
+                    log(`❌ Login failed: ${data.message}`, 'error');
+                }
+                
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'error');
+                console.error('Full error:', error);
+            }
+        }
+        
+        // Check current auth status on load
+        window.onload = function() {
+            const token = localStorage.getItem('token');
+            const user = localStorage.getItem('user');
+            
+            if (token) {
+                log('ℹ️ Found existing token in localStorage');
+                log(`Token: ${token.substring(0, 30)}...`);
+            } else {
+                log('ℹ️ No token found in localStorage');
+            }
+            
+            if (user) {
+                const userData = JSON.parse(user);
+                log(`ℹ️ Found user data: ${userData.name} (${userData.role})`);
+            }
+        };
+    </script>
+</body>
+</html>

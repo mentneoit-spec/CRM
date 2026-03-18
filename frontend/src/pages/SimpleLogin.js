@@ -22,16 +22,15 @@ const SimpleLogin = () => {
     const getDefaultApiBaseUrl = () => {
       try {
         if (typeof window !== 'undefined' && window.location) {
-          const protocol = window.location.protocol || 'http:';
           const hostname = window.location.hostname;
           const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
           if (isLocal) return 'http://localhost:5000/api';
-          return `${protocol}//${hostname}:5000/api`;
+          return '/api';
         }
       } catch {
         // ignore
       }
-      return 'http://localhost:5000/api';
+      return '/api';
     };
 
     const fallback = getDefaultApiBaseUrl();

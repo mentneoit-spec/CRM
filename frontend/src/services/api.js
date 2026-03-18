@@ -3,20 +3,20 @@ import axios from 'axios';
 const getDefaultApiBaseUrl = () => {
   try {
     if (typeof window !== 'undefined' && window.location) {
-      const protocol = window.location.protocol || 'http:';
       const hostname = window.location.hostname;
 
       if (hostname === 'localhost' || hostname === '127.0.0.1') {
         return 'http://localhost:5000/api';
       }
 
-      return `${protocol}//${hostname}:5000/api`;
+      // Production: prefer same-origin API (avoids CORS and mismatched backends)
+      return '/api';
     }
   } catch {
     // ignore
   }
 
-  return 'http://localhost:5000/api';
+  return '/api';
 };
 
 const normalizeApiBaseUrl = (url) => {

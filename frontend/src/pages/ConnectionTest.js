@@ -17,12 +17,11 @@ import { CheckCircle, Error, Refresh } from '@mui/icons-material';
 const ConnectionTest = () => {
   const apiBase = (() => {
     try {
-      const protocol = window.location.protocol || 'http:';
       const hostname = window.location.hostname;
       const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
-      return isLocal ? 'http://localhost:5000/api' : `${protocol}//${hostname}:5000/api`;
+      return isLocal ? 'http://localhost:5000/api' : '/api';
     } catch {
-      return 'http://localhost:5000/api';
+      return '/api';
     }
   })();
 

@@ -244,8 +244,7 @@ const ModernSignupEnhanced = () => {
       if (response.success) {
         setOtpVerified(true);
         setSuccess('Email verified successfully!');
-        // Continue with registration
-        handleSignup({ preventDefault: () => { } });
+        // User can now click "Create Account"
       } else {
         setError(response.message || 'Invalid OTP');
       }

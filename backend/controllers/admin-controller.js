@@ -214,10 +214,16 @@ const createTeacher = async (req, res) => {
         const { name, email, phone, password, qualification, experience, specialization } = req.body;
 
         // Validate input
-        if (!name || !email || !password || !collegeId) {
+        const missingFields = [];
+        if (!name) missingFields.push('name');
+        if (!email) missingFields.push('email');
+        if (!password) missingFields.push('password');
+        if (!collegeId) missingFields.push('collegeId');
+
+        if (missingFields.length > 0) {
             return res.status(400).json({
                 success: false,
-                message: 'Required fields missing'
+                message: `Required fields missing: ${missingFields.join(', ')}`,
             });
         }
 

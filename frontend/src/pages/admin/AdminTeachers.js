@@ -4,18 +4,18 @@ import {
     Box, Paper, Typography, Button, Table, TableBody, TableCell,
     TableContainer, TableHead, TableRow, TablePagination, TextField,
     InputAdornment, Chip, IconButton, Dialog, DialogTitle,
-    DialogContent, DialogActions, Grid, CircularProgress, Tooltip
+    DialogContent, DialogActions, Grid, CircularProgress, Tooltip, Alert
 } from '@mui/material';
 import {
     Search as SearchIcon, Add as AddIcon, Edit as EditIcon,
     Delete as DeleteIcon, Refresh as RefreshIcon
 } from '@mui/icons-material';
 import DashboardLayout from '../../components/DashboardLayout';
-import { fetchTeachers, createTeacher } from '../../redux/slices/adminSlice';
+import { fetchTeachers, createTeacher, clearAdminError } from '../../redux/slices/adminSlice';
 
 const AdminTeachers = () => {
     const dispatch = useDispatch();
-    const { teachers, loading } = useSelector((state) => state.admin);
+    const { teachers, loading, error } = useSelector((state) => state.admin);
 
     // Table State
     const [page, setPage] = useState(0);
@@ -47,6 +47,7 @@ const AdminTeachers = () => {
 
     const handleAddSubmit = (e) => {
         e.preventDefault();
+        dispatch(clearAdminError());
         dispatch(createTeacher(newTeacher)).then((res) => {
             if (!res.error) {
                 setOpenAddDialog(false);
@@ -72,7 +73,15 @@ const AdminTeachers = () => {
                     <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => dispatch(fetchTeachers())} sx={{ mr: 2 }}>
                         Refresh
                     </Button>
-                    <Button variant="contained" color="primary" startIcon={<AddIcon />} onClick={() => setOpenAddDialog(true)}>
+                    <Button
+                        variant="contained"
+                        color="primary"
+                        startIcon={<AddIcon />}
+                        onClick={() => {
+                            dispatch(clearAdminError());
+                            setOpenAddDialog(true);
+                        }}
+                    >
                         Add New Teacher
                     </Button>
                 </Box>
@@ -141,10 +150,23 @@ const AdminTeachers = () => {
             </Paper>
 
             {/* Add Teacher Dialog */}
-            <Dialog open={openAddDialog} onClose={() => setOpenAddDialog(false)} maxWidth="sm" fullWidth>
+            <Dialog
+                open={openAddDialog}
+                onClose={() => {
+                    setOpenAddDialog(false);
+                    dispatch(clearAdminError());
+                }}
+                maxWidth="sm"
+                fullWidth
+            >
                 <form onSubmit={handleAddSubmit}>
                     <DialogTitle sx={{ fontWeight: 'bold' }}>Register New Teacher</DialogTitle>
                     <DialogContent dividers>
+                        {error ? (
+                            <Alert severity="error" sx={{ mb: 2 }} onClose={() => dispatch(clearAdminError())}>
+                                {error}
+                            </Alert>
+                        ) : null}
                         <Grid container spacing={2}>
                             <Grid item xs={12}>
                                 <TextField label="Full Name" fullWidth required value={newTeacher.name} onChange={(e) => setNewTeacher({ ...newTeacher, name: e.target.value })} />

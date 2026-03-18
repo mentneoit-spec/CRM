@@ -35,9 +35,16 @@ api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
     if (token) config.headers.Authorization = `Bearer ${token}`;
-    const collegeId = localStorage.getItem('collegeId');
-    if (collegeId && !config.params?.collegeId) {
-      config.params = { ...config.params, collegeId };
+
+    // IMPORTANT: don't force-inject collegeId into Auth routes.
+    // Auth endpoints may accept collegeId in the request body, and a stale
+    // localStorage value can cause failures if injected as a query param.
+    const isAuthRoute = typeof config.url === 'string' && config.url.startsWith('/auth');
+    if (!isAuthRoute) {
+      const collegeId = localStorage.getItem('collegeId');
+      if (collegeId && !config.params?.collegeId) {
+        config.params = { ...config.params, collegeId };
+      }
     }
     return config;
   },
@@ -52,9 +59,14 @@ api.interceptors.response.use(
         localStorage.clear();
         window.location.href = '/login';
       }
-      return Promise.reject(error.response.data);
+      return Promise.reject(error.response.data || { message: 'Request failed' });
     }
-    return Promise.reject({ message: 'Network error. Please check your connection.' });
+
+    if (error.request) {
+      return Promise.reject({ message: 'Network error. Please check your connection.' });
+    }
+
+    return Promise.reject({ message: error.message });
   }
 );
 

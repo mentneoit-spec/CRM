@@ -491,7 +491,7 @@ const register = async (req, res) => {
                 });
             }
 
-            const verifyKey = `register:${resolvedCollegeId}:${normalizedEmail}`;
+            const verifyKey = `register:${resolvedCollegeId || 'none'}:${normalizedEmail}`;
             const ok = await getVerificationFlag(verifyKey);
             if (!ok) {
                 return res.status(400).json({
@@ -710,8 +710,13 @@ const requestRegistrationOTP = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Email is required' });
         }
 
-        const resolvedCollegeId = providedCollegeId || req.collegeId || null;
-        if (!resolvedCollegeId) {
+        const isProduction = (process.env.NODE_ENV || 'development') === 'production';
+
+        let resolvedCollegeId = providedCollegeId || req.collegeId || null;
+
+        // In production we still require an explicit college context; in local/dev
+        // we allow email-only registration OTP so you can test signup freely.
+        if (!resolvedCollegeId && isProduction) {
             return res.status(400).json({
                 success: false,
                 message: 'College not identified. Please provide collegeId or use your college domain.',
@@ -719,19 +724,30 @@ const requestRegistrationOTP = async (req, res) => {
             });
         }
 
-        await assertCollegeActiveOrThrow(resolvedCollegeId);
+        if (resolvedCollegeId) {
+            await assertCollegeActiveOrThrow(resolvedCollegeId);
+        }
 
-        const existingUser = await prisma.user.findUnique({
-            where: { email_collegeId: { email: normalizedEmail, collegeId: resolvedCollegeId } },
-            select: { id: true },
-        });
+        let existingUser;
+        if (resolvedCollegeId) {
+            existingUser = await prisma.user.findUnique({
+                where: { email_collegeId: { email: normalizedEmail, collegeId: resolvedCollegeId } },
+                select: { id: true },
+            });
+        } else {
+            // Dev/global context: look for users without a college assigned
+            existingUser = await prisma.user.findFirst({
+                where: { email: normalizedEmail, collegeId: null },
+                select: { id: true },
+            });
+        }
 
         if (existingUser) {
             return res.status(400).json({ success: false, message: 'Email already registered' });
         }
 
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
-        const otpKey = `register:${resolvedCollegeId}:${normalizedEmail}`;
+        const otpKey = `register:${resolvedCollegeId || 'none'}:${normalizedEmail}`;
 
         await setOTP(otpKey, otp, 600);
 
@@ -767,8 +783,11 @@ const verifyRegistrationOTP = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Email and OTP are required' });
         }
 
-        const resolvedCollegeId = providedCollegeId || req.collegeId || null;
-        if (!resolvedCollegeId) {
+        const isProduction = (process.env.NODE_ENV || 'development') === 'production';
+
+        let resolvedCollegeId = providedCollegeId || req.collegeId || null;
+
+        if (!resolvedCollegeId && isProduction) {
             return res.status(400).json({
                 success: false,
                 message: 'College not identified. Please provide collegeId or use your college domain.',
@@ -776,9 +795,11 @@ const verifyRegistrationOTP = async (req, res) => {
             });
         }
 
-        await assertCollegeActiveOrThrow(resolvedCollegeId);
+        if (resolvedCollegeId) {
+            await assertCollegeActiveOrThrow(resolvedCollegeId);
+        }
 
-        const otpKey = `register:${resolvedCollegeId}:${normalizedEmail}`;
+        const otpKey = `register:${resolvedCollegeId || 'none'}:${normalizedEmail}`;
         const otpData = await getOTP(otpKey);
 
         if (!otpData) {
@@ -804,7 +825,7 @@ const verifyRegistrationOTP = async (req, res) => {
 
         await deleteOTP(otpKey);
 
-        const verifyKey = `register:${resolvedCollegeId}:${normalizedEmail}`;
+        const verifyKey = `register:${resolvedCollegeId || 'none'}:${normalizedEmail}`;
         await setVerificationFlag(verifyKey, 15 * 60);
 
         res.status(200).json({ success: true, message: 'Email verified successfully' });

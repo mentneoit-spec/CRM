@@ -17,85 +17,117 @@ const { sendSMSOTP } = require('../utils/sms');
 
 const login = async (req, res) => {
     try {
-        const { email, password, collegeId } = req.body;
-        const normalizedEmail = String(email || '').trim().toLowerCase();
+        const { email, identifier, password, collegeId } = req.body;
+        const identifierInput = String(identifier ?? email ?? '').trim();
         const passwordInput = String(password || '');
+        const passwordTrimmed = passwordInput.trim();
+        const passwordCandidates = passwordTrimmed && passwordTrimmed !== passwordInput
+            ? [passwordInput, passwordTrimmed]
+            : [passwordInput];
 
-        const normalizedCollegeId = String(collegeId || '').trim();
+        // If a tenant middleware resolved collegeId (custom domain / proxy), use it as a fallback.
+        const normalizedCollegeId = String(collegeId || req.collegeId || '').trim();
 
-        if (!normalizedEmail || !passwordInput) {
+        const looksLikeEmail = identifierInput.includes('@');
+        const normalizedEmail = looksLikeEmail ? identifierInput.toLowerCase() : '';
+        const normalizedPhone = identifierInput.replace(/\s+/g, '');
+        const normalizedStudentId = identifierInput.trim();
+
+        if (!identifierInput || !passwordInput) {
             return res.status(400).json({
                 success: false,
-                message: 'Email and password are required'
+                message: 'Email (or Student ID) and password are required'
             });
         }
 
-        let user;
+        const buildIdentifierWhere = (collegeWhere) => {
+            const or = [];
+            if (normalizedEmail) or.push({ email: { equals: normalizedEmail, mode: 'insensitive' } });
+            if (normalizedPhone) or.push({ phone: normalizedPhone });
+            if (normalizedStudentId) {
+                or.push({ StudentProfile: { is: { studentId: normalizedStudentId } } });
+            }
+
+            return {
+                ...collegeWhere,
+                isDeleted: false,
+                OR: or.length ? or : undefined,
+            };
+        };
+
+        const findCandidates = async (collegeWhere, take = 10) => {
+            const items = await prisma.user.findMany({
+                where: buildIdentifierWhere(collegeWhere),
+                include: { college: true },
+                take,
+            });
+            return Array.isArray(items) ? items : [];
+        };
+
+        const uniqueById = (items) => {
+            const seen = new Set();
+            const out = [];
+            for (const item of items || []) {
+                if (!item?.id || seen.has(item.id)) continue;
+                seen.add(item.id);
+                out.push(item);
+            }
+            return out;
+        };
+
+        let candidates = [];
 
         if (normalizedCollegeId) {
-            user = await prisma.user.findUnique({
-                where: { email_collegeId: { email: normalizedEmail, collegeId: normalizedCollegeId } },
-                include: { college: true },
-            });
-        } else {
-            user = await prisma.user.findFirst({
-                where: {
-                    email: normalizedEmail,
-                    collegeId: null,
-                },
-                include: { college: true },
-            });
+            candidates = await findCandidates({ collegeId: normalizedCollegeId }, 10);
+        }
 
-            if (!user) {
-                const matches = await prisma.user.findMany({
-                    where: {
-                        email: normalizedEmail,
-                        collegeId: { not: null },
-                    },
-                    include: { college: true },
-                    take: 2,
-                });
+        // If collegeId is missing or wrong/stale, fall back to searching across colleges.
+        if (!candidates.length) {
+            const pool = [];
 
-                if (matches.length === 1) {
-                    user = matches[0];
-                } else if (matches.length > 1) {
-                    return res.status(400).json({
-                        success: false,
-                        message: 'Multiple accounts found for this email. Please provide collegeId.',
-                        requiresCollegeId: true,
-                    });
+            // Prefer global accounts only when identifier is actually an email.
+            if (normalizedEmail) {
+                pool.push(...await findCandidates({ collegeId: null }, 5));
+            }
+            pool.push(...await findCandidates({ collegeId: { not: null } }, 20));
+            candidates = uniqueById(pool);
+        }
+
+        // Filter inactive accounts early.
+        candidates = (candidates || []).filter((u) => u && u.isActive);
+
+        let matchedUser = null;
+        const matchedUsers = [];
+
+        for (const candidate of candidates) {
+            if (!candidate?.password || typeof candidate.password !== 'string') continue;
+            for (const pw of passwordCandidates) {
+                const ok = await bcrypt.compare(pw, candidate.password);
+                if (ok) {
+                    matchedUsers.push(candidate);
+                    break;
                 }
             }
         }
 
-        if (!user) {
+        if (matchedUsers.length === 1) {
+            matchedUser = matchedUsers[0];
+        } else if (matchedUsers.length > 1) {
+            return res.status(400).json({
+                success: false,
+                message: 'Multiple accounts matched these credentials. Please provide collegeId.',
+                requiresCollegeId: true,
+            });
+        }
+
+        if (!matchedUser) {
             return res.status(401).json({
                 success: false,
                 message: 'Invalid email or password'
             });
         }
 
-        if (!user.isActive) {
-            return res.status(403).json({
-                success: false,
-                message: 'User account is inactive'
-            });
-        }
-
-        if (!user.password || typeof user.password !== 'string') {
-            return res.status(401).json({
-                success: false,
-                message: 'Invalid email or password'
-            });
-        }
-
-        const isPasswordValid = await bcrypt.compare(passwordInput, user.password);
-        if (!isPasswordValid) {
-            return res.status(401).json({
-                success: false,
-                message: 'Invalid email or password'
-            });
-        }
+        const user = matchedUser;
 
         if (user.collegeId && user.college) {
             if (user.college.status !== 'active') {

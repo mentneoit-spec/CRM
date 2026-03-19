@@ -52,7 +52,7 @@ function TransportDashboard() {
       totalRoutes: dashboard?.totalRoutes ?? 0,
       totalBuses: dashboard?.totalBuses ?? 0,
       studentsUsingTransport: dashboard?.totalStudents ?? 0,
-      pendingTransportFees: 0,
+      averageCapacityUsage: dashboard?.averageCapacityUsage ?? 0,
     };
   }, [dashboard]);
 
@@ -68,7 +68,7 @@ function TransportDashboard() {
         <RouteCard title="Total Routes" value={cards.totalRoutes} subtitle="Active routes" />
         <BusCard title="Total Buses" value={cards.totalBuses} subtitle="Fleet size" />
         <RouteCard title="Students Using Transport" value={cards.studentsUsingTransport} subtitle="Daily riders" />
-        <BusCard title="Pending Transport Fees" value={cards.pendingTransportFees} subtitle="Not tracked" />
+        <BusCard title="Avg Capacity Usage" value={`${cards.averageCapacityUsage}%`} subtitle="Across routes" />
       </div>
 
       <Card>

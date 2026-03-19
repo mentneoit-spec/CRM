@@ -287,9 +287,23 @@ const getStudentFees = async (req, res) => {
         const { studentId } = req.params;
         const collegeId = req.collegeId;
 
+        const computeAcademicYearLabel = (date) => {
+            const d = date instanceof Date ? date : new Date(date);
+            const year = d.getFullYear();
+            const month = d.getMonth() + 1;
+            const startYear = month >= 4 ? year : year - 1;
+            const endYear = startYear + 1;
+            return `${startYear}-${String(endYear).slice(-2)}`;
+        };
+
         // Verify student
         const student = await prisma.student.findUnique({
             where: { id: studentId },
+            include: {
+                sclass: { select: { id: true, sclassName: true } },
+                section: { select: { id: true, sectionName: true } },
+                college: { select: { id: true, name: true } },
+            },
         });
 
         if (!student || student.collegeId !== collegeId) {
@@ -335,10 +349,32 @@ const getStudentFees = async (req, res) => {
             }
         });
 
+        const byAccYear = new Map();
+        fees.forEach((fee) => {
+            const accYear = computeAcademicYearLabel(fee.dueDate);
+            const paidAmount = fee.Payments.reduce((sum, p) => sum + p.amount, 0);
+
+            const current = byAccYear.get(accYear) || { accYear, payable: 0, paid: 0 };
+            current.payable += fee.amount;
+            current.paid += paidAmount;
+            byAccYear.set(accYear, current);
+        });
+
+        const duesByYear = Array.from(byAccYear.values())
+            .map((row) => ({
+                accYear: row.accYear,
+                payable: row.payable,
+                paid: row.paid,
+                due: row.payable - row.paid,
+            }))
+            .sort((a, b) => String(a.accYear).localeCompare(String(b.accYear)));
+
         res.status(200).json({
             success: true,
             data: {
+                student,
                 fees,
+                duesByYear,
                 summary: {
                     totalFee,
                     totalPaid,
@@ -535,10 +571,16 @@ const getStudentHomework = async (req, res) => {
                 subject: {
                     sclassId: student.sclassId,
                 },
+                ...(student.sectionId
+                    ? {
+                        OR: [{ sectionId: null }, { sectionId: student.sectionId }],
+                    }
+                    : { sectionId: null }),
             },
             include: {
                 teacher: true,
                 subject: true,
+                section: true,
             },
             orderBy: { dueDate: 'desc' },
         });

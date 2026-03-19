@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box,
   Container,
@@ -44,6 +44,8 @@ const ModernLogin = () => {
   const [error, setError] = useState('');
   const [otpSent, setOtpSent] = useState(false);
 
+  const [tenantCollegeId, setTenantCollegeId] = useState('');
+
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -51,6 +53,34 @@ const ModernLogin = () => {
     otp: '',
     role: 'student',
   });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const res = await authAPI.getTenant();
+        const collegeId = res?.data?.collegeId || '';
+        if (!cancelled) setTenantCollegeId(String(collegeId || '').trim());
+      } catch {
+        if (!cancelled) setTenantCollegeId('');
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const effectiveCollegeId = useMemo(() => {
+    try {
+      const fromStorage = String(localStorage.getItem('collegeId') || '').trim();
+      if (fromStorage) return fromStorage;
+    } catch {
+      // ignore
+    }
+    return String(tenantCollegeId || '').trim();
+  }, [tenantCollegeId]);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -69,13 +99,13 @@ const ModernLogin = () => {
       if (tabValue === 0) {
         // Email/Password login
         const loginData = {
-          email: formData.email,
+          identifier: formData.email,
           password: formData.password,
         };
-        
-        // Add collegeId for non-superadmin users
-        if (formData.role !== 'superadmin') {
-          loginData.collegeId = '2aad2902-caee-4a50-bcb9-0b75e0c75262';
+
+        // Add collegeId for non-superadmin users when available (tenant or localStorage)
+        if (formData.role !== 'superadmin' && effectiveCollegeId) {
+          loginData.collegeId = effectiveCollegeId;
         }
         
         response = await authAPI.login(loginData);
@@ -86,9 +116,9 @@ const ModernLogin = () => {
           otp: formData.otp,
         };
         
-        // Add collegeId for non-superadmin users
-        if (formData.role !== 'superadmin') {
-          otpData.collegeId = '2aad2902-caee-4a50-bcb9-0b75e0c75262';
+        // Add collegeId for non-superadmin users when available (tenant or localStorage)
+        if (formData.role !== 'superadmin' && effectiveCollegeId) {
+          otpData.collegeId = effectiveCollegeId;
         }
         
         response = await authAPI.verifyOTP(otpData);
@@ -136,9 +166,9 @@ const ModernLogin = () => {
         phone: formData.phone,
       };
       
-      // Add collegeId for non-superadmin users
-      if (formData.role !== 'superadmin') {
-        otpData.collegeId = '2aad2902-caee-4a50-bcb9-0b75e0c75262';
+      // Add collegeId for non-superadmin users when available (tenant or localStorage)
+      if (formData.role !== 'superadmin' && effectiveCollegeId) {
+        otpData.collegeId = effectiveCollegeId;
       }
       
       const response = await authAPI.requestOTP(otpData);
@@ -246,13 +276,13 @@ const ModernLogin = () => {
               <Stack spacing={3}>
                 <TextField
                   fullWidth
-                  label="Email Address"
+                  label={formData.role === 'student' ? 'Email / Student ID' : 'Email Address'}
                   name="email"
-                  type="email"
+                  type="text"
                   value={formData.email}
                   onChange={handleChange}
                   required
-                  autoComplete="email"
+                  autoComplete={formData.role === 'student' ? 'username' : 'email'}
                 />
                 <TextField
                   fullWidth

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Box,
   AppBar,
@@ -48,6 +48,29 @@ const DashboardLayout = ({ children, role = 'student' }) => {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   const authUser = useSelector((state) => state?.auth?.user);
+
+  const avatarSrc = useMemo(() => {
+    const raw = authUser?.profileImage;
+    if (!raw) return '';
+    const value = String(raw).trim();
+    if (!value) return '';
+    if (value.startsWith('http://') || value.startsWith('https://')) return value;
+
+    // In local dev, backend serves uploads on :5000.
+    if (value.startsWith('/uploads') && typeof window !== 'undefined') {
+      const hostname = window.location?.hostname;
+      if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        return `http://localhost:5000${value}`;
+      }
+    }
+
+    return value;
+  }, [authUser?.profileImage]);
+
+  const avatarFallback = useMemo(() => {
+    const name = String(authUser?.name || '').trim();
+    return (name ? name.charAt(0) : 'U').toUpperCase();
+  }, [authUser?.name]);
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
@@ -133,6 +156,7 @@ const DashboardLayout = ({ children, role = 'student' }) => {
       { text: 'Students', icon: <People />, path: '/teacher/students' },
       { text: 'Attendance', icon: <Event />, path: '/teacher/attendance' },
       { text: 'Assignments', icon: <Assignment />, path: '/teacher/assignments' },
+      { text: 'Marks', icon: <Assessment />, path: '/teacher/marks' },
       { text: 'Exams', icon: <Assessment />, path: '/teacher/exams' },
       { text: 'Reports', icon: <Assessment />, path: '/teacher/reports' },
     ],
@@ -154,6 +178,7 @@ const DashboardLayout = ({ children, role = 'student' }) => {
       { text: 'Admissions', icon: <Person />, path: '/admin/admissions' },
       { text: 'Fees', icon: <Payment />, path: '/admin/fees' },
       { text: 'Transport', icon: <DirectionsBus />, path: '/admin/transport' },
+      { text: 'Results', icon: <Assessment />, path: '/admin/results' },
       { text: 'Reports', icon: <Assessment />, path: '/admin/reports' },
       { text: 'Settings', icon: <Settings />, path: '/admin/settings' },
     ],
@@ -238,8 +263,8 @@ const DashboardLayout = ({ children, role = 'student' }) => {
           }}
           onClick={handleProfileMenuOpen}
         >
-          <Avatar sx={{ bgcolor: 'primary.main', mr: 1.5 }}>
-            <Person />
+          <Avatar src={avatarSrc || undefined} sx={{ bgcolor: 'primary.main', mr: 1.5 }}>
+            {avatarFallback}
           </Avatar>
           <Box sx={{ flexGrow: 1 }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
@@ -289,8 +314,8 @@ const DashboardLayout = ({ children, role = 'student' }) => {
           </IconButton>
 
           <IconButton onClick={handleProfileMenuOpen}>
-            <Avatar sx={{ width: 36, height: 36, bgcolor: 'primary.main' }}>
-              <Person />
+            <Avatar src={avatarSrc || undefined} sx={{ width: 36, height: 36, bgcolor: 'primary.main' }}>
+              {avatarFallback}
             </Avatar>
           </IconButton>
         </Toolbar>

@@ -4,6 +4,17 @@ const dotenv = require("dotenv");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const path = require('path');
+const dns = require('dns');
+
+// Neon often returns IPv6 (AAAA) records. On some Windows networks, IPv6 routes
+// are unreliable which can cause Prisma to throw P1001 even though IPv4 works.
+// Prefer IPv4 first to improve local dev reliability.
+try {
+  dns.setDefaultResultOrder('ipv4first');
+} catch {
+  // ignore
+}
+
 const prisma = require("./lib/prisma");
 
 dotenv.config();
@@ -41,28 +52,82 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      // Non-browser clients (curl, server-to-server) often have no Origin header.
-      if (!origin) return callback(null, true);
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Non-browser clients (curl, server-to-server) often have no Origin header.
+    if (!origin) return callback(null, true);
 
-      // If ALLOWED_ORIGINS is unset OR explicitly '*', allow all origins.
-      if (allowedOrigins.length === 0 || allowedOrigins.includes("*")) {
-        return callback(null, true);
+    // If ALLOWED_ORIGINS is unset OR explicitly '*', allow all origins.
+    if (allowedOrigins.length === 0 || allowedOrigins.includes("*")) {
+      return callback(null, true);
+    }
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    // Dynamic allow-list for white-label custom domains.
+    // If the origin's hostname matches an active CollegeDomain, allow it.
+    (async () => {
+      try {
+        const cacheTtlMs = 5 * 60 * 1000;
+        const now = Date.now();
+        if (!global.__corsOriginCache) {
+          global.__corsOriginCache = new Map();
+        }
+
+        const cache = global.__corsOriginCache;
+        const cached = cache.get(origin);
+        if (cached && cached.exp > now) {
+          return callback(null, Boolean(cached.allowed));
+        }
+
+        let hostname = null;
+        try {
+          hostname = new URL(origin).hostname;
+        } catch {
+          hostname = null;
+        }
+
+        const normalized = hostname
+          ? String(hostname).trim().toLowerCase().replace(/^www\./, '')
+          : null;
+
+        if (!normalized) {
+          console.warn(`CORS blocked origin (invalid): ${origin}`);
+          cache.set(origin, { allowed: false, exp: now + cacheTtlMs });
+          return callback(null, false);
+        }
+
+        const domain = await prisma.collegeDomain.findUnique({
+          where: { domain: normalized },
+          select: { status: true },
+        });
+
+        const allowed = Boolean(domain && domain.status === 'active');
+        cache.set(origin, { allowed, exp: now + cacheTtlMs });
+
+        if (!allowed) {
+          console.warn(`CORS blocked origin: ${origin}`);
+        }
+        return callback(null, allowed);
+      } catch (err) {
+        console.warn(`CORS check error for origin: ${origin}`, err?.message || err);
+        return callback(null, false);
       }
+    })();
+  },
+  credentials: true,
+  optionsSuccessStatus: 204,
+};
 
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
+// Apply CORS headers on all routes
+app.use(cors(corsOptions));
 
-      console.warn(`CORS blocked origin: ${origin}`);
-      return callback(null, false);
-    },
-    credentials: true,
-    optionsSuccessStatus: 204,
-  })
-);
+// IMPORTANT: Explicitly handle browser preflight requests *before* auth middleware.
+// Otherwise, protected routes can reject OPTIONS (no Authorization header), and
+// the browser will block the real POST/PUT/DELETE.
+app.options('*', cors(corsOptions));
 
 // Rate Limiter
 const limiter = rateLimit({

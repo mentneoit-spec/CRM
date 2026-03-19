@@ -433,8 +433,10 @@ const setPrimaryCollegeDomain = async (req, res) => {
 const createCollegeAdmin = async (req, res) => {
     try {
         const { collegeId, name, email, password, phone } = req.body;
+        const normalizedEmail = String(email || '').trim().toLowerCase();
+        const passwordInput = String(password || '').trim();
 
-        if (!collegeId || !name || !email || !password) {
+        if (!collegeId || !name || !normalizedEmail || !passwordInput) {
             return res.status(400).json({ success: false, message: 'Missing required fields' });
         }
 
@@ -449,7 +451,7 @@ const createCollegeAdmin = async (req, res) => {
 
         // Check if email already exists in this college
         const existingUser = await prisma.user.findUnique({
-            where: { email_collegeId: { email, collegeId } },
+            where: { email_collegeId: { email: normalizedEmail, collegeId } },
         });
 
         if (existingUser) {
@@ -457,13 +459,13 @@ const createCollegeAdmin = async (req, res) => {
         }
 
         // Hash password
-        const hashedPassword = await bcrypt.hash(password, 10);
+        const hashedPassword = await bcrypt.hash(passwordInput, 10);
 
         // Create user
         const user = await prisma.user.create({
             data: {
                 name,
-                email,
+                email: normalizedEmail,
                 password: hashedPassword,
                 phone,
                 role: 'Admin',
@@ -477,7 +479,7 @@ const createCollegeAdmin = async (req, res) => {
         const admin = await prisma.admin.create({
             data: {
                 name,
-                email,
+                email: normalizedEmail,
                 password: hashedPassword,
                 phone,
                 collegeId,

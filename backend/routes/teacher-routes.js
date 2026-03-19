@@ -19,6 +19,8 @@ const {
     getDashboard,
     getMyReports,
     getMyExams,
+    createExamForTeacher,
+    importExamMarksCsvForTeacher,
     getMyAssignments,
     getMyNotices,
 } = require('../controllers/teacher-controller');
@@ -66,7 +68,15 @@ router.delete('/homework/:id', authorize('Teacher'), authorizeCollege, deleteHom
 router.get('/reports', authorize('Teacher'), authorizeCollege, getMyReports);
 
 // ==================== EXAMS ====================
+router.post('/exams', authorize('Teacher'), authorizeCollege, createExamForTeacher);
 router.get('/exams', authorize('Teacher'), authorizeCollege, getMyExams);
+router.post(
+    '/exams/:examId/marks/import',
+    authorize('Teacher'),
+    authorizeCollege,
+    uploadMemory('file', 1, 'spreadsheet'),
+    importExamMarksCsvForTeacher
+);
 
 // ==================== ASSIGNMENTS ====================
 router.get('/assignments', authorize('Teacher'), authorizeCollege, getMyAssignments);

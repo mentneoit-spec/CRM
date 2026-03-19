@@ -4,18 +4,68 @@ import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useDispatch } from "react-redux";
 import { studentAPI, uploadAPI } from "../../../services/api";
+import { updateUser as updateAuthUser } from "../../../redux/slices/authSlice";
+
+const BOARD_OPTIONS = [
+  { value: "STATE", label: "STATE BOARD" },
+  { value: "CBSE", label: "CBSE" },
+  { value: "IGCSE", label: "IGCSE" },
+  { value: "IB", label: "IB" },
+];
+
+const GROUP_OPTIONS = [
+  { value: "BIPC", label: "BIPC" },
+  { value: "MPC", label: "MPC" },
+  { value: "CEC", label: "CEC" },
+  { value: "MEC", label: "MEC" },
+];
+
+const FOUNDATION_COURSES = [
+  "IIT FOUNDATION",
+  "NEET FOUNDATION",
+  "IIT-NEET FOUNDATION",
+  "ROBOTICS",
+  "AIML",
+  "ABACUS MATHS",
+  "VEDIC MATHS",
+];
+
+const GROUP_COURSES = {
+  BIPC: ["NEET", "EAMCET", "ICAR", "AIIMS"],
+  MPC: ["JEE MAINS", "JEE ADVANCE", "EAMCET"],
+  CEC: ["CLAT", "CACPT"],
+  MEC: ["CLAT", "CACPT"],
+};
+
+const ALL_KNOWN_COURSES = Array.from(
+  new Set([
+    ...FOUNDATION_COURSES,
+    ...Object.values(GROUP_COURSES).flat(),
+  ])
+);
 
 function StudentProfile() {
+  const dispatch = useDispatch();
+
   const [loading, setLoading] = useState(true);
   const [student, setStudent] = useState(null);
   const [nameDraft, setNameDraft] = useState("");
   const [phoneDraft, setPhoneDraft] = useState("");
   const [profileImageDraft, setProfileImageDraft] = useState("");
+  const [boardDraft, setBoardDraft] = useState("");
+  const [groupDraft, setGroupDraft] = useState("");
+  const [integratedCourseDraft, setIntegratedCourseDraft] = useState("");
+  const [customIntegratedCourseDraft, setCustomIntegratedCourseDraft] = useState("");
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const integratedCourseOptions = [
+    ...FOUNDATION_COURSES,
+    ...(groupDraft && GROUP_COURSES[groupDraft] ? GROUP_COURSES[groupDraft] : []),
+  ];
 
   useEffect(() => {
     let isMounted = true;
@@ -30,6 +80,17 @@ function StudentProfile() {
         setNameDraft(profile?.name || "");
         setPhoneDraft(profile?.phone || "");
         setProfileImageDraft(profile?.profileImage || "");
+        setBoardDraft(profile?.board || "");
+        setGroupDraft(profile?.group || "");
+
+        const existingCourse = profile?.integratedCourse || "";
+        if (existingCourse && !ALL_KNOWN_COURSES.includes(existingCourse)) {
+          setIntegratedCourseDraft("__custom__");
+          setCustomIntegratedCourseDraft(existingCourse);
+        } else {
+          setIntegratedCourseDraft(existingCourse);
+          setCustomIntegratedCourseDraft("");
+        }
       } catch (e) {
         if (!isMounted) return;
         setStudent(null);
@@ -48,6 +109,9 @@ function StudentProfile() {
   const classLabel = student?.sclass?.sclassName || "--";
   const sectionLabel = student?.section?.sectionName || "--";
 
+  const resolvedIntegratedCourse =
+    integratedCourseDraft === "__custom__" ? customIntegratedCourseDraft.trim() : integratedCourseDraft;
+
   const save = async () => {
     setError("");
     setSuccess("");
@@ -56,6 +120,9 @@ function StudentProfile() {
       name: nameDraft.trim(),
       phone: phoneDraft.trim(),
       profileImage: profileImageDraft,
+      board: boardDraft || undefined,
+      group: groupDraft || undefined,
+      integratedCourse: resolvedIntegratedCourse || undefined,
     };
 
     if (!payload.name) {
@@ -69,6 +136,8 @@ function StudentProfile() {
       const updated = res?.data?.data ?? null;
       setStudent(updated || student);
       setSuccess(res?.data?.message || "Profile updated successfully.");
+
+      dispatch(updateAuthUser({ name: payload.name, phone: payload.phone, profileImage: payload.profileImage }));
 
       try {
         const raw = localStorage.getItem("user");
@@ -107,7 +176,14 @@ function StudentProfile() {
           </div>
           <div>
             <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{name}</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Class {classLabel} | Section {sectionLabel}</p>
+            <div className="mt-1 grid grid-cols-2 gap-2 text-sm text-gray-500 dark:text-gray-400">
+              <div className="rounded-lg border border-gray-200 px-3 py-1 dark:border-gray-800">
+                Class: <span className="font-medium text-gray-800 dark:text-gray-200">{classLabel}</span>
+              </div>
+              <div className="rounded-lg border border-gray-200 px-3 py-1 dark:border-gray-800">
+                Section: <span className="font-medium text-gray-800 dark:text-gray-200">{sectionLabel}</span>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -156,6 +232,66 @@ function StudentProfile() {
 
           <Input placeholder="Full name" value={nameDraft} onChange={(e) => setNameDraft(e.target.value)} />
           <Input placeholder="Phone" value={phoneDraft} onChange={(e) => setPhoneDraft(e.target.value)} />
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Board</label>
+            <select
+              className="flex h-10 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-100"
+              value={boardDraft}
+              onChange={(e) => setBoardDraft(e.target.value)}
+              disabled={uploading || saving || loading}
+            >
+              <option value="">Select board…</option>
+              {BOARD_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Group (11th & 12th)</label>
+            <select
+              className="flex h-10 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-100"
+              value={groupDraft}
+              onChange={(e) => {
+                setGroupDraft(e.target.value);
+              }}
+              disabled={uploading || saving || loading}
+            >
+              <option value="">Select group…</option>
+              {GROUP_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Integrated Course</label>
+            <select
+              className="flex h-10 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-100"
+              value={integratedCourseDraft}
+              onChange={(e) => {
+                const next = e.target.value;
+                setIntegratedCourseDraft(next);
+                if (next !== "__custom__") setCustomIntegratedCourseDraft("");
+              }}
+              disabled={uploading || saving || loading}
+            >
+              <option value="">Select course…</option>
+              {integratedCourseOptions.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+              <option value="__custom__">Add new custom course…</option>
+            </select>
+            {integratedCourseDraft === "__custom__" ? (
+              <Input
+                placeholder="Enter custom course"
+                value={customIntegratedCourseDraft}
+                onChange={(e) => setCustomIntegratedCourseDraft(e.target.value)}
+                disabled={uploading || saving || loading}
+              />
+            ) : null}
+          </div>
 
           <Button type="button" className="w-full" onClick={save} disabled={saving || loading}>
             {saving ? "Saving…" : "Save Changes"}

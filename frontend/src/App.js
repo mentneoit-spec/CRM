@@ -36,6 +36,7 @@ import TeamManagement from './pages/admin/TeamManagement';
 import AdminTransport from './pages/admin/AdminTransport';
 import AdminReports from './pages/admin/AdminReports';
 import AdminSettings from './pages/admin/AdminSettings';
+import AdminResults from './pages/admin/AdminResults';
 import StudentDashboardModern from './pages/student/StudentDashboardModern';
 import StudentHomework from './pages/student/pages/HomeworkPage';
 import StudentAttendance from './pages/student/pages/AttendancePage';
@@ -54,6 +55,7 @@ import TeacherExams from './pages/teacher/TeacherExams';
 import TeacherReports from './pages/teacher/TeacherReports';
 import TeacherProfileModern from './pages/teacher/TeacherProfileModern';
 import TeacherSettingsModern from './pages/teacher/TeacherSettingsModern';
+import TeacherMarksModern from './pages/teacher/TeacherMarksModern';
 import ParentDashboardModern from './pages/parent/ParentDashboardModern';
 import ParentAttendance from './pages/parent/pages/AttendancePage';
 import ParentHomework from './pages/parent/pages/HomeworkPage';
@@ -131,6 +133,7 @@ function App() {
           <Route path="/login" element={<ModernLogin />} />
           <Route path="/simple-login" element={<SimpleLogin />} />
           <Route path="/signup" element={<ModernSignup />} />
+          <Route path="/register" element={<ModernSignup />} />
           <Route path="/admission" element={<ModernAdmissionPortal />} />
           <Route path="/connection-test" element={<ConnectionTest />} />
 
@@ -239,6 +242,10 @@ function App() {
             element={<ProtectedRoute allowedRoles={["Admin", "SuperAdmin"]} element={<AdminReports />} />}
           />
           <Route
+            path="/admin/results"
+            element={<ProtectedRoute allowedRoles={["Admin", "SuperAdmin"]} element={<AdminResults />} />}
+          />
+          <Route
             path="/admin/settings"
             element={<ProtectedRoute allowedRoles={["Admin", "SuperAdmin"]} element={<AdminSettings />} />}
           />
@@ -270,6 +277,10 @@ function App() {
           <Route
             path="/teacher/exams"
             element={<ProtectedRoute allowedRoles={["Teacher"]} element={<TeacherExams />} />}
+          />
+          <Route
+            path="/teacher/marks"
+            element={<ProtectedRoute allowedRoles={["Teacher"]} element={<TeacherMarksModern />} />}
           />
           <Route
             path="/teacher/reports"

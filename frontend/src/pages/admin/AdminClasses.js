@@ -12,6 +12,7 @@ import {
 } from '@mui/icons-material';
 import DashboardLayout from '../../components/DashboardLayout';
 import { fetchClasses, createClass, fetchTeachers } from '../../redux/slices/adminSlice';
+import { adminAPI } from '../../config/api';
 import BulkClassImportDialog from '../../components/admin/BulkClassImportDialog';
 
 const AdminClasses = () => {
@@ -26,9 +27,20 @@ const AdminClasses = () => {
     // Dialog State
     const [openAddDialog, setOpenAddDialog] = useState(false);
     const [openImportDialog, setOpenImportDialog] = useState(false);
+    const [openEditDialog, setOpenEditDialog] = useState(false);
+    const [editingClass, setEditingClass] = useState(null);
+    const [editSaving, setEditSaving] = useState(false);
     const [newClass, setNewClass] = useState({
         sclassName: '', sclassCode: '', academicYear: new Date().getFullYear().toString(),
         description: '', classTeacherId: ''
+    });
+
+    const [editClass, setEditClass] = useState({
+        sclassName: '',
+        sclassCode: '',
+        academicYear: new Date().getFullYear().toString(),
+        description: '',
+        classTeacherId: '',
     });
 
     useEffect(() => {
@@ -49,8 +61,55 @@ const AdminClasses = () => {
                     sclassName: '', sclassCode: '', academicYear: new Date().getFullYear().toString(),
                     description: '', classTeacherId: ''
                 });
+                dispatch(fetchClasses());
             }
         });
+    };
+
+    const openEdit = (cls) => {
+        setEditingClass(cls);
+        setEditClass({
+            sclassName: cls?.sclassName || '',
+            sclassCode: cls?.sclassCode || '',
+            academicYear: cls?.academicYear || new Date().getFullYear().toString(),
+            description: cls?.description || '',
+            classTeacherId: cls?.classTeacherId || cls?.classTeacher?.id || '',
+        });
+        setOpenEditDialog(true);
+    };
+
+    const handleEditSubmit = async (e) => {
+        e.preventDefault();
+        if (!editingClass?.id) return;
+        setEditSaving(true);
+        try {
+            await adminAPI.updateClass(editingClass.id, {
+                sclassName: editClass.sclassName,
+                sclassCode: editClass.sclassCode,
+                academicYear: editClass.academicYear,
+                description: editClass.description,
+                classTeacherId: editClass.classTeacherId || null,
+            });
+            setOpenEditDialog(false);
+            setEditingClass(null);
+            dispatch(fetchClasses());
+        } catch {
+            // errors handled by api interceptor
+        } finally {
+            setEditSaving(false);
+        }
+    };
+
+    const handleDeleteClass = async (cls) => {
+        const ok = window.confirm(`Delete class "${cls?.sclassName || ''}"? This cannot be undone.`);
+        if (!ok) return;
+
+        try {
+            await adminAPI.deleteClass(cls.id);
+            dispatch(fetchClasses());
+        } catch {
+            // errors handled by api interceptor
+        }
     };
 
     const filteredClasses = classes?.filter((cls) =>
@@ -136,10 +195,14 @@ const AdminClasses = () => {
                                         </TableCell>
                                         <TableCell align="center">
                                             <Tooltip title="Edit Class">
-                                                <IconButton color="primary" size="small"><EditIcon fontSize="small" /></IconButton>
+                                                <IconButton color="primary" size="small" onClick={() => openEdit(cls)}>
+                                                    <EditIcon fontSize="small" />
+                                                </IconButton>
                                             </Tooltip>
                                             <Tooltip title="Delete Class">
-                                                <IconButton color="error" size="small"><DeleteIcon fontSize="small" /></IconButton>
+                                                <IconButton color="error" size="small" onClick={() => handleDeleteClass(cls)}>
+                                                    <DeleteIcon fontSize="small" />
+                                                </IconButton>
                                             </Tooltip>
                                         </TableCell>
                                     </TableRow>
@@ -198,6 +261,74 @@ const AdminClasses = () => {
                         <Button onClick={() => setOpenAddDialog(false)} color="inherit">Cancel</Button>
                         <Button type="submit" variant="contained" disabled={loading}>
                             {loading ? 'Creating...' : 'Create Class'}
+                        </Button>
+                    </DialogActions>
+                </form>
+            </Dialog>
+
+            {/* Edit Class Dialog */}
+            <Dialog open={openEditDialog} onClose={() => setOpenEditDialog(false)} maxWidth="sm" fullWidth>
+                <form onSubmit={handleEditSubmit}>
+                    <DialogTitle sx={{ fontWeight: 'bold' }}>Edit Class</DialogTitle>
+                    <DialogContent dividers>
+                        <Grid container spacing={2}>
+                            <Grid item xs={12} sm={8}>
+                                <TextField
+                                    label="Class Name"
+                                    fullWidth
+                                    required
+                                    value={editClass.sclassName}
+                                    onChange={(e) => setEditClass({ ...editClass, sclassName: e.target.value })}
+                                />
+                            </Grid>
+                            <Grid item xs={12} sm={4}>
+                                <TextField
+                                    label="Class Code"
+                                    fullWidth
+                                    value={editClass.sclassCode}
+                                    onChange={(e) => setEditClass({ ...editClass, sclassCode: e.target.value })}
+                                />
+                            </Grid>
+                            <Grid item xs={12} sm={6}>
+                                <TextField
+                                    label="Academic Year"
+                                    fullWidth
+                                    required
+                                    value={editClass.academicYear}
+                                    onChange={(e) => setEditClass({ ...editClass, academicYear: e.target.value })}
+                                />
+                            </Grid>
+                            <Grid item xs={12} sm={6}>
+                                <FormControl fullWidth>
+                                    <InputLabel>Class Teacher (Optional)</InputLabel>
+                                    <Select
+                                        value={editClass.classTeacherId}
+                                        onChange={(e) => setEditClass({ ...editClass, classTeacherId: e.target.value })}
+                                        label="Class Teacher (Optional)"
+                                    >
+                                        <MenuItem value=""><em>None</em></MenuItem>
+                                        {teachers?.map((t) => (
+                                            <MenuItem key={t.id} value={t.id}>{t.name}</MenuItem>
+                                        ))}
+                                    </Select>
+                                </FormControl>
+                            </Grid>
+                            <Grid item xs={12}>
+                                <TextField
+                                    label="Description / Notes"
+                                    multiline
+                                    rows={3}
+                                    fullWidth
+                                    value={editClass.description}
+                                    onChange={(e) => setEditClass({ ...editClass, description: e.target.value })}
+                                />
+                            </Grid>
+                        </Grid>
+                    </DialogContent>
+                    <DialogActions sx={{ p: 2 }}>
+                        <Button onClick={() => setOpenEditDialog(false)} color="inherit">Cancel</Button>
+                        <Button type="submit" variant="contained" disabled={editSaving}>
+                            {editSaving ? 'Saving...' : 'Save Changes'}
                         </Button>
                     </DialogActions>
                 </form>

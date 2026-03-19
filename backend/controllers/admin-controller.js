@@ -214,12 +214,14 @@ const createTeacher = async (req, res) => {
     try {
         const collegeId = req.collegeId || req.query.collegeId;
         const { name, email, phone, password, qualification, experience, specialization } = req.body;
+        const normalizedEmail = String(email || '').trim().toLowerCase();
+        const passwordInput = String(password || '').trim();
 
         // Validate input
         const missingFields = [];
         if (!name) missingFields.push('name');
-        if (!email) missingFields.push('email');
-        if (!password) missingFields.push('password');
+        if (!normalizedEmail) missingFields.push('email');
+        if (!passwordInput) missingFields.push('password');
         if (!collegeId) missingFields.push('collegeId');
 
         if (missingFields.length > 0) {
@@ -240,7 +242,7 @@ const createTeacher = async (req, res) => {
 
         // Check if email already exists
         const existingUser = await prisma.user.findFirst({
-            where: { email, collegeId },
+            where: { email: normalizedEmail, collegeId },
         });
 
         if (existingUser) {
@@ -248,13 +250,13 @@ const createTeacher = async (req, res) => {
         }
 
         // Hash password
-        const hashedPassword = await bcrypt.hash(password, 10);
+        const hashedPassword = await bcrypt.hash(passwordInput, 10);
 
         // Create user
         const user = await prisma.user.create({
             data: {
                 name,
-                email,
+                email: normalizedEmail,
                 password: hashedPassword,
                 phone,
                 role: 'Teacher',
@@ -268,7 +270,7 @@ const createTeacher = async (req, res) => {
         const teacher = await prisma.teacher.create({
             data: {
                 name,
-                email,
+                email: normalizedEmail,
                 phone,
                 password: hashedPassword,
                 qualification,
@@ -308,10 +310,13 @@ const createStudent = async (req, res) => {
             group,
         } = req.body;
 
+        const normalizedEmail = email ? String(email).trim().toLowerCase() : null;
+        const passwordInput = String(password || '').trim();
+
         const integratedCourse = req.body.integratedCourse ?? req.body.integrated_course;
         const profileImage = req.body.profileImage ?? req.body.profile_image;
 
-        if (!name || !studentId || !password || !collegeId || !sclassId) {
+        if (!name || !studentId || !passwordInput || !collegeId || !sclassId) {
             return res.status(400).json({ success: false, message: 'Required fields missing' });
         }
 
@@ -334,13 +339,13 @@ const createStudent = async (req, res) => {
         }
 
         // Hash password
-        const hashedPassword = await bcrypt.hash(password, 10);
+        const hashedPassword = await bcrypt.hash(passwordInput, 10);
 
         // Create user
         const user = await prisma.user.create({
             data: {
                 name,
-                email,
+                email: normalizedEmail,
                 password: hashedPassword,
                 phone,
                 role: 'Student',
@@ -354,7 +359,7 @@ const createStudent = async (req, res) => {
             data: {
                 name,
                 studentId,
-                email,
+                email: normalizedEmail,
                 phone,
                 password: hashedPassword,
                 parentName,
@@ -488,8 +493,10 @@ const createTeamMember = async (req, res) => {
     try {
         const collegeId = req.collegeId || req.query.collegeId;
         const { name, email, phone, password, role } = req.body;
+        const normalizedEmail = String(email || '').trim().toLowerCase();
+        const passwordInput = String(password || '').trim();
 
-        if (!name || !email || !password || !collegeId || !role) {
+        if (!name || !normalizedEmail || !passwordInput || !collegeId || !role) {
             return res.status(400).json({ success: false, message: 'Required fields missing' });
         }
 
@@ -499,26 +506,26 @@ const createTeamMember = async (req, res) => {
         }
 
         const existingUser = await prisma.user.findFirst({
-            where: { email, collegeId },
+            where: { email: normalizedEmail, collegeId },
         });
 
         if (existingUser) {
             return res.status(400).json({ success: false, message: 'Email already registered' });
         }
 
-        const hashedPassword = await bcrypt.hash(password, 10);
+        const hashedPassword = await bcrypt.hash(passwordInput, 10);
 
         const user = await prisma.user.create({
-            data: { name, email, password: hashedPassword, phone, role, collegeId, isEmailVerified: true, isActive: true },
+            data: { name, email: normalizedEmail, password: hashedPassword, phone, role, collegeId, isEmailVerified: true, isActive: true },
         });
 
         let teamProfile;
         if (role === 'AdmissionTeam') {
-            teamProfile = await prisma.admissionTeam.create({ data: { name, email, phone, collegeId, userId: user.id } });
+            teamProfile = await prisma.admissionTeam.create({ data: { name, email: normalizedEmail, phone, collegeId, userId: user.id } });
         } else if (role === 'AccountsTeam') {
-            teamProfile = await prisma.accountsTeam.create({ data: { name, email, phone, collegeId, userId: user.id } });
+            teamProfile = await prisma.accountsTeam.create({ data: { name, email: normalizedEmail, phone, collegeId, userId: user.id } });
         } else if (role === 'TransportTeam') {
-            teamProfile = await prisma.transportTeam.create({ data: { name, email, phone, collegeId, userId: user.id } });
+            teamProfile = await prisma.transportTeam.create({ data: { name, email: normalizedEmail, phone, collegeId, userId: user.id } });
         }
 
         res.status(201).json({ success: true, message: `${role} member created`, data: { user, teamProfile } });
@@ -620,6 +627,22 @@ const getAllClasses = async (req, res) => {
 
 // ==================== SUBJECT MANAGEMENT ====================
 
+const resolveTeacherIdForSubject = async (collegeId, teacherIdLike) => {
+    if (!teacherIdLike) return null;
+    const value = String(teacherIdLike).trim();
+    if (!value) return null;
+
+    const teacher = await prisma.teacher.findFirst({
+        where: {
+            collegeId,
+            OR: [{ id: value }, { userId: value }],
+        },
+        select: { id: true },
+    });
+
+    return teacher?.id || null;
+};
+
 // Create subject
 const createSubject = async (req, res) => {
     try {
@@ -639,6 +662,11 @@ const createSubject = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Subject code already exists in this class' });
         }
 
+        const resolvedTeacherId = await resolveTeacherIdForSubject(collegeId, teacherId);
+        if (teacherId && !resolvedTeacherId) {
+            return res.status(400).json({ success: false, message: 'Invalid teacherId. Provide a valid Teacher ID or the teacher User ID.' });
+        }
+
         const subject = await prisma.subject.create({
             data: {
                 subName,
@@ -648,7 +676,7 @@ const createSubject = async (req, res) => {
                 sclassId,
                 maxMarks: maxMarks || 100,
                 passingMarks: passingMarks || 40,
-                teacherId: teacherId || null,
+                teacherId: resolvedTeacherId,
             },
             include: { sclass: true, teacher: true },
         });
@@ -691,27 +719,102 @@ const getSubjects = async (req, res) => {
 
 // ==================== FEE MANAGEMENT ====================
 
-// Define fee structure
+const parseFlexibleDate = (value) => {
+    if (!value) return null;
+    const raw = String(value).trim();
+    if (!raw) return null;
+
+    // ISO (YYYY-MM-DD or full ISO timestamp)
+    if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
+        const d = new Date(raw);
+        return Number.isNaN(d.getTime()) ? null : d;
+    }
+
+    // dd/mm/yyyy
+    const slash = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (slash) {
+        const day = parseInt(slash[1], 10);
+        const month = parseInt(slash[2], 10);
+        const year = parseInt(slash[3], 10);
+        const d = new Date(Date.UTC(year, month - 1, day));
+        return Number.isNaN(d.getTime()) ? null : d;
+    }
+
+    // dd-mm-yyyy
+    const dash = raw.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+    if (dash) {
+        const day = parseInt(dash[1], 10);
+        const month = parseInt(dash[2], 10);
+        const year = parseInt(dash[3], 10);
+        const d = new Date(Date.UTC(year, month - 1, day));
+        return Number.isNaN(d.getTime()) ? null : d;
+    }
+
+    const d = new Date(raw);
+    return Number.isNaN(d.getTime()) ? null : d;
+};
+
+// Define fee structure (creates a fee record for a student)
 const defineFeeStructure = async (req, res) => {
     try {
         const collegeId = req.collegeId || req.query.collegeId;
-        const { feeType, amount, dueDate, frequency, sclassId, description } = req.body;
+        const {
+            studentId,
+            feeType,
+            feeCategory,
+            amount,
+            dueDate,
+            frequency,
+            description,
+            isActive,
+        } = req.body;
 
-        if (!collegeId || !feeType || !amount) {
-            return res.status(400).json({ success: false, message: 'Required fields missing' });
+        if (!collegeId) {
+            return res.status(400).json({ success: false, message: 'College ID required' });
         }
 
-        // For now, we'll store this in Fee model per student
-        // Later can create a FeeStructure model for college-wide fees
+        const due = parseFlexibleDate(dueDate);
+        if (!due) {
+            return res.status(400).json({ success: false, message: 'Valid dueDate required' });
+        }
+
+        const numericAmount = typeof amount === 'number' ? amount : parseFloat(String(amount));
+        if (!Number.isFinite(numericAmount) || numericAmount < 0) {
+            return res.status(400).json({ success: false, message: 'Amount must be a non-negative number' });
+        }
+
+        const student = await prisma.student.findFirst({
+            where: { id: studentId, collegeId, isDeleted: false },
+            select: { id: true },
+        });
+
+        if (!student) {
+            return res.status(404).json({ success: false, message: 'Student not found' });
+        }
+
+        const created = await prisma.fee.create({
+            data: {
+                studentId: student.id,
+                collegeId,
+                feeType: String(feeType || '').trim(),
+                feeCategory: feeCategory ? String(feeCategory).trim() : null,
+                amount: numericAmount,
+                dueDate: due,
+                frequency: frequency ? String(frequency).trim() : undefined,
+                description: description ? String(description).trim() : null,
+                isActive: isActive === undefined ? true : Boolean(isActive),
+            },
+            include: { student: { select: { name: true, sclass: { select: { sclassName: true } } } } },
+        });
 
         res.status(201).json({
             success: true,
-            message: 'Fee structure will be applied to students',
-            data: { feeType, amount, dueDate, frequency },
+            message: 'Fee created',
+            data: created,
         });
     } catch (error) {
         console.error('Define fee error:', error);
-        res.status(500).json({ success: false, message: 'Error defining fees' });
+        res.status(500).json({ success: false, message: 'Error creating fee' });
     }
 };
 
@@ -859,7 +962,10 @@ const getDashboard = async (req, res) => {
 
 const getFees = async (req, res) => {
     try {
-        const collegeId = req.collegeId;
+        const collegeId = req.collegeId || req.query.collegeId;
+        if (!collegeId) {
+            return res.status(400).json({ success: false, message: 'College ID required' });
+        }
         const fees = await prisma.fee.findMany({
             where: { collegeId },
             include: { student: { select: { name: true, sclass: { select: { sclassName: true } } } } },
@@ -869,6 +975,221 @@ const getFees = async (req, res) => {
     } catch (error) {
         console.error('Get fees error:', error);
         res.status(500).json({ success: false, message: 'Error fetching fees' });
+    }
+};
+
+const updateFee = async (req, res) => {
+    try {
+        const collegeId = req.collegeId;
+        const { feeId } = req.params;
+
+        const existing = await prisma.fee.findFirst({ where: { id: feeId, collegeId } });
+        if (!existing) {
+            return res.status(404).json({ success: false, message: 'Fee not found' });
+        }
+
+        const {
+            feeType,
+            feeCategory,
+            amount,
+            dueDate,
+            frequency,
+            description,
+            isActive,
+        } = req.body;
+
+        const data = {};
+        if (feeType !== undefined) data.feeType = String(feeType).trim();
+        if (feeCategory !== undefined) data.feeCategory = feeCategory ? String(feeCategory).trim() : null;
+        if (amount !== undefined) {
+            const numericAmount = typeof amount === 'number' ? amount : parseFloat(String(amount));
+            if (!Number.isFinite(numericAmount) || numericAmount < 0) {
+                return res.status(400).json({ success: false, message: 'Amount must be a non-negative number' });
+            }
+            data.amount = numericAmount;
+        }
+        if (dueDate !== undefined) {
+            const due = parseFlexibleDate(dueDate);
+            if (!due) {
+                return res.status(400).json({ success: false, message: 'Valid dueDate required' });
+            }
+            data.dueDate = due;
+        }
+        if (frequency !== undefined) data.frequency = String(frequency).trim();
+        if (description !== undefined) data.description = description ? String(description).trim() : null;
+        if (isActive !== undefined) data.isActive = Boolean(isActive);
+
+        const updated = await prisma.fee.update({
+            where: { id: feeId },
+            data,
+            include: { student: { select: { name: true, sclass: { select: { sclassName: true } } } } },
+        });
+
+        res.status(200).json({ success: true, message: 'Fee updated', data: updated });
+    } catch (error) {
+        console.error('Update fee error:', error);
+        res.status(500).json({ success: false, message: 'Error updating fee' });
+    }
+};
+
+const deleteFee = async (req, res) => {
+    try {
+        const collegeId = req.collegeId;
+        const { feeId } = req.params;
+
+        const existing = await prisma.fee.findFirst({ where: { id: feeId, collegeId } });
+        if (!existing) {
+            return res.status(404).json({ success: false, message: 'Fee not found' });
+        }
+
+        await prisma.fee.delete({ where: { id: feeId } });
+        res.status(200).json({ success: true, message: 'Fee deleted' });
+    } catch (error) {
+        console.error('Delete fee error:', error);
+        res.status(500).json({ success: false, message: 'Error deleting fee' });
+    }
+};
+
+const bulkImportFees = async (req, res) => {
+    try {
+        const collegeId = req.collegeId || req.query.collegeId;
+        if (!collegeId) {
+            return res.status(400).json({ success: false, message: 'College ID required' });
+        }
+
+        const mode = String(req.query.mode || 'update').toLowerCase() === 'skip' ? 'skip' : 'update';
+
+        const file = Array.isArray(req.files) ? req.files[0] : null;
+        if (!file) {
+            return res.status(400).json({ success: false, message: 'CSV file is required (field name: file)' });
+        }
+
+        const rows = [];
+        await new Promise((resolve, reject) => {
+            Readable.from([file.buffer])
+                .pipe(
+                    csvParser({
+                        mapHeaders: ({ header }) => normalizeCsvKey(header),
+                    })
+                )
+                .on('data', (data) => rows.push(data))
+                .on('end', resolve)
+                .on('error', reject);
+        });
+
+        let created = 0;
+        let updated = 0;
+        let skipped = 0;
+        const errors = [];
+
+        for (let index = 0; index < rows.length; index++) {
+            const raw = rows[index] || {};
+            const rowNumber = index + 2;
+            try {
+                const studentUuid = pickCsvValue(raw, ['student_uuid', 'student_uuid_id', 'student_uuidid', 'student_internal_id']);
+                const studentCustomId = pickCsvValue(raw, ['student_id', 'studentid', 'roll_no', 'roll', 'id']);
+                const studentEmail = pickCsvValue(raw, ['student_email', 'email']);
+
+                const feeType = pickCsvValue(raw, ['fee_type', 'feetype', 'type']);
+                const feeCategory = pickCsvValue(raw, ['fee_category', 'feecategory', 'category']);
+                const amountRaw = pickCsvValue(raw, ['amount', 'fee_amount']);
+                const dueDateRaw = pickCsvValue(raw, ['due_date', 'duedate', 'date']);
+                const frequency = pickCsvValue(raw, ['frequency', 'freq']);
+                const description = pickCsvValue(raw, ['description', 'remarks', 'note']);
+                const isActiveRaw = pickCsvValue(raw, ['is_active', 'active', 'status']);
+
+                if (!feeType || !amountRaw || !dueDateRaw) {
+                    errors.push({ row: rowNumber, studentId: studentCustomId || studentUuid || studentEmail || null, message: 'Missing required: feeType, amount, dueDate' });
+                    continue;
+                }
+
+                const due = parseFlexibleDate(dueDateRaw);
+                if (!due) {
+                    errors.push({ row: rowNumber, studentId: studentCustomId || studentUuid || studentEmail || null, message: `Invalid dueDate: ${dueDateRaw}` });
+                    continue;
+                }
+
+                const numericAmount = parseFloat(String(amountRaw));
+                if (!Number.isFinite(numericAmount) || numericAmount < 0) {
+                    errors.push({ row: rowNumber, studentId: studentCustomId || studentUuid || studentEmail || null, message: `Invalid amount: ${amountRaw}` });
+                    continue;
+                }
+
+                let student = null;
+                if (studentUuid) {
+                    student = await prisma.student.findFirst({ where: { id: studentUuid, collegeId, isDeleted: false } });
+                } else if (studentCustomId) {
+                    student = await prisma.student.findFirst({ where: { collegeId, studentId: studentCustomId, isDeleted: false } });
+                } else if (studentEmail) {
+                    student = await prisma.student.findFirst({ where: { collegeId, email: studentEmail, isDeleted: false } });
+                }
+
+                if (!student) {
+                    errors.push({ row: rowNumber, studentId: studentCustomId || studentUuid || studentEmail || null, message: 'Student not found' });
+                    continue;
+                }
+
+                const isActive = isActiveRaw
+                    ? ['1', 'true', 'yes', 'active'].includes(String(isActiveRaw).trim().toLowerCase())
+                    : true;
+
+                const matchWhere = {
+                    collegeId,
+                    studentId: student.id,
+                    feeType: String(feeType).trim(),
+                    dueDate: due,
+                };
+
+                const existing = await prisma.fee.findFirst({ where: matchWhere });
+                if (existing) {
+                    if (mode === 'skip') {
+                        skipped++;
+                        continue;
+                    }
+
+                    await prisma.fee.update({
+                        where: { id: existing.id },
+                        data: {
+                            amount: numericAmount,
+                            feeCategory: feeCategory ? String(feeCategory).trim() : null,
+                            frequency: frequency ? String(frequency).trim() : undefined,
+                            description: description ? String(description).trim() : null,
+                            isActive,
+                        },
+                    });
+
+                    updated++;
+                    continue;
+                }
+
+                await prisma.fee.create({
+                    data: {
+                        collegeId,
+                        studentId: student.id,
+                        feeType: String(feeType).trim(),
+                        feeCategory: feeCategory ? String(feeCategory).trim() : null,
+                        amount: numericAmount,
+                        dueDate: due,
+                        frequency: frequency ? String(frequency).trim() : undefined,
+                        description: description ? String(description).trim() : null,
+                        isActive,
+                    },
+                });
+
+                created++;
+            } catch (err) {
+                errors.push({ row: rowNumber, message: err?.message || 'Unknown error' });
+            }
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Fees import completed',
+            data: { created, updated, skipped, total: rows.length, errors },
+        });
+    } catch (error) {
+        console.error('Bulk import fees error:', error);
+        res.status(500).json({ success: false, message: 'Error importing fees' });
     }
 };
 
@@ -1095,7 +1416,131 @@ const deleteStudent = async (req, res) => {
     }
 };
 
+// ==================== TEACHER SECTION ASSIGNMENTS ====================
+
+const resolveTeacherByIdOrUserId = async (collegeId, idOrUserId) => {
+    if (!idOrUserId) return null;
+    const value = String(idOrUserId).trim();
+    if (!value) return null;
+
+    return prisma.teacher.findFirst({
+        where: {
+            collegeId,
+            OR: [{ id: value }, { userId: value }],
+        },
+        select: { id: true, userId: true, collegeId: true, name: true, email: true },
+    });
+};
+
+const getTeacherSections = async (req, res) => {
+    try {
+        const collegeId = req.collegeId || req.query.collegeId;
+        const { id } = req.params;
+
+        const teacher = await resolveTeacherByIdOrUserId(collegeId, id);
+        if (!teacher) {
+            return res.status(404).json({ success: false, message: 'Teacher not found' });
+        }
+
+        const assignments = await prisma.teacherSectionAssignment.findMany({
+            where: { collegeId, teacherId: teacher.id },
+            include: {
+                sclass: { select: { id: true, sclassName: true } },
+                section: { select: { id: true, sectionName: true } },
+            },
+            orderBy: [{ sclassId: 'asc' }, { sectionId: 'asc' }],
+        });
+
+        res.status(200).json({
+            success: true,
+            data: {
+                teacher,
+                sectionIds: assignments.map((a) => a.sectionId),
+                assignments,
+            },
+        });
+    } catch (error) {
+        console.error('Get teacher sections error:', error);
+        res.status(500).json({ success: false, message: 'Error fetching teacher sections' });
+    }
+};
+
+const setTeacherSections = async (req, res) => {
+    try {
+        const collegeId = req.collegeId || req.query.collegeId;
+        const { id } = req.params;
+        const { sectionIds } = req.body;
+
+        const teacher = await resolveTeacherByIdOrUserId(collegeId, id);
+        if (!teacher) {
+            return res.status(404).json({ success: false, message: 'Teacher not found' });
+        }
+
+        const nextSectionIds = Array.isArray(sectionIds)
+            ? sectionIds.map((x) => String(x).trim()).filter(Boolean)
+            : [];
+
+        const sections = nextSectionIds.length
+            ? await prisma.section.findMany({
+                where: { id: { in: nextSectionIds }, collegeId },
+                select: { id: true, sclassId: true },
+            })
+            : [];
+
+        if (sections.length !== nextSectionIds.length) {
+            return res.status(400).json({ success: false, message: 'One or more sections are invalid for this college' });
+        }
+
+        await prisma.$transaction([
+            prisma.teacherSectionAssignment.deleteMany({ where: { collegeId, teacherId: teacher.id } }),
+            ...(sections.length
+                ? [
+                    prisma.teacherSectionAssignment.createMany({
+                        data: sections.map((s) => ({
+                            collegeId,
+                            teacherId: teacher.id,
+                            sclassId: s.sclassId,
+                            sectionId: s.id,
+                        })),
+                        skipDuplicates: true,
+                    }),
+                ]
+                : []),
+        ]);
+
+        res.status(200).json({
+            success: true,
+            message: 'Teacher sections updated',
+            data: {
+                teacherId: teacher.id,
+                sectionIds: nextSectionIds,
+                count: nextSectionIds.length,
+            },
+        });
+    } catch (error) {
+        console.error('Set teacher sections error:', error);
+        res.status(500).json({ success: false, message: 'Error updating teacher sections' });
+    }
+};
+
 // ==================== STUDENTS (BULK IMPORT) ====================
+
+const detectCsvSeparator = (buffer) => {
+    try {
+        const text = Buffer.isBuffer(buffer) ? buffer.toString('utf8') : String(buffer || '');
+        const firstLine = text.split(/\r?\n/)[0] || '';
+
+        const commaCount = (firstLine.match(/,/g) || []).length;
+        const semicolonCount = (firstLine.match(/;/g) || []).length;
+        const tabCount = (firstLine.match(/\t/g) || []).length;
+
+        if (tabCount > commaCount && tabCount > semicolonCount) return '\t';
+        if (semicolonCount > commaCount) return ';';
+        return ',';
+    } catch {
+        return ',';
+    }
+};
 
 const normalizeCsvKey = (key) => {
     return String(key || '')
@@ -1114,6 +1559,15 @@ const pickCsvValue = (row, keys) => {
         }
     }
     return '';
+};
+
+const looksLikeEmail = (value) => {
+    const s = String(value || '').trim();
+    return Boolean(s) && /@/.test(s) && !/\s/.test(s);
+};
+
+const normalizeLooseName = (value) => {
+    return String(value || '').trim();
 };
 
 const bulkImportStudents = async (req, res) => {
@@ -1135,6 +1589,7 @@ const bulkImportStudents = async (req, res) => {
             Readable.from([file.buffer])
                 .pipe(
                     csvParser({
+                        separator: detectCsvSeparator(file.buffer),
                         mapHeaders: ({ header }) => normalizeCsvKey(header),
                     })
                 )
@@ -1157,10 +1612,27 @@ const bulkImportStudents = async (req, res) => {
             const raw = rows[index] || {};
             const rowNumber = index + 2; // header is row 1
             try {
-                const studentId = pickCsvValue(raw, ['student_id', 'studentid', 'roll_no', 'roll', 'id']);
+                const studentId = pickCsvValue(raw, [
+                    'student_id',
+                    'studentid',
+                    'student_id_roll_no',
+                    'student_id_rollno',
+                    'student_roll_no',
+                    'student_rollno',
+                    'roll_no',
+                    'roll',
+                    'rollno',
+                    'id',
+                    'student_id__roll_no',
+                ]);
                 const name = pickCsvValue(raw, ['name', 'student_name', 'full_name']);
-                const email = pickCsvValue(raw, ['email', 'student_email']);
-                const phone = pickCsvValue(raw, ['phone', 'mobile', 'contact']);
+
+                const contactRaw = pickCsvValue(raw, ['contact', 'contact_info', 'contact_details']);
+                const emailRaw = pickCsvValue(raw, ['email', 'student_email', 'mail', 'e_mail']);
+                const phoneRaw = pickCsvValue(raw, ['phone', 'mobile', 'contact_number', 'contact_phone', 'mobile_number']);
+
+                const email = emailRaw || (looksLikeEmail(contactRaw) ? contactRaw : '');
+                const phone = phoneRaw || (!looksLikeEmail(contactRaw) ? contactRaw : '');
                 const password = pickCsvValue(raw, ['password', 'temp_password', 'temporary_password']);
                 const className = pickCsvValue(raw, ['class', 'class_name', 'sclass', 'sclass_name']);
                 const sectionName = pickCsvValue(raw, ['section', 'section_name']);
@@ -1171,7 +1643,8 @@ const bulkImportStudents = async (req, res) => {
                 const integratedCourse = pickCsvValue(raw, ['integrated_course', 'integratedcourse']);
                 const profileImage = pickCsvValue(raw, ['profile_image', 'profileimage']);
 
-                if (!studentId || !name) {
+                const normalizedName = normalizeLooseName(name);
+                if (!studentId || !normalizedName) {
                     errors.push({ row: rowNumber, studentId: studentId || null, message: 'Missing required: studentId and/or name' });
                     continue;
                 }
@@ -1188,7 +1661,16 @@ const bulkImportStudents = async (req, res) => {
 
                 let sclass = null;
                 if (className) {
-                    sclass = await prisma.sclass.findFirst({ where: { collegeId, sclassName: className } });
+                    const classNameTrimmed = String(className).trim();
+                    sclass = await prisma.sclass.findFirst({
+                        where: {
+                            collegeId,
+                            sclassName: {
+                                equals: classNameTrimmed,
+                                mode: 'insensitive',
+                            },
+                        },
+                    });
                     if (!sclass) {
                         errors.push({ row: rowNumber, studentId, message: `Class not found: ${className}` });
                         continue;
@@ -1202,7 +1684,14 @@ const bulkImportStudents = async (req, res) => {
                         continue;
                     }
                     section = await prisma.section.findFirst({
-                        where: { collegeId, sclassId: sclass.id, sectionName },
+                        where: {
+                            collegeId,
+                            sclassId: sclass.id,
+                            sectionName: {
+                                equals: String(sectionName).trim(),
+                                mode: 'insensitive',
+                            },
+                        },
                     });
                     if (!section) {
                         errors.push({ row: rowNumber, studentId, message: `Section not found: ${sectionName} (Class: ${className})` });
@@ -1217,7 +1706,7 @@ const bulkImportStudents = async (req, res) => {
                         continue;
                     }
 
-                    const updateData = { name };
+                    const updateData = { name: normalizedName };
                     if (email) updateData.email = email;
                     if (phone) updateData.phone = phone;
                     if (parentName) updateData.parentName = parentName;
@@ -1232,7 +1721,7 @@ const bulkImportStudents = async (req, res) => {
                     await prisma.student.update({ where: { id: existingStudent.id }, data: updateData });
 
                     if (existingStudent.userId) {
-                        const userUpdate = { name };
+                        const userUpdate = { name: normalizedName };
                         if (email) userUpdate.email = email;
                         if (phone) userUpdate.phone = phone;
                         if (profileImage) userUpdate.profileImage = profileImage;
@@ -1264,7 +1753,7 @@ const bulkImportStudents = async (req, res) => {
                 await prisma.$transaction(async (tx) => {
                     const user = await tx.user.create({
                         data: {
-                            name,
+                            name: normalizedName,
                             email: email || null,
                             phone: phone || null,
                             password: hashedPassword,
@@ -1277,7 +1766,7 @@ const bulkImportStudents = async (req, res) => {
 
                     await tx.student.create({
                         data: {
-                            name,
+                            name: normalizedName,
                             studentId,
                             email: email || null,
                             phone: phone || null,
@@ -1880,6 +2369,18 @@ const updateSubject = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Subject not found' });
         }
 
+        let resolvedTeacherId;
+        if (teacherId === undefined) {
+            resolvedTeacherId = undefined;
+        } else if (!teacherId) {
+            resolvedTeacherId = null;
+        } else {
+            resolvedTeacherId = await resolveTeacherIdForSubject(collegeId, teacherId);
+            if (!resolvedTeacherId) {
+                return res.status(400).json({ success: false, message: 'Invalid teacherId. Provide a valid Teacher ID or the teacher User ID.' });
+            }
+        }
+
         const updated = await prisma.subject.update({
             where: { id },
             data: {
@@ -1890,7 +2391,7 @@ const updateSubject = async (req, res) => {
                 maxMarks: maxMarks === undefined ? undefined : maxMarks,
                 passingMarks: passingMarks === undefined ? undefined : passingMarks,
                 sessions: sessions === undefined ? undefined : sessions,
-                teacherId: teacherId === undefined ? undefined : (teacherId || null),
+                teacherId: resolvedTeacherId,
             },
             include: { sclass: true, teacher: true },
         });
@@ -1992,6 +2493,382 @@ const deleteNotice = async (req, res) => {
     } catch (error) {
         console.error('Delete notice error:', error);
         res.status(500).json({ success: false, message: 'Error deleting notice' });
+    }
+};
+
+// ==================== EXAMS & RESULTS ====================
+
+// Create an exam (used by Admin to publish monthly results, etc.)
+const createExam = async (req, res) => {
+    try {
+        const collegeId = req.collegeId || req.query.collegeId;
+        const {
+            examName,
+            examCode,
+            description,
+            examType,
+            totalMarks,
+            passingMarks,
+            examDate,
+            startTime,
+            endTime,
+            duration,
+            isPublished,
+            sclassId,
+        } = req.body;
+
+        if (!collegeId) {
+            return res.status(400).json({ success: false, message: 'College ID required' });
+        }
+
+        if (!examName || !sclassId) {
+            return res.status(400).json({ success: false, message: 'examName and sclassId are required' });
+        }
+
+        const klass = await prisma.sclass.findFirst({ where: { id: sclassId, collegeId } });
+        if (!klass) {
+            return res.status(404).json({ success: false, message: 'Class not found' });
+        }
+
+        const exam = await prisma.exam.create({
+            data: {
+                examName: String(examName).trim(),
+                examCode: examCode ? String(examCode).trim() : null,
+                description: description ? String(description).trim() : null,
+                examType: examType ? String(examType).trim() : 'offline',
+                totalMarks: totalMarks === undefined || totalMarks === null || totalMarks === '' ? undefined : parseInt(totalMarks),
+                passingMarks: passingMarks === undefined || passingMarks === null || passingMarks === '' ? undefined : parseInt(passingMarks),
+                examDate: examDate ? new Date(examDate) : null,
+                startTime: startTime ? String(startTime).trim() : null,
+                endTime: endTime ? String(endTime).trim() : null,
+                duration: duration === undefined || duration === null || duration === '' ? null : parseInt(duration),
+                isPublished: isPublished === undefined ? true : Boolean(isPublished),
+                collegeId,
+                sclassId,
+            },
+            include: { sclass: true },
+        });
+
+        return res.status(201).json({ success: true, message: 'Exam created', data: exam });
+    } catch (error) {
+        console.error('Create exam error:', error);
+        return res.status(500).json({ success: false, message: 'Error creating exam' });
+    }
+};
+
+// Upload marks for a subject within an exam
+// Body: { subjectId, marks: [{ studentId, marksObtained, remarks? }] }
+const uploadExamMarks = async (req, res) => {
+    try {
+        const collegeId = req.collegeId;
+        const examId = String(req.params?.examId || '').trim();
+        const { subjectId, marks } = req.body;
+
+        if (!examId || !subjectId || !marks || !Array.isArray(marks)) {
+            return res.status(400).json({ success: false, message: 'Invalid input' });
+        }
+
+        const exam = await prisma.exam.findUnique({ where: { id: examId } });
+        if (!exam || exam.collegeId !== collegeId) {
+            return res.status(404).json({ success: false, message: 'Exam not found' });
+        }
+
+        const subject = await prisma.subject.findUnique({ where: { id: subjectId } });
+        if (!subject || subject.collegeId !== collegeId) {
+            return res.status(404).json({ success: false, message: 'Subject not found' });
+        }
+
+        // Ensure subject belongs to the same class as the exam
+        if (subject.sclassId !== exam.sclassId) {
+            return res.status(400).json({ success: false, message: 'Subject does not belong to the exam class' });
+        }
+
+        let created = 0;
+        let updated = 0;
+
+        for (const markData of marks) {
+            if (!markData?.studentId) continue;
+
+            const existing = await prisma.examResult.findFirst({
+                where: {
+                    studentId: markData.studentId,
+                    subjectId,
+                    examId,
+                },
+            });
+
+            const marksObtained = parseFloat(markData.marksObtained);
+            if (!Number.isFinite(marksObtained)) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Invalid marks for studentId ${markData.studentId}`,
+                });
+            }
+
+            const percentage = (marksObtained / (subject.maxMarks || 100)) * 100;
+            const percentageValue = Number(percentage.toFixed(2));
+            let grade = 'F';
+            if (percentage >= 90) grade = 'A+';
+            else if (percentage >= 80) grade = 'A';
+            else if (percentage >= 70) grade = 'B';
+            else if (percentage >= 60) grade = 'C';
+            else if (percentage >= 50) grade = 'D';
+
+            if (existing) {
+                await prisma.examResult.update({
+                    where: { id: existing.id },
+                    data: {
+                        marksObtained,
+                        percentage: percentageValue,
+                        grade,
+                        remarks: markData.remarks || null,
+                    },
+                });
+                updated++;
+            } else {
+                await prisma.examResult.create({
+                    data: {
+                        studentId: markData.studentId,
+                        subjectId,
+                        examId,
+                        collegeId,
+                        marksObtained,
+                        percentage: percentageValue,
+                        grade,
+                        remarks: markData.remarks || null,
+                    },
+                });
+                created++;
+            }
+        }
+
+        return res.status(201).json({
+            success: true,
+            message: `Marks uploaded: ${created} created, ${updated} updated`,
+            data: { created, updated },
+        });
+    } catch (error) {
+        console.error('Upload exam marks error:', error);
+        return res.status(500).json({ success: false, message: 'Error uploading marks' });
+    }
+};
+
+// List exams (used by Admin UI to edit/re-upload results)
+const listExams = async (req, res) => {
+    try {
+        const collegeId = req.collegeId;
+        const { sclassId } = req.query;
+
+        const filter = { collegeId };
+        if (sclassId) filter.sclassId = String(sclassId);
+
+        const exams = await prisma.exam.findMany({
+            where: filter,
+            orderBy: { createdAt: 'desc' },
+        });
+
+        return res.status(200).json({ success: true, data: exams });
+    } catch (error) {
+        console.error('List exams error:', error);
+        return res.status(500).json({ success: false, message: 'Error fetching exams' });
+    }
+};
+
+// Get existing marks for an exam+subject (used for editable/prefill UI)
+const getExamMarks = async (req, res) => {
+    try {
+        const collegeId = req.collegeId;
+        const examId = String(req.params?.examId || '').trim();
+        const subjectId = String(req.query?.subjectId || req.body?.subjectId || '').trim();
+
+        if (!examId || !subjectId) {
+            return res.status(400).json({ success: false, message: 'examId and subjectId are required' });
+        }
+
+        const exam = await prisma.exam.findUnique({ where: { id: examId } });
+        if (!exam || exam.collegeId !== collegeId) {
+            return res.status(404).json({ success: false, message: 'Exam not found' });
+        }
+
+        const subject = await prisma.subject.findUnique({ where: { id: subjectId } });
+        if (!subject || subject.collegeId !== collegeId) {
+            return res.status(404).json({ success: false, message: 'Subject not found' });
+        }
+
+        if (String(subject.sclassId) !== String(exam.sclassId)) {
+            return res.status(400).json({ success: false, message: 'Subject does not belong to the exam class' });
+        }
+
+        const results = await prisma.examResult.findMany({
+            where: { collegeId, examId, subjectId },
+            include: {
+                student: { select: { id: true, name: true, studentId: true, email: true, sclassId: true } },
+            },
+            orderBy: { updatedAt: 'desc' },
+        });
+
+        return res.status(200).json({ success: true, data: results });
+    } catch (error) {
+        console.error('Get exam marks error:', error);
+        return res.status(500).json({ success: false, message: 'Error fetching marks' });
+    }
+};
+
+// Bulk import marks from CSV (multipart/form-data: file)
+// Query/body: subjectId
+// Columns supported: student_id/studentId/email/id, marks/marks_obtained/score, remarks
+const importExamMarksCsv = async (req, res) => {
+    try {
+        const collegeId = req.collegeId;
+        const examId = String(req.params?.examId || '').trim();
+        const subjectId = String(req.body?.subjectId || req.query?.subjectId || '').trim();
+
+        if (!examId || !subjectId) {
+            return res.status(400).json({ success: false, message: 'examId and subjectId are required' });
+        }
+
+        const file = Array.isArray(req.files) ? req.files[0] : null;
+        if (!file) {
+            return res.status(400).json({ success: false, message: 'CSV file is required (field name: file)' });
+        }
+
+        const exam = await prisma.exam.findUnique({ where: { id: examId } });
+        if (!exam || exam.collegeId !== collegeId) {
+            return res.status(404).json({ success: false, message: 'Exam not found' });
+        }
+
+        const subject = await prisma.subject.findUnique({ where: { id: subjectId } });
+        if (!subject || subject.collegeId !== collegeId) {
+            return res.status(404).json({ success: false, message: 'Subject not found' });
+        }
+
+        if (String(subject.sclassId) !== String(exam.sclassId)) {
+            return res.status(400).json({ success: false, message: 'Subject does not belong to the exam class' });
+        }
+
+        const rows = [];
+        await new Promise((resolve, reject) => {
+            Readable.from([file.buffer])
+                .pipe(
+                    csvParser({
+                        mapHeaders: ({ header }) => normalizeCsvKey(header),
+                    })
+                )
+                .on('data', (data) => rows.push(data))
+                .on('end', resolve)
+                .on('error', reject);
+        });
+
+        const students = await prisma.student.findMany({
+            where: {
+                collegeId,
+                sclassId: exam.sclassId,
+                isDeleted: false,
+            },
+            select: { id: true, studentId: true, email: true },
+        });
+
+        const byDbId = new Map(students.map((s) => [String(s.id), s]));
+        const byStudentId = new Map(students.map((s) => [String(s.studentId), s]));
+        const byEmail = new Map(students.filter((s) => s.email).map((s) => [String(s.email).toLowerCase(), s]));
+
+        const uuidLike = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+        let created = 0;
+        let updated = 0;
+        let skipped = 0;
+        const errors = [];
+
+        for (let index = 0; index < rows.length; index++) {
+            const raw = rows[index] || {};
+            const rowNumber = index + 2;
+
+            const studentKey = pickCsvValue(raw, ['student_db_id', 'student_uuid', 'id', 'student_id', 'studentid', 'studentId', 'email']);
+            const marksRaw = pickCsvValue(raw, ['marks_obtained', 'marksobtained', 'marks', 'score']);
+            const remarks = pickCsvValue(raw, ['remarks', 'remark', 'comment']);
+
+            if (!studentKey || !marksRaw) {
+                skipped++;
+                continue;
+            }
+
+            const marksObtained = parseFloat(marksRaw);
+            if (!Number.isFinite(marksObtained)) {
+                errors.push({ row: rowNumber, student: studentKey, message: 'Invalid marks' });
+                continue;
+            }
+
+            let student = null;
+            if (uuidLike.test(studentKey)) {
+                student = byDbId.get(studentKey) || null;
+            } else if (studentKey.includes('@')) {
+                student = byEmail.get(studentKey.toLowerCase()) || null;
+            } else {
+                student = byStudentId.get(studentKey) || null;
+            }
+
+            if (!student) {
+                errors.push({ row: rowNumber, student: studentKey, message: 'Student not found in this class' });
+                continue;
+            }
+
+            const percentage = (marksObtained / (subject.maxMarks || 100)) * 100;
+            let grade = 'F';
+            if (percentage >= 90) grade = 'A+';
+            else if (percentage >= 80) grade = 'A';
+            else if (percentage >= 70) grade = 'B';
+            else if (percentage >= 60) grade = 'C';
+            else if (percentage >= 50) grade = 'D';
+
+            const exists = await prisma.examResult.findUnique({
+                where: {
+                    studentId_subjectId_examId: {
+                        studentId: student.id,
+                        subjectId,
+                        examId,
+                    },
+                },
+                select: { id: true },
+            });
+
+            await prisma.examResult.upsert({
+                where: {
+                    studentId_subjectId_examId: {
+                        studentId: student.id,
+                        subjectId,
+                        examId,
+                    },
+                },
+                update: {
+                    marksObtained,
+                    percentage: Number(percentage.toFixed(2)),
+                    grade,
+                    remarks: remarks || null,
+                },
+                create: {
+                    studentId: student.id,
+                    subjectId,
+                    examId,
+                    collegeId,
+                    marksObtained,
+                    percentage: Number(percentage.toFixed(2)),
+                    grade,
+                    remarks: remarks || null,
+                },
+            });
+
+            if (exists) updated++;
+            else created++;
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: `Imported marks: ${created} created, ${updated} updated, ${skipped} skipped`,
+            data: { created, updated, skipped, errors: errors.slice(0, 50) },
+        });
+    } catch (error) {
+        console.error('Import exam marks CSV error:', error);
+        return res.status(500).json({ success: false, message: 'Error importing marks' });
     }
 };
 
@@ -2104,9 +2981,19 @@ module.exports = {
     defineFeeStructure,
     getDashboard,
     getFees,
+    updateFee,
+    deleteFee,
+    bulkImportFees,
     createNotice,
     getNotices,
     deleteNotice,
+    createExam,
+    uploadExamMarks,
+    listExams,
+    getExamMarks,
+    importExamMarksCsv,
     getComplaints,
     updateComplaint,
+    getTeacherSections,
+    setTeacherSections,
 };

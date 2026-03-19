@@ -142,6 +142,8 @@ export const adminAPI = {
   getTeacher: (id) => api.get(`/admin/teachers/${id}`),
   updateTeacher: (id, data) => api.put(`/admin/teachers/${id}`, data),
   deleteTeacher: (id) => api.delete(`/admin/teachers/${id}`),
+  getTeacherSections: (id) => api.get(`/admin/teachers/${id}/sections`),
+  setTeacherSections: (id, data) => api.put(`/admin/teachers/${id}/sections`, data),
   createStudent: (data) => api.post('/admin/students', data),
   getStudents: (params) => api.get('/admin/students', { params }),
   getStudent: (id) => api.get(`/admin/students/${id}`),
@@ -202,12 +204,37 @@ export const adminAPI = {
   getTeams: (params) => api.get('/admin/teams', { params }),
   createFee: (data) => api.post('/admin/fees', data),
   getFees: (params) => api.get('/admin/fees', { params }),
+  updateFee: (feeId, data) => api.put(`/admin/fees/${feeId}`, data),
+  deleteFee: (feeId) => api.delete(`/admin/fees/${feeId}`),
+  bulkImportFees: (file, mode = 'update') => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post(`/admin/fees/import?mode=${encodeURIComponent(mode)}`, formData, {
+      timeout: 120000,
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
   createNotice: (data) => api.post('/admin/notices', data),
   getNotices: () => api.get('/admin/notices'),
   deleteNotice: (id) => api.delete(`/admin/notices/${id}`),
   getAdmissions: (params) => api.get('/admin/admissions', { params }),
   approveAdmission: (id) => api.post(`/admin/admissions/${id}/approve`),
   rejectAdmission: (id, reason) => api.post(`/admin/admissions/${id}/reject`, { rejectionReason: reason }),
+
+  // Exams & Results
+  createExam: (data) => api.post('/admin/exams', data),
+  getExams: (params) => api.get('/admin/exams', params ? { params } : undefined),
+  getExamMarks: (examId, params) => api.get(`/admin/exams/${examId}/marks`, params ? { params } : undefined),
+  uploadExamMarks: (examId, data) => api.post(`/admin/exams/${examId}/marks`, data),
+  importExamMarksCsv: (examId, subjectId, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (subjectId) formData.append('subjectId', subjectId);
+    return api.post(`/admin/exams/${examId}/marks/import`, formData, {
+      timeout: 120000,
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
 };
 
 export const teacherAPI = {
@@ -267,6 +294,14 @@ export const transportAPI = {
   getBuses: () => api.get('/transport/buses'),
   updateBus: (id, data) => api.put(`/transport/buses/${id}`, data),
   deleteBus: (id) => api.delete(`/transport/buses/${id}`),
+  bulkImportBuses: (file, mode = 'skip') => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post(`/transport/buses/import?mode=${encodeURIComponent(mode)}`, formData, {
+      timeout: 120000,
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
   assignStudentToBus: (busId, studentId) => api.put(`/transport/buses/${busId}/assign`, { studentId }),
   markBusAttendance: (busId, data) => api.post(`/transport/buses/${busId}/attendance`, data),
   getBusAttendanceReport: (busId) => api.get(`/transport/buses/${busId}/report`),

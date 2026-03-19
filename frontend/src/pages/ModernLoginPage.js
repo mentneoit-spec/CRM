@@ -19,8 +19,8 @@ import {
 import { styled } from '@mui/material/styles';
 import LockIcon from '@mui/icons-material/Lock';
 import SchoolIcon from '@mui/icons-material/School';
-import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { authAPI } from '../config/api';
 
 // Styled Components
 const LoginContainer = styled(Box)(({ theme }) => ({
@@ -147,16 +147,18 @@ const ModernLoginPage = () => {
     setError('');
 
     try {
-      const endpoint = tabValue === 0 ? '/api/auth/login' : '/api/auth/student-login';
-      const payload = tabValue === 0 
-        ? { email: formData.email, password: formData.password }
-        : { studentId: formData.studentId, password: formData.password };
+      const payload = tabValue === 0
+        ? { identifier: formData.email, password: formData.password }
+        : { identifier: formData.studentId, password: formData.password };
 
-      const response = await axios.post(endpoint, payload);
+      const response = await authAPI.login(payload);
 
-      if (response.data.success) {
+      if (response?.success && response?.data?.token && response?.data?.user) {
         localStorage.setItem('token', response.data.token);
         localStorage.setItem('user', JSON.stringify(response.data.user));
+        if (response.data.user.collegeId) {
+          localStorage.setItem('collegeId', response.data.user.collegeId);
+        }
         setSuccess('Login successful! Redirecting...');
         
         setTimeout(() => {
@@ -168,6 +170,8 @@ const ModernLoginPage = () => {
           else if (role === 'Parent') navigate('/parent/dashboard');
           else navigate('/');
         }, 1500);
+      } else {
+        setError(response?.message || 'Login failed. Please try again.');
       }
     } catch (err) {
       setError(err.response?.data?.message || 'Login failed. Please try again.');

@@ -467,10 +467,16 @@ const getMyHomework = async (req, res) => {
                             sclassId: student.sclassId,
                         },
                     },
+                    ...(student.sectionId
+                        ? {
+                            OR: [{ sectionId: null }, { sectionId: student.sectionId }],
+                        }
+                        : { sectionId: null }),
                 },
                 include: {
                     teacher: true,
                     subject: true,
+                    section: true,
                 },
                 orderBy: { dueDate: 'desc' },
             })

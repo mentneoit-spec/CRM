@@ -140,7 +140,8 @@ const AdminStudents = () => {
                             <TableRow>
                                 <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f8f9fa' }}>Student ID / Roll No</TableCell>
                                 <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f8f9fa' }}>Name</TableCell>
-                                <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f8f9fa' }}>Class / Section</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f8f9fa' }}>Class</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f8f9fa' }}>Section</TableCell>
                                 <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f8f9fa' }}>Contact</TableCell>
                                 <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f8f9fa' }}>Parent Info</TableCell>
                                 <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f8f9fa', textAlign: 'center' }}>Actions</TableCell>
@@ -149,7 +150,7 @@ const AdminStudents = () => {
                         <TableBody>
                             {paginatedStudents.length === 0 && !loading ? (
                                 <TableRow>
-                                    <TableCell colSpan={6} align="center" sx={{ py: 3 }}>No students found.</TableCell>
+                                    <TableCell colSpan={7} align="center" sx={{ py: 3 }}>No students found.</TableCell>
                                 </TableRow>
                             ) : (
                                 paginatedStudents.map((student) => (
@@ -160,7 +161,9 @@ const AdminStudents = () => {
                                         <TableCell sx={{ fontWeight: 500 }}>{student.name}</TableCell>
                                         <TableCell>
                                             <Typography variant="body2">{student.sclass?.sclassName || 'N/A'}</Typography>
-                                            {student.section && <Typography variant="caption" color="text.secondary">Sec: {student.section.sectionName}</Typography>}
+                                        </TableCell>
+                                        <TableCell>
+                                            <Typography variant="body2">{student.section?.sectionName || 'N/A'}</Typography>
                                         </TableCell>
                                         <TableCell>
                                             <Typography variant="body2">{student.email}</Typography>

@@ -12,7 +12,7 @@ const toApiErrorMessage = (error, fallback) => {
 export const fetchTeachers = createAsyncThunk('admin/fetchTeachers', async (params = {}, { rejectWithValue }) => {
     try {
         const response = await adminAPI.getTeachers(params);
-        return response?.data || [];
+        return response?.data?.data || [];
     } catch (error) {
         return rejectWithValue(error?.message || error?.response?.data?.message || 'Failed to fetch teachers');
     }
@@ -22,7 +22,7 @@ export const createTeacher = createAsyncThunk('admin/createTeacher', async (data
     try {
         const response = await adminAPI.createTeacher(data);
         // backend returns { success, data: { user, teacher } }
-        return response?.data?.teacher || response?.data || null;
+        return response?.data?.data?.teacher || null;
     } catch (error) {
         return rejectWithValue(error?.message || error?.response?.data?.message || 'Failed to create teacher');
     }
@@ -31,7 +31,9 @@ export const createTeacher = createAsyncThunk('admin/createTeacher', async (data
 export const fetchStudents = createAsyncThunk('admin/fetchStudents', async (params = {}, { rejectWithValue }) => {
     try {
         const response = await adminAPI.getStudents(params);
-        return response?.data || [];
+        // api.js interceptor already unwraps axios to the JSON payload.
+        // Backend shape is typically: { success: true, data: [...] }
+        return response?.data || response?.data?.data || [];
     } catch (error) {
         return rejectWithValue(error?.message || error?.response?.data?.message || 'Failed to fetch students');
     }
@@ -41,7 +43,7 @@ export const createStudent = createAsyncThunk('admin/createStudent', async (data
     try {
         const response = await adminAPI.createStudent(data);
         // backend returns { success, data: { user, student } }
-        return response?.data?.student || response?.data || null;
+        return response?.data?.data?.student || null;
     } catch (error) {
         return rejectWithValue(error?.message || error?.response?.data?.message || 'Failed to create student');
     }
@@ -50,7 +52,7 @@ export const createStudent = createAsyncThunk('admin/createStudent', async (data
 export const updateStudent = createAsyncThunk('admin/updateStudent', async ({ id, data }, { rejectWithValue }) => {
     try {
         const response = await adminAPI.updateStudent(id, data);
-        return response?.data || null;
+        return response?.data?.data || null;
     } catch (error) {
         return rejectWithValue(error?.message || error?.response?.data?.message || 'Failed to update student');
     }
@@ -113,7 +115,7 @@ export const bulkImportAdmissions = createAsyncThunk('admin/bulkImportAdmissions
 export const fetchClasses = createAsyncThunk('admin/fetchClasses', async (_, { rejectWithValue }) => {
     try {
         const response = await adminAPI.getClasses();
-        return response?.data || [];
+        return response?.data?.data || [];
     } catch (error) {
         return rejectWithValue(error?.message || error?.response?.data?.message || 'Failed to fetch classes');
     }
@@ -122,7 +124,7 @@ export const fetchClasses = createAsyncThunk('admin/fetchClasses', async (_, { r
 export const createClass = createAsyncThunk('admin/createClass', async (data, { rejectWithValue }) => {
     try {
         const response = await adminAPI.createClass(data);
-        return response?.data || null;
+        return response?.data?.data || null;
     } catch (error) {
         return rejectWithValue(error?.message || error?.response?.data?.message || 'Failed to create class');
     }

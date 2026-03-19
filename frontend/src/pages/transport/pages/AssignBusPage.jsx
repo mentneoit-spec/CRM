@@ -12,7 +12,19 @@ function AssignBusPage() {
   const [busId, setBusId] = useState("");
   const [driverName, setDriverName] = useState("");
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState(false);
+
+  const load = async () => {
+    setError("");
+    const [routesResponse, busesResponse] = await Promise.all([
+      transportAPI.getRoutes(),
+      transportAPI.getBuses(),
+    ]);
+    if (routesResponse?.success) setRoutes(routesResponse.data || []);
+    if (busesResponse?.success) setBuses(busesResponse.data || []);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -20,6 +32,7 @@ function AssignBusPage() {
     (async () => {
       try {
         setError("");
+        setMessage("");
         const [routesResponse, busesResponse] = await Promise.all([
           transportAPI.getRoutes(),
           transportAPI.getBuses(),
@@ -47,11 +60,12 @@ function AssignBusPage() {
     try {
       setSaving(true);
       setError("");
+      setMessage("");
       await transportAPI.updateBus(busId, {
         routeId,
         driverName: driverName || undefined,
       });
-      window.alert("Bus assignment updated");
+      setMessage("Bus assignment updated");
     } catch (e) {
       setError(e?.message || "Failed to assign bus");
     } finally {
@@ -59,15 +73,58 @@ function AssignBusPage() {
     }
   };
 
+  const handleImportCsv = async (file) => {
+    if (!file) return;
+    setImporting(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const response = await transportAPI.bulkImportBuses(file, 'update');
+      const result = response?.data;
+      const created = result?.created ?? 0;
+      const updated = result?.updated ?? 0;
+      const skipped = result?.skipped ?? 0;
+      const errorCount = Array.isArray(result?.errors) ? result.errors.length : 0;
+      setMessage(`Import complete: created ${created}, updated ${updated}, skipped ${skipped}, errors ${errorCount}`);
+      await load();
+    } catch (e) {
+      setError(e?.message || "Failed to import buses CSV");
+    } finally {
+      setImporting(false);
+    }
+  };
+
   return (
     <TransportLayout title="Assign Bus">
       <Card>
         <CardHeader>
-          <CardTitle>Assign Bus to Route</CardTitle>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <CardTitle>Assign Bus to Route</CardTitle>
+            <Button type="button" variant="outline" asChild disabled={importing}>
+              <label>
+                {importing ? "Importing…" : "Import CSV"}
+                <input
+                  type="file"
+                  accept=".csv,text/csv"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = "";
+                    handleImportCsv(file);
+                  }}
+                />
+              </label>
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
           {error ? (
             <div className="md:col-span-2 text-sm text-gray-600 dark:text-gray-300">{error}</div>
+          ) : null}
+
+          {message ? (
+            <div className="md:col-span-2 text-sm text-gray-600 dark:text-gray-300">{message}</div>
           ) : null}
 
           <div className="space-y-1">

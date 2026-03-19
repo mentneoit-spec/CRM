@@ -1,4 +1,30 @@
 const prisma = require('../lib/prisma');
+
+const buildTeacherSectionScope = async (collegeId, teacherId) => {
+    const rows = await prisma.teacherSectionAssignment.findMany({
+        where: { collegeId, teacherId },
+        select: { sclassId: true, sectionId: true },
+    });
+
+    const byClass = new Map();
+    for (const row of rows) {
+        const key = String(row.sclassId);
+        if (!byClass.has(key)) byClass.set(key, new Set());
+        byClass.get(key).add(String(row.sectionId));
+    }
+
+    return {
+        assignedClassIds: Array.from(byClass.keys()),
+        sectionIdsForClass: (sclassId) => {
+            const set = byClass.get(String(sclassId));
+            return set ? Array.from(set) : [];
+        },
+        hasAnyAssignmentForClass: (sclassId) => {
+            const set = byClass.get(String(sclassId));
+            return Boolean(set && set.size);
+        },
+    };
+};
 const bcrypt = require('bcryptjs');
 const csvParser = require('csv-parser');
 const { Readable } = require('stream');
@@ -96,6 +122,8 @@ const getMyClasses = async (req, res) => {
         }
 
         // Get classes where teacher is assigned
+        const scope = await buildTeacherSectionScope(collegeId, teacher.id);
+
         const classes = await prisma.sclass.findMany({
             where: {
                 collegeId,
@@ -106,6 +134,7 @@ const getMyClasses = async (req, res) => {
                             some: { teacherId: teacher.id },
                         },
                     },
+                    ...(scope.assignedClassIds.length ? [{ id: { in: scope.assignedClassIds } }] : []),
                 ],
             },
             include: {
@@ -113,6 +142,7 @@ const getMyClasses = async (req, res) => {
                     where: { teacherId: teacher.id },
                 },
                 classTeacher: true,
+                Sections: true,
                 _count: {
                     select: { Students: true },
                 },
@@ -136,6 +166,28 @@ const normalizeCsvKey = (key) => {
         .toLowerCase()
         .replace(/[\s/]+/g, '_')
         .replace(/[^a-z0-9_]/g, '');
+};
+
+const detectCsvSeparator = (buffer) => {
+    try {
+        const text = Buffer.isBuffer(buffer) ? buffer.toString('utf8') : String(buffer || '');
+        const firstLine = text.split(/\r?\n/)[0] || '';
+
+        const commaCount = (firstLine.match(/,/g) || []).length;
+        const semicolonCount = (firstLine.match(/;/g) || []).length;
+        const tabCount = (firstLine.match(/\t/g) || []).length;
+
+        if (tabCount > commaCount && tabCount > semicolonCount) return '\t';
+        if (semicolonCount > commaCount) return ';';
+        return ',';
+    } catch {
+        return ',';
+    }
+};
+
+const looksLikeEmail = (value) => {
+    const s = String(value || '').trim();
+    return Boolean(s) && /@/.test(s) && !/\s/.test(s);
 };
 
 const pickCsvValue = (row, keys) => {
@@ -288,7 +340,12 @@ const bulkImportStudentsForTeacher = async (req, res) => {
         const rows = [];
         await new Promise((resolve, reject) => {
             Readable.from([file.buffer])
-                .pipe(csvParser({ mapHeaders: ({ header }) => normalizeCsvKey(header) }))
+                .pipe(
+                    csvParser({
+                        separator: detectCsvSeparator(file.buffer),
+                        mapHeaders: ({ header }) => normalizeCsvKey(header),
+                    })
+                )
                 .on('data', (data) => rows.push(data))
                 .on('end', resolve)
                 .on('error', reject);
@@ -308,10 +365,27 @@ const bulkImportStudentsForTeacher = async (req, res) => {
             const rowNumber = index + 2;
 
             try {
-                const studentId = pickCsvValue(raw, ['student_id', 'studentid', 'roll_no', 'roll', 'id']);
+                const studentId = pickCsvValue(raw, [
+                    'student_id',
+                    'studentid',
+                    'student_id_roll_no',
+                    'student_id_rollno',
+                    'student_roll_no',
+                    'student_rollno',
+                    'roll_no',
+                    'roll',
+                    'rollno',
+                    'id',
+                    'student_id__roll_no',
+                ]);
                 const name = pickCsvValue(raw, ['name', 'student_name', 'full_name']);
-                const email = pickCsvValue(raw, ['email', 'student_email']);
-                const phone = pickCsvValue(raw, ['phone', 'mobile', 'contact']);
+
+                const contactRaw = pickCsvValue(raw, ['contact', 'contact_info', 'contact_details']);
+                const emailRaw = pickCsvValue(raw, ['email', 'student_email', 'mail', 'e_mail']);
+                const phoneRaw = pickCsvValue(raw, ['phone', 'mobile', 'contact_number', 'contact_phone', 'mobile_number']);
+
+                const email = emailRaw || (looksLikeEmail(contactRaw) ? contactRaw : '');
+                const phone = phoneRaw || (!looksLikeEmail(contactRaw) ? contactRaw : '');
                 const password = pickCsvValue(raw, ['password', 'temp_password', 'temporary_password']);
                 const classIdRaw = pickCsvValue(raw, ['class_id', 'sclass_id', 'sclassid']);
                 const className = pickCsvValue(raw, ['class', 'class_name', 'sclass', 'sclass_name']);
@@ -350,7 +424,14 @@ const bulkImportStudentsForTeacher = async (req, res) => {
                 let section = null;
                 if (sectionName) {
                     section = await prisma.section.findFirst({
-                        where: { collegeId, sclassId: sclass.id, sectionName },
+                        where: {
+                            collegeId,
+                            sclassId: sclass.id,
+                            sectionName: {
+                                equals: String(sectionName).trim(),
+                                mode: 'insensitive',
+                            },
+                        },
                     });
                     if (!section) {
                         errors.push({ row: rowNumber, studentId, message: `Section not found: ${sectionName} (Class: ${sclass.sclassName})` });
@@ -531,7 +612,22 @@ const getMyStudents = async (req, res) => {
                 isActive: true,
                 sclassId: { in: classIds.length ? classIds : ['__none__'] },
             },
-            include: { sclass: true, section: true, parent: true },
+            select: {
+                id: true,
+                studentId: true,
+                name: true,
+                rollNum: true,
+                email: true,
+                profileImage: true,
+                sclassId: true,
+                sectionId: true,
+                sclass: {
+                    select: { id: true, sclassName: true },
+                },
+                section: {
+                    select: { id: true, sectionName: true },
+                },
+            },
             orderBy: [{ sclassId: 'asc' }, { rollNum: 'asc' }],
         });
 
@@ -548,7 +644,15 @@ const getClassStudents = async (req, res) => {
     try {
         const { classId } = req.params;
         const collegeId = req.collegeId;
-        const teacherId = req.user.id;
+        const teacherUserId = req.user.id;
+
+        const teacher = await prisma.teacher.findUnique({
+            where: { userId: teacherUserId },
+        });
+
+        if (!teacher || teacher.collegeId !== collegeId) {
+            return res.status(404).json({ success: false, message: 'Teacher not found' });
+        }
 
         // Verify teacher has access to this class
         const sclass = await prisma.sclass.findUnique({
@@ -559,19 +663,38 @@ const getClassStudents = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Class not found' });
         }
 
+        const scope = await buildTeacherSectionScope(collegeId, teacher.id);
+        const assignedSections = scope.sectionIdsForClass(classId);
+        const teacherTeachesClass = await prisma.subject.findFirst({
+            where: { collegeId, sclassId: classId, teacherId: teacher.id },
+            select: { id: true },
+        });
+        const isClassTeacher = String(sclass.classTeacherId || '') === String(teacher.id);
+        const hasSectionAssignment = assignedSections.length > 0;
+
+        if (!isClassTeacher && !teacherTeachesClass && !hasSectionAssignment) {
+            return res.status(403).json({ success: false, message: 'Not allowed to view students for this class' });
+        }
+
+        const restrictToSections = hasSectionAssignment && !isClassTeacher;
+
         const students = await prisma.student.findMany({
             where: {
                 sclassId: classId,
                 collegeId,
+                ...(restrictToSections ? { sectionId: { in: assignedSections } } : {}),
             },
-            include: {
-                section: true,
-                parent: true,
-                _count: {
-                    select: {
-                        Attendances: true,
-                        ExamResults: true,
-                    },
+            select: {
+                id: true,
+                studentId: true,
+                name: true,
+                rollNum: true,
+                email: true,
+                profileImage: true,
+                sclassId: true,
+                sectionId: true,
+                section: {
+                    select: { id: true, sectionName: true },
                 },
             },
             orderBy: { rollNum: 'asc' },
@@ -592,6 +715,14 @@ const markAttendance = async (req, res) => {
         const { classId, subjectId, date, attendance } = req.body;
         const collegeId = req.collegeId;
 
+        const teacher = await prisma.teacher.findUnique({
+            where: { userId: req.user.id },
+        });
+
+        if (!teacher || teacher.collegeId !== collegeId) {
+            return res.status(404).json({ success: false, message: 'Teacher not found' });
+        }
+
         if (!classId || !subjectId || !date || !attendance || !Array.isArray(attendance)) {
             return res.status(400).json({ success: false, message: 'Invalid input' });
         }
@@ -603,6 +734,42 @@ const markAttendance = async (req, res) => {
 
         if (!subject || subject.collegeId !== collegeId) {
             return res.status(404).json({ success: false, message: 'Subject not found' });
+        }
+
+        if (String(subject.sclassId) !== String(classId)) {
+            return res.status(400).json({ success: false, message: 'Subject does not belong to this class' });
+        }
+
+        const sclass = await prisma.sclass.findUnique({ where: { id: classId } });
+        if (!sclass || sclass.collegeId !== collegeId) {
+            return res.status(404).json({ success: false, message: 'Class not found' });
+        }
+
+        const isClassTeacher = String(sclass.classTeacherId || '') === String(teacher.id);
+        const isSubjectTeacher = String(subject.teacherId || '') === String(teacher.id);
+        if (!isClassTeacher && !isSubjectTeacher) {
+            return res.status(403).json({ success: false, message: 'Not allowed to mark attendance for this subject' });
+        }
+
+        const scope = await buildTeacherSectionScope(collegeId, teacher.id);
+        const assignedSections = scope.sectionIdsForClass(classId);
+        const restrictToSections = assignedSections.length > 0 && !isClassTeacher;
+
+        if (restrictToSections) {
+            const studentIds = attendance.map((x) => x?.studentId).filter(Boolean);
+            const students = await prisma.student.findMany({
+                where: { id: { in: studentIds }, collegeId },
+                select: { id: true, sectionId: true, sclassId: true },
+            });
+            const allowed = new Set(
+                students
+                    .filter((s) => String(s.sclassId) === String(classId) && s.sectionId && assignedSections.includes(String(s.sectionId)))
+                    .map((s) => String(s.id))
+            );
+            const invalid = studentIds.find((sid) => !allowed.has(String(sid)));
+            if (invalid) {
+                return res.status(403).json({ success: false, message: 'One or more students are outside your assigned sections' });
+            }
         }
 
         // Delete existing attendance for this date
@@ -645,6 +812,59 @@ const getAttendanceReport = async (req, res) => {
         const { subjectId, month, year } = req.query;
         const collegeId = req.collegeId;
 
+        const teacher = await prisma.teacher.findUnique({
+            where: { userId: req.user.id },
+        });
+
+        if (!teacher || teacher.collegeId !== collegeId) {
+            return res.status(404).json({ success: false, message: 'Teacher not found' });
+        }
+
+        const scope = await buildTeacherSectionScope(collegeId, teacher.id);
+        let assignedSectionsForClass = [];
+        let restrictToSections = false;
+
+        if (classId) {
+            const sclass = await prisma.sclass.findUnique({ where: { id: classId } });
+            if (!sclass || sclass.collegeId !== collegeId) {
+                return res.status(404).json({ success: false, message: 'Class not found' });
+            }
+
+            const isClassTeacher = String(sclass.classTeacherId || '') === String(teacher.id);
+            const teacherTeachesClass = await prisma.subject.findFirst({
+                where: { collegeId, sclassId: classId, teacherId: teacher.id },
+                select: { id: true },
+            });
+
+            assignedSectionsForClass = scope.sectionIdsForClass(classId);
+            const hasSectionAssignment = assignedSectionsForClass.length > 0;
+
+            if (!isClassTeacher && !teacherTeachesClass && !hasSectionAssignment) {
+                return res.status(403).json({ success: false, message: 'Not allowed to view attendance for this class' });
+            }
+
+            restrictToSections = hasSectionAssignment && !isClassTeacher;
+        }
+
+        if (subjectId) {
+            const subject = await prisma.subject.findUnique({ where: { id: subjectId } });
+            if (!subject || subject.collegeId !== collegeId) {
+                return res.status(404).json({ success: false, message: 'Subject not found' });
+            }
+
+            const sclass = await prisma.sclass.findUnique({ where: { id: subject.sclassId } });
+            const isClassTeacher = Boolean(sclass && String(sclass.classTeacherId || '') === String(teacher.id));
+            const isSubjectTeacher = String(subject.teacherId || '') === String(teacher.id);
+            if (!isClassTeacher && !isSubjectTeacher) {
+                return res.status(403).json({ success: false, message: 'Not allowed to view attendance for this subject' });
+            }
+
+            if (!classId) {
+                assignedSectionsForClass = scope.sectionIdsForClass(subject.sclassId);
+                restrictToSections = assignedSectionsForClass.length > 0 && !isClassTeacher;
+            }
+        }
+
         let filter = { collegeId };
         if (subjectId) filter.subjectId = subjectId;
         if (classId) {
@@ -654,6 +874,10 @@ const getAttendanceReport = async (req, res) => {
             const startDate = new Date(year, month - 1, 1);
             const endDate = new Date(year, month, 0);
             filter.date = { gte: startDate, lte: endDate };
+        }
+
+        if (restrictToSections) {
+            filter.student = { is: { sectionId: { in: assignedSectionsForClass } } };
         }
 
         const attendance = await prisma.attendance.findMany({
@@ -717,8 +941,18 @@ const uploadMarks = async (req, res) => {
         const { examId, subjectId, marks } = req.body;
         const collegeId = req.collegeId;
 
+        const teacherUserId = req.user?.id;
+
         if (!examId || !subjectId || !marks || !Array.isArray(marks)) {
             return res.status(400).json({ success: false, message: 'Invalid input' });
+        }
+
+        const teacher = await prisma.teacher.findUnique({
+            where: { userId: teacherUserId },
+        });
+
+        if (!teacher || teacher.collegeId !== collegeId) {
+            return res.status(404).json({ success: false, message: 'Teacher not found' });
         }
 
         // Verify exam and subject
@@ -734,6 +968,35 @@ const uploadMarks = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Exam or subject not found' });
         }
 
+        if (subject.teacherId !== teacher.id) {
+            return res.status(403).json({ success: false, message: 'Not allowed to upload marks for this subject' });
+        }
+
+        if (exam.sclassId && subject.sclassId && String(exam.sclassId) !== String(subject.sclassId)) {
+            return res.status(400).json({ success: false, message: 'Subject does not belong to the same class as exam' });
+        }
+
+        const scope = await buildTeacherSectionScope(collegeId, teacher.id);
+        const assignedSections = scope.sectionIdsForClass(subject.sclassId);
+        const restrictToSections = assignedSections.length > 0;
+
+        if (restrictToSections) {
+            const studentIds = marks.map((m) => m?.studentId).filter(Boolean);
+            const students = await prisma.student.findMany({
+                where: { id: { in: studentIds }, collegeId },
+                select: { id: true, sectionId: true, sclassId: true },
+            });
+            const allowed = new Set(
+                students
+                    .filter((s) => String(s.sclassId) === String(subject.sclassId) && s.sectionId && assignedSections.includes(String(s.sectionId)))
+                    .map((s) => String(s.id))
+            );
+            const invalid = studentIds.find((sid) => !allowed.has(String(sid)));
+            if (invalid) {
+                return res.status(403).json({ success: false, message: 'Not allowed to upload marks for students outside your assigned sections' });
+            }
+        }
+
         let created = 0;
         let updated = 0;
 
@@ -747,7 +1010,14 @@ const uploadMarks = async (req, res) => {
             });
 
             const marksObtained = parseFloat(markData.marksObtained);
+            if (!Number.isFinite(marksObtained)) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Invalid marks for studentId ${markData.studentId}`,
+                });
+            }
             const percentage = (marksObtained / (subject.maxMarks || 100)) * 100;
+            const percentageValue = Number(percentage.toFixed(2));
             let grade = 'F';
             if (percentage >= 90) grade = 'A+';
             else if (percentage >= 80) grade = 'A';
@@ -760,7 +1030,7 @@ const uploadMarks = async (req, res) => {
                     where: { id: existing.id },
                     data: {
                         marksObtained,
-                        percentage: percentage.toFixed(2),
+                        percentage: percentageValue,
                         grade,
                         remarks: markData.remarks || null,
                     },
@@ -774,7 +1044,7 @@ const uploadMarks = async (req, res) => {
                         examId,
                         collegeId,
                         marksObtained,
-                        percentage: percentage.toFixed(2),
+                        percentage: percentageValue,
                         grade,
                         remarks: markData.remarks || null,
                     },
@@ -794,16 +1064,293 @@ const uploadMarks = async (req, res) => {
     }
 };
 
+// Bulk import marks from CSV (multipart/form-data: file)
+// Route: /teacher/exams/:examId/marks/import
+// Body/query: subjectId
+// Columns: student_id/studentId/email/id, marks/marks_obtained/score, remarks
+const importExamMarksCsvForTeacher = async (req, res) => {
+    try {
+        const collegeId = req.collegeId;
+        const teacherUserId = req.user?.id;
+        const examId = String(req.params?.examId || '').trim();
+        const subjectId = String(req.body?.subjectId || req.query?.subjectId || '').trim();
+
+        if (!examId || !subjectId) {
+            return res.status(400).json({ success: false, message: 'examId and subjectId are required' });
+        }
+
+        const file = Array.isArray(req.files) ? req.files[0] : null;
+        if (!file) {
+            return res.status(400).json({ success: false, message: 'CSV file is required (field name: file)' });
+        }
+
+        const teacher = await prisma.teacher.findUnique({ where: { userId: teacherUserId } });
+        if (!teacher || teacher.collegeId !== collegeId) {
+            return res.status(404).json({ success: false, message: 'Teacher not found' });
+        }
+
+        const exam = await prisma.exam.findUnique({ where: { id: examId } });
+        if (!exam || exam.collegeId !== collegeId) {
+            return res.status(404).json({ success: false, message: 'Exam not found' });
+        }
+
+        const subject = await prisma.subject.findUnique({ where: { id: subjectId } });
+        if (!subject || subject.collegeId !== collegeId) {
+            return res.status(404).json({ success: false, message: 'Subject not found' });
+        }
+
+        if (subject.teacherId !== teacher.id) {
+            return res.status(403).json({ success: false, message: 'Not allowed to upload marks for this subject' });
+        }
+
+        if (exam.sclassId && subject.sclassId && String(exam.sclassId) !== String(subject.sclassId)) {
+            return res.status(400).json({ success: false, message: 'Subject does not belong to the same class as exam' });
+        }
+
+        const normalizeCsvKey = (key) => {
+            return String(key || '')
+                .trim()
+                .toLowerCase()
+                .replace(/[\s/]+/g, '_')
+                .replace(/[^a-z0-9_]/g, '');
+        };
+
+        const pickCsvValue = (row, keys) => {
+            for (const key of keys) {
+                const normalized = normalizeCsvKey(key);
+                if (Object.prototype.hasOwnProperty.call(row, normalized)) {
+                    const value = row[normalized];
+                    if (value !== undefined && value !== null && String(value).trim() !== '') return String(value).trim();
+                }
+            }
+            return '';
+        };
+
+        const rows = [];
+        await new Promise((resolve, reject) => {
+            Readable.from([file.buffer])
+                .pipe(
+                    csvParser({
+                        mapHeaders: ({ header }) => normalizeCsvKey(header),
+                    })
+                )
+                .on('data', (data) => rows.push(data))
+                .on('end', resolve)
+                .on('error', reject);
+        });
+
+        const scope = await buildTeacherSectionScope(collegeId, teacher.id);
+        const assignedSections = scope.sectionIdsForClass(subject.sclassId);
+        const restrictToSections = assignedSections.length > 0;
+
+        const students = await prisma.student.findMany({
+            where: {
+                collegeId,
+                sclassId: subject.sclassId,
+                ...(restrictToSections ? { sectionId: { in: assignedSections } } : {}),
+                isDeleted: false,
+            },
+            select: { id: true, studentId: true, email: true },
+        });
+
+        const byDbId = new Map(students.map((s) => [String(s.id), s]));
+        const byStudentId = new Map(students.map((s) => [String(s.studentId), s]));
+        const byEmail = new Map(students.filter((s) => s.email).map((s) => [String(s.email).toLowerCase(), s]));
+
+        const uuidLike = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+        let created = 0;
+        let updated = 0;
+        let skipped = 0;
+        const errors = [];
+
+        for (let index = 0; index < rows.length; index++) {
+            const raw = rows[index] || {};
+            const rowNumber = index + 2;
+
+            const studentKey = pickCsvValue(raw, ['student_db_id', 'student_uuid', 'id', 'student_id', 'studentid', 'studentId', 'email']);
+            const marksRaw = pickCsvValue(raw, ['marks_obtained', 'marksobtained', 'marks', 'score']);
+            const remarks = pickCsvValue(raw, ['remarks', 'remark', 'comment']);
+
+            if (!studentKey || !marksRaw) {
+                skipped++;
+                continue;
+            }
+
+            const marksObtained = parseFloat(marksRaw);
+            if (!Number.isFinite(marksObtained)) {
+                errors.push({ row: rowNumber, student: studentKey, message: 'Invalid marks' });
+                continue;
+            }
+
+            let student = null;
+            if (uuidLike.test(studentKey)) {
+                student = byDbId.get(studentKey) || null;
+            } else if (studentKey.includes('@')) {
+                student = byEmail.get(studentKey.toLowerCase()) || null;
+            } else {
+                student = byStudentId.get(studentKey) || null;
+            }
+
+            if (!student) {
+                errors.push({
+                    row: rowNumber,
+                    student: studentKey,
+                    message: restrictToSections
+                        ? 'Student not found in your assigned sections'
+                        : 'Student not found in this class',
+                });
+                continue;
+            }
+
+            const percentage = (marksObtained / (subject.maxMarks || 100)) * 100;
+            let grade = 'F';
+            if (percentage >= 90) grade = 'A+';
+            else if (percentage >= 80) grade = 'A';
+            else if (percentage >= 70) grade = 'B';
+            else if (percentage >= 60) grade = 'C';
+            else if (percentage >= 50) grade = 'D';
+
+            const exists = await prisma.examResult.findUnique({
+                where: {
+                    studentId_subjectId_examId: {
+                        studentId: student.id,
+                        subjectId,
+                        examId,
+                    },
+                },
+                select: { id: true },
+            });
+
+            await prisma.examResult.upsert({
+                where: {
+                    studentId_subjectId_examId: {
+                        studentId: student.id,
+                        subjectId,
+                        examId,
+                    },
+                },
+                update: {
+                    marksObtained,
+                    percentage: Number(percentage.toFixed(2)),
+                    grade,
+                    remarks: remarks || null,
+                },
+                create: {
+                    studentId: student.id,
+                    subjectId,
+                    examId,
+                    collegeId,
+                    marksObtained,
+                    percentage: Number(percentage.toFixed(2)),
+                    grade,
+                    remarks: remarks || null,
+                },
+            });
+
+            if (exists) updated++;
+            else created++;
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: `Imported marks: ${created} created, ${updated} updated, ${skipped} skipped`,
+            data: { created, updated, skipped, errors: errors.slice(0, 50) },
+        });
+    } catch (error) {
+        console.error('Teacher import marks CSV error:', error);
+        return res.status(500).json({ success: false, message: 'Error importing marks' });
+    }
+};
+
 // Get marks report
 const getMarksReport = async (req, res) => {
     try {
-        const { classId, examId } = req.query;
+        const { classId, examId, subjectId } = req.query;
         const collegeId = req.collegeId;
+
+        const teacher = await prisma.teacher.findUnique({
+            where: { userId: req.user.id },
+        });
+
+        if (!teacher || teacher.collegeId !== collegeId) {
+            return res.status(404).json({ success: false, message: 'Teacher not found' });
+        }
+
+        const scope = await buildTeacherSectionScope(collegeId, teacher.id);
+        let assignedSectionsForClass = [];
+        let restrictToSections = false;
+
+        if (classId) {
+            const sclass = await prisma.sclass.findUnique({ where: { id: classId } });
+            if (!sclass || sclass.collegeId !== collegeId) {
+                return res.status(404).json({ success: false, message: 'Class not found' });
+            }
+
+            const isClassTeacher = String(sclass.classTeacherId || '') === String(teacher.id);
+            const teacherTeachesClass = await prisma.subject.findFirst({
+                where: { collegeId, sclassId: classId, teacherId: teacher.id },
+                select: { id: true },
+            });
+
+            assignedSectionsForClass = scope.sectionIdsForClass(classId);
+            const hasSectionAssignment = assignedSectionsForClass.length > 0;
+
+            if (!isClassTeacher && !teacherTeachesClass && !hasSectionAssignment) {
+                return res.status(403).json({ success: false, message: 'Not allowed to view marks for this class' });
+            }
+
+            restrictToSections = hasSectionAssignment && !isClassTeacher;
+        }
+
+        if (subjectId) {
+            const subject = await prisma.subject.findUnique({ where: { id: subjectId } });
+            if (!subject || subject.collegeId !== collegeId) {
+                return res.status(404).json({ success: false, message: 'Subject not found' });
+            }
+
+            const sclass = await prisma.sclass.findUnique({ where: { id: subject.sclassId } });
+            const isClassTeacher = Boolean(sclass && String(sclass.classTeacherId || '') === String(teacher.id));
+            const isSubjectTeacher = String(subject.teacherId || '') === String(teacher.id);
+
+            if (!isClassTeacher && !isSubjectTeacher) {
+                return res.status(403).json({ success: false, message: 'Not allowed to view marks for this subject' });
+            }
+
+            if (!classId) {
+                assignedSectionsForClass = scope.sectionIdsForClass(subject.sclassId);
+                restrictToSections = assignedSectionsForClass.length > 0 && !isClassTeacher;
+            }
+        }
 
         let filter = { collegeId };
         if (examId) filter.examId = examId;
+        if (subjectId) filter.subjectId = subjectId;
         if (classId) {
             filter.student = { is: { sclassId: classId } };
+        }
+
+        if (restrictToSections) {
+            filter.student = {
+                is: {
+                    ...(classId ? { sclassId: classId } : {}),
+                    sectionId: { in: assignedSectionsForClass },
+                },
+            };
+        }
+
+        if (!classId && !subjectId) {
+            // Default: only show results for teacher's subjects/classes
+            const allAssignedSectionIds = scope.assignedClassIds
+                .flatMap((cid) => scope.sectionIdsForClass(cid));
+
+            filter.OR = [
+                { subject: { is: { teacherId: teacher.id } } },
+                { student: { is: { sclass: { is: { classTeacherId: teacher.id } } } } },
+                ...(allAssignedSectionIds.length
+                    ? [{ student: { is: { sectionId: { in: allAssignedSectionIds } } } }]
+                    : []),
+            ];
         }
 
         const results = await prisma.examResult.findMany({
@@ -850,7 +1397,7 @@ const getMarksReport = async (req, res) => {
 // Create homework
 const createHomework = async (req, res) => {
     try {
-        const { subjectId, title, description, dueDate, instructions, totalMarks } = req.body;
+        const { subjectId, title, description, dueDate, instructions, totalMarks, attachments, sectionId } = req.body;
         const collegeId = req.collegeId;
 
         if (!subjectId || !title || !dueDate) {
@@ -865,17 +1412,65 @@ const createHomework = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Teacher not found' });
         }
 
+        const normalizedAttachments = Array.isArray(attachments)
+            ? attachments
+                .map((x) => String(x || '').trim())
+                .filter(Boolean)
+            : [];
+
+        const subject = await prisma.subject.findUnique({ where: { id: subjectId } });
+        if (!subject || subject.collegeId !== collegeId) {
+            return res.status(404).json({ success: false, message: 'Subject not found' });
+        }
+
+        const sclass = await prisma.sclass.findUnique({
+            where: { id: subject.sclassId },
+            select: { id: true, classTeacherId: true, collegeId: true },
+        });
+
+        if (!sclass || sclass.collegeId !== collegeId) {
+            return res.status(404).json({ success: false, message: 'Class not found' });
+        }
+
+        const isClassTeacher = String(sclass.classTeacherId || '') === String(teacher.id);
+        const isSubjectTeacher = String(subject.teacherId || '') === String(teacher.id);
+        if (!isClassTeacher && !isSubjectTeacher) {
+            return res.status(403).json({ success: false, message: 'Not allowed to create homework for this subject' });
+        }
+
+        let resolvedSectionId = null;
+        if (sectionId !== undefined && sectionId !== null && String(sectionId).trim() !== '') {
+            const section = await prisma.section.findFirst({
+                where: { id: String(sectionId).trim(), collegeId, sclassId: subject.sclassId },
+                select: { id: true },
+            });
+            if (!section) {
+                return res.status(400).json({ success: false, message: 'Invalid section for this subject/class' });
+            }
+
+            const scope = await buildTeacherSectionScope(collegeId, teacher.id);
+            const assignedSections = scope.sectionIdsForClass(subject.sclassId);
+            if (assignedSections.length > 0 && !assignedSections.includes(section.id)) {
+                return res.status(403).json({ success: false, message: 'Not allowed to create homework for this section' });
+            }
+
+            resolvedSectionId = section.id;
+        }
+
         const homework = await prisma.homework.create({
             data: {
                 title,
-                description,
+                description: String(description ?? '').trim(),
                 dueDate: new Date(dueDate),
                 instructions,
+                attachments: normalizedAttachments,
                 totalMarks: totalMarks ? parseInt(totalMarks) : null,
                 subjectId,
+                sectionId: resolvedSectionId,
                 teacherId: teacher.id,
                 collegeId,
             },
+            include: { subject: true, section: true },
         });
 
         res.status(201).json({
@@ -910,6 +1505,7 @@ const getMyHomework = async (req, res) => {
             },
             include: {
                 subject: true,
+                section: true,
             },
             orderBy: { dueDate: 'asc' },
         });
@@ -938,7 +1534,7 @@ const updateHomework = async (req, res) => {
     try {
         const { id } = req.params;
         const collegeId = req.collegeId;
-        const { subjectId, title, description, dueDate, instructions, totalMarks } = req.body;
+        const { subjectId, title, description, dueDate, instructions, totalMarks, attachments, sectionId } = req.body;
 
         const teacher = await prisma.teacher.findUnique({
             where: { userId: req.user.id },
@@ -956,18 +1552,91 @@ const updateHomework = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Homework not found' });
         }
 
+        const normalizedAttachments = Array.isArray(attachments)
+            ? attachments
+                .map((x) => String(x || '').trim())
+                .filter(Boolean)
+            : undefined;
+
+        if (subjectId !== undefined) {
+            const nextSubject = await prisma.subject.findUnique({ where: { id: subjectId } });
+            if (!nextSubject || nextSubject.collegeId !== collegeId) {
+                return res.status(404).json({ success: false, message: 'Subject not found' });
+            }
+
+            const nextClass = await prisma.sclass.findUnique({
+                where: { id: nextSubject.sclassId },
+                select: { id: true, classTeacherId: true, collegeId: true },
+            });
+
+            if (!nextClass || nextClass.collegeId !== collegeId) {
+                return res.status(404).json({ success: false, message: 'Class not found' });
+            }
+
+            const isClassTeacher = String(nextClass.classTeacherId || '') === String(teacher.id);
+            const isSubjectTeacher = String(nextSubject.teacherId || '') === String(teacher.id);
+            if (!isClassTeacher && !isSubjectTeacher) {
+                return res.status(403).json({ success: false, message: 'Not allowed to set this subject for homework' });
+            }
+
+            if (sectionId === undefined && existing.sectionId) {
+                const existingSection = await prisma.section.findUnique({
+                    where: { id: existing.sectionId },
+                    select: { id: true, sclassId: true, collegeId: true },
+                });
+
+                if (existingSection && existingSection.collegeId === collegeId && String(existingSection.sclassId) !== String(nextSubject.sclassId)) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Homework is targeted to a section; clear or change section before changing subject/class',
+                    });
+                }
+            }
+        }
+
+        let resolvedSectionId = undefined;
+        if (sectionId !== undefined) {
+            if (sectionId === null || String(sectionId).trim() === '') {
+                resolvedSectionId = null;
+            } else {
+                const nextSubjectId = subjectId === undefined ? existing.subjectId : subjectId;
+                const subject = await prisma.subject.findUnique({ where: { id: nextSubjectId } });
+                if (!subject || subject.collegeId !== collegeId) {
+                    return res.status(404).json({ success: false, message: 'Subject not found' });
+                }
+
+                const section = await prisma.section.findFirst({
+                    where: { id: String(sectionId).trim(), collegeId, sclassId: subject.sclassId },
+                    select: { id: true },
+                });
+                if (!section) {
+                    return res.status(400).json({ success: false, message: 'Invalid section for this subject/class' });
+                }
+
+                const scope = await buildTeacherSectionScope(collegeId, teacher.id);
+                const assignedSections = scope.sectionIdsForClass(subject.sclassId);
+                if (assignedSections.length > 0 && !assignedSections.includes(section.id)) {
+                    return res.status(403).json({ success: false, message: 'Not allowed to set homework section outside your assignments' });
+                }
+
+                resolvedSectionId = section.id;
+            }
+        }
+
         const homework = await prisma.homework.update({
             where: { id },
             data: {
                 subjectId: subjectId === undefined ? undefined : subjectId,
+                sectionId: resolvedSectionId,
                 title: title === undefined ? undefined : title,
-                description: description === undefined ? undefined : description,
+                description: description === undefined ? undefined : String(description ?? '').trim(),
                 dueDate: dueDate === undefined ? undefined : new Date(dueDate),
                 instructions: instructions === undefined ? undefined : instructions,
+                attachments: normalizedAttachments,
                 totalMarks:
                     totalMarks === undefined ? undefined : (totalMarks === null ? null : parseInt(totalMarks)),
             },
-            include: { subject: true },
+            include: { subject: true, section: true },
         });
 
         res.status(200).json({ success: true, message: 'Homework updated successfully', data: homework });
@@ -1018,7 +1687,6 @@ const getDashboard = async (req, res) => {
         const teacher = await prisma.teacher.findUnique({
             where: { userId: teacherId },
             include: {
-                Subjects: true,
                 ClassTeacherOf: true,
             },
         });
@@ -1026,6 +1694,21 @@ const getDashboard = async (req, res) => {
         if (!teacher) {
             return res.status(404).json({ success: false, message: 'Teacher not found' });
         }
+
+        // Subjects shown in teacher UI should include:
+        // - Subjects explicitly assigned to teacher
+        // - Subjects in classes where teacher is the class teacher
+        // This prevents empty subject dropdowns when Admin sets only class-teacher mapping.
+        const subjects = await prisma.subject.findMany({
+            where: {
+                collegeId,
+                OR: [
+                    { teacherId: teacher.id },
+                    { sclass: { is: { classTeacherId: teacher.id } } },
+                ],
+            },
+            orderBy: [{ sclassId: 'asc' }, { subName: 'asc' }],
+        });
 
         // Get total students
         const totalStudents = await prisma.student.count({
@@ -1062,10 +1745,13 @@ const getDashboard = async (req, res) => {
         res.status(200).json({
             success: true,
             data: {
-                teacher,
+                teacher: {
+                    ...teacher,
+                    Subjects: subjects,
+                },
                 stats: {
                     classes: classes.length,
-                    subjects: teacher.Subjects.length,
+                    subjects: subjects.length,
                     totalStudents,
                     homeworkCount: recentHomework.length,
                 },
@@ -1130,6 +1816,50 @@ const getMyReports = async (req, res) => {
 };
 
 // ==================== EXAMS ====================
+const createExamForTeacher = async (req, res) => {
+    try {
+        const collegeId = req.collegeId;
+        const teacherUserId = req.user.id;
+        const { subjectId, examName, examDate } = req.body;
+
+        if (!subjectId || !examName) {
+            return res.status(400).json({ success: false, message: 'subjectId and examName are required' });
+        }
+
+        const teacher = await prisma.teacher.findUnique({ where: { userId: teacherUserId } });
+        if (!teacher) {
+            return res.status(404).json({ success: false, message: 'Teacher not found' });
+        }
+
+        const subject = await prisma.subject.findUnique({ where: { id: subjectId } });
+        if (!subject || subject.collegeId !== collegeId) {
+            return res.status(404).json({ success: false, message: 'Subject not found' });
+        }
+
+        // Teacher can only create exams for their own subject
+        if (subject.teacherId !== teacher.id) {
+            return res.status(403).json({ success: false, message: 'Not allowed to create exam for this subject' });
+        }
+
+        const exam = await prisma.exam.create({
+            data: {
+                examName: String(examName).trim(),
+                examType: 'assignment',
+                isPublished: true,
+                examDate: examDate ? new Date(examDate) : null,
+                collegeId,
+                sclassId: subject.sclassId,
+            },
+            include: { sclass: true },
+        });
+
+        return res.status(201).json({ success: true, message: 'Exam created', data: exam });
+    } catch (error) {
+        console.error('Create exam (teacher) error:', error);
+        return res.status(500).json({ success: false, message: 'Error creating exam' });
+    }
+};
+
 const getMyExams = async (req, res) => {
     try {
         const collegeId = req.collegeId;
@@ -1214,6 +1944,7 @@ module.exports = {
     markAttendance,
     getAttendanceReport,
     uploadMarks,
+    importExamMarksCsvForTeacher,
     getMarksReport,
     createHomework,
     getMyHomework,
@@ -1221,6 +1952,7 @@ module.exports = {
     deleteHomework,
     getDashboard,
     getMyReports,
+    createExamForTeacher,
     getMyExams,
     getMyAssignments,
     getMyNotices,

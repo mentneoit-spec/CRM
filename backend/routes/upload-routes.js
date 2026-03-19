@@ -18,4 +18,12 @@ router.post('/profile', uploadImages, uploadProfile);
 router.post('/documents', uploadDocs, uploadDocuments);
 router.delete('/:fileKey', deleteFile);
 
+// Ensure multer/fileFilter errors return JSON (instead of default HTML/stack)
+router.use((err, req, res, next) => {
+  if (!err) return next();
+  const message = err?.message || 'Upload failed';
+  const status = String(message).toLowerCase().includes('invalid file type') ? 400 : 500;
+  return res.status(status).json({ success: false, message });
+});
+
 module.exports = router;

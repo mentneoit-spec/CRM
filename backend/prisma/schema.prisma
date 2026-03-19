@@ -114,6 +114,7 @@ model College {
   TransportTeams  TransportTeam[]
   Sections        Section[]
   TeacherAttendances TeacherAttendance[]
+  TeacherSectionAssignments TeacherSectionAssignment[]
 }
 
 // ==================== USER & ROLES ====================
@@ -290,6 +291,7 @@ model Sclass {
   Students        Student[]
   Sections        Section[]
   Exams           Exam[]
+  TeacherSectionAssignments TeacherSectionAssignment[]
 
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -309,6 +311,8 @@ model Section {
   college         College   @relation(fields: [collegeId], references: [id], onDelete: Cascade)
 
   Students        Student[]
+  TeacherSectionAssignments TeacherSectionAssignment[]
+  Homework        Homework[]
 
   @@index([sclassId])
   @@index([collegeId])
@@ -371,11 +375,36 @@ model Teacher {
   Attendances     TeacherAttendance[]
   Homeworks       Homework[]
   Complaints      Complain[]
+  SectionAssignments TeacherSectionAssignment[]
 
   isActive        Boolean   @default(true)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
+  @@index([collegeId])
+}
+
+model TeacherSectionAssignment {
+  id          String   @id @default(uuid())
+
+  teacherId   String
+  teacher     Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  sclassId    String
+  sclass      Sclass   @relation(fields: [sclassId], references: [id], onDelete: Cascade)
+
+  sectionId   String
+  section     Section  @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  collegeId   String
+  college     College  @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+
+  @@unique([teacherId, sectionId])
+  @@index([teacherId])
+  @@index([sclassId])
+  @@index([sectionId])
   @@index([collegeId])
 }
 
@@ -658,7 +687,7 @@ model Complain {
 model Homework {
   id              String    @id @default(uuid())
   title           String
-  description     String
+  description     String?
   dueDate         DateTime
   instructions    String?
   attachments     String[]
@@ -670,6 +699,9 @@ model Homework {
   subjectId       String
   subject         Subject   @relation(fields: [subjectId], references: [id], onDelete: Cascade)
 
+  sectionId       String?
+  section         Section?  @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+
   collegeId       String
   college         College   @relation(fields: [collegeId], references: [id], onDelete: Cascade)
 
@@ -678,6 +710,7 @@ model Homework {
 
   @@index([teacherId])
   @@index([subjectId])
+  @@index([sectionId])
 }
 
 // ==================== FINANCE ====================

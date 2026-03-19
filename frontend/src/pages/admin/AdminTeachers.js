@@ -4,19 +4,21 @@ import {
     Box, Paper, Typography, Button, Table, TableBody, TableCell,
     TableContainer, TableHead, TableRow, TablePagination, TextField,
     InputAdornment, Chip, IconButton, Dialog, DialogTitle,
-    DialogContent, DialogActions, Grid, CircularProgress, Tooltip, Alert
+    DialogContent, DialogActions, Grid, CircularProgress, Tooltip, Alert,
+    FormControl, InputLabel, Select, MenuItem
 } from '@mui/material';
 import {
     Search as SearchIcon, Add as AddIcon, Edit as EditIcon,
     Delete as DeleteIcon, Refresh as RefreshIcon
 } from '@mui/icons-material';
 import DashboardLayout from '../../components/DashboardLayout';
-import { fetchTeachers, createTeacher, clearAdminError } from '../../redux/slices/adminSlice';
+import { fetchTeachers, createTeacher, clearAdminError, fetchClasses } from '../../redux/slices/adminSlice';
+import { adminAPI } from '../../config/api';
 import BulkTeacherImportDialog from '../../components/admin/BulkTeacherImportDialog';
 
 const AdminTeachers = () => {
     const dispatch = useDispatch();
-    const { teachers, loading, error } = useSelector((state) => state.admin);
+    const { teachers, classes, loading, error } = useSelector((state) => state.admin);
 
     // Table State
     const [page, setPage] = useState(0);
@@ -26,6 +28,12 @@ const AdminTeachers = () => {
     // Dialog State
     const [openAddDialog, setOpenAddDialog] = useState(false);
     const [openImportDialog, setOpenImportDialog] = useState(false);
+    const [openAssignDialog, setOpenAssignDialog] = useState(false);
+    const [assignLoading, setAssignLoading] = useState(false);
+    const [assignError, setAssignError] = useState('');
+    const [assignSuccess, setAssignSuccess] = useState('');
+    const [assignTeacher, setAssignTeacher] = useState(null);
+    const [assignedSectionIds, setAssignedSectionIds] = useState([]);
     const [newTeacher, setNewTeacher] = useState({
         name: '', email: '', phone: '', password: '',
         qualification: '', experience: '', specialization: ''
@@ -33,7 +41,49 @@ const AdminTeachers = () => {
 
     useEffect(() => {
         dispatch(fetchTeachers());
+        dispatch(fetchClasses());
     }, [dispatch]);
+
+    const allSectionOptions = (Array.isArray(classes) ? classes : [])
+        .flatMap((c) => (Array.isArray(c?.Sections) ? c.Sections.map((s) => ({
+            sectionId: s.id,
+            label: `${c?.sclassName || 'Class'} - ${s.sectionName || 'Section'}`,
+        })) : []));
+
+    const openAssign = async (teacher) => {
+        if (!teacher?.id) return;
+        setAssignError('');
+        setAssignSuccess('');
+        setAssignTeacher(teacher);
+        setAssignedSectionIds([]);
+        setOpenAssignDialog(true);
+        setAssignLoading(true);
+        try {
+            const res = await adminAPI.getTeacherSections(teacher.id);
+            const ids = res?.data?.data?.sectionIds ?? [];
+            setAssignedSectionIds(Array.isArray(ids) ? ids : []);
+        } catch (e) {
+            setAssignError(e?.response?.data?.message || 'Failed to load assigned sections');
+        } finally {
+            setAssignLoading(false);
+        }
+    };
+
+    const saveAssign = async () => {
+        if (!assignTeacher?.id) return;
+        setAssignError('');
+        setAssignSuccess('');
+        setAssignLoading(true);
+        try {
+            const payload = { sectionIds: assignedSectionIds };
+            const res = await adminAPI.setTeacherSections(assignTeacher.id, payload);
+            setAssignSuccess(res?.data?.message || 'Sections updated');
+        } catch (e) {
+            setAssignError(e?.response?.data?.message || 'Failed to update sections');
+        } finally {
+            setAssignLoading(false);
+        }
+    };
 
     const handleChangePage = (event, newPage) => setPage(newPage);
 
@@ -131,7 +181,7 @@ const AdminTeachers = () => {
                                         <TableCell>{teacher.experience ? `${teacher.experience} Years` : 'N/A'}</TableCell>
                                         <TableCell align="center">
                                             <Tooltip title="Edit Teacher">
-                                                <IconButton color="primary" size="small"><EditIcon fontSize="small" /></IconButton>
+                                                <IconButton color="primary" size="small" onClick={() => openAssign(teacher)}><EditIcon fontSize="small" /></IconButton>
                                             </Tooltip>
                                             <Tooltip title="Delete Teacher">
                                                 <IconButton color="error" size="small"><DeleteIcon fontSize="small" /></IconButton>
@@ -203,6 +253,60 @@ const AdminTeachers = () => {
                         </Button>
                     </DialogActions>
                 </form>
+            </Dialog>
+
+            {/* Assign Sections Dialog */}
+            <Dialog
+                open={openAssignDialog}
+                onClose={() => {
+                    if (assignLoading) return;
+                    setOpenAssignDialog(false);
+                    setAssignTeacher(null);
+                    setAssignedSectionIds([]);
+                    setAssignError('');
+                    setAssignSuccess('');
+                }}
+                maxWidth="sm"
+                fullWidth
+            >
+                <DialogTitle sx={{ fontWeight: 'bold' }}>
+                    Assign Sections{assignTeacher?.name ? ` • ${assignTeacher.name}` : ''}
+                </DialogTitle>
+                <DialogContent dividers>
+                    {assignError ? <Alert severity="error" sx={{ mb: 2 }}>{assignError}</Alert> : null}
+                    {assignSuccess ? <Alert severity="success" sx={{ mb: 2 }}>{assignSuccess}</Alert> : null}
+
+                    <FormControl fullWidth size="small" disabled={assignLoading || allSectionOptions.length === 0}>
+                        <InputLabel>Sections</InputLabel>
+                        <Select
+                            multiple
+                            value={assignedSectionIds}
+                            label="Sections"
+                            onChange={(e) => {
+                                const value = e.target.value;
+                                setAssignedSectionIds(Array.isArray(value) ? value : []);
+                            }}
+                            renderValue={(selected) => {
+                                const selectedSet = new Set(selected);
+                                const labels = allSectionOptions
+                                    .filter((o) => selectedSet.has(o.sectionId))
+                                    .map((o) => o.label);
+                                return labels.length ? labels.join(', ') : 'None';
+                            }}
+                        >
+                            {allSectionOptions.map((opt) => (
+                                <MenuItem key={opt.sectionId} value={opt.sectionId}>{opt.label}</MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
+                    {assignLoading ? <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 2 }}><CircularProgress size={20} /> <Typography variant="body2">Loading…</Typography></Box> : null}
+                </DialogContent>
+                <DialogActions sx={{ p: 2 }}>
+                    <Button onClick={() => setOpenAssignDialog(false)} color="inherit" disabled={assignLoading}>Close</Button>
+                    <Button variant="contained" onClick={saveAssign} disabled={assignLoading}>
+                        {assignLoading ? 'Saving…' : 'Save'}
+                    </Button>
+                </DialogActions>
             </Dialog>
 
             <BulkTeacherImportDialog open={openImportDialog} onClose={() => setOpenImportDialog(false)} />

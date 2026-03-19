@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { authorize, authorizeCollege } = require('../middleware/auth');
 const { uploadMemory } = require('../utils/file-upload-service');
+const { validateCreateFee, validateUpdateFee } = require('../middleware/validation');
 const {
     getDashboard,
     getAdminProfile,
@@ -40,9 +41,19 @@ const {
     createNotice,
     getNotices,
     deleteNotice,
+    createExam,
+    uploadExamMarks,
+    listExams,
+    getExamMarks,
+    importExamMarksCsv,
     getComplaints,
     updateComplaint,
     getFees,
+    updateFee,
+    deleteFee,
+    bulkImportFees,
+    getTeacherSections,
+    setTeacherSections,
 } = require('../controllers/admin-controller');
 
 const {
@@ -73,6 +84,10 @@ router.get('/teachers', authorize('Admin'), authorizeCollege, getAllTeachers);
 router.get('/teachers/:id', authorize('Admin'), authorizeCollege, getTeacher);
 router.put('/teachers/:id', authorize('Admin'), authorizeCollege, updateTeacher);
 router.delete('/teachers/:id', authorize('Admin'), authorizeCollege, deleteTeacher);
+
+// Teacher Section Assignments
+router.get('/teachers/:id/sections', authorize('Admin'), authorizeCollege, getTeacherSections);
+router.put('/teachers/:id/sections', authorize('Admin'), authorizeCollege, setTeacherSections);
 
 // Bulk CSV import (multipart/form-data: file)
 router.post(
@@ -136,13 +151,37 @@ router.post(
 );
 
 // ==================== FEES ====================
-router.post('/fees', authorize('Admin'), authorizeCollege, defineFeeStructure);
+router.post('/fees', authorize('Admin'), authorizeCollege, validateCreateFee, defineFeeStructure);
 router.get('/fees', authorize('Admin'), authorizeCollege, getFees);
+router.put('/fees/:feeId', authorize('Admin'), authorizeCollege, validateUpdateFee, updateFee);
+router.delete('/fees/:feeId', authorize('Admin'), authorizeCollege, validateUpdateFee, deleteFee);
+
+// Bulk CSV import (multipart/form-data: file)
+router.post(
+    '/fees/import',
+    authorize('Admin'),
+    authorizeCollege,
+    uploadMemory('file', 1, 'spreadsheet'),
+    bulkImportFees
+);
 
 // ==================== NOTICES ====================
 router.post('/notices', authorize('Admin'), authorizeCollege, createNotice);
 router.get('/notices', authorize('Admin'), authorizeCollege, getNotices);
 router.delete('/notices/:id', authorize('Admin'), authorizeCollege, deleteNotice);
+
+// ==================== EXAMS & RESULTS ====================
+router.get('/exams', authorize('Admin'), authorizeCollege, listExams);
+router.post('/exams', authorize('Admin'), authorizeCollege, createExam);
+router.get('/exams/:examId/marks', authorize('Admin'), authorizeCollege, getExamMarks);
+router.post('/exams/:examId/marks', authorize('Admin'), authorizeCollege, uploadExamMarks);
+router.post(
+    '/exams/:examId/marks/import',
+    authorize('Admin'),
+    authorizeCollege,
+    uploadMemory('file', 1, 'spreadsheet'),
+    importExamMarksCsv
+);
 
 // ==================== COMPLAINTS ====================
 router.get('/complaints', authorize('Admin'), authorizeCollege, getComplaints);

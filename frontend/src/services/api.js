@@ -189,6 +189,16 @@ export const teacherAPI = {
   getMarks: (params) => api.get('/teacher/marks', params ? { params } : undefined),
   getReports: () => api.get('/teacher/reports'),
   getExams: () => api.get('/teacher/exams'),
+  createExam: (data) => api.post('/teacher/exams', data),
+  importExamMarksCsv: (examId, subjectId, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (subjectId) formData.append('subjectId', subjectId);
+    return api.post(`/teacher/exams/${examId}/marks/import`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 120000,
+    });
+  },
   getAssignments: () => api.get('/teacher/assignments'),
   getNotices: () => api.get('/teacher/notices'),
 };

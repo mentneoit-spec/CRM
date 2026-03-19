@@ -62,21 +62,60 @@ const authMiddleware = async (req, res, next) => {
 // Domain detection middleware
 const detectDomain = async (req, res, next) => {
     try {
-        const host = req.get('host');
-        
-        // Extract domain (without port for development)
-        const domain = host.split(':')[0];
+        const pickFirst = (value) => {
+            if (!value) return null;
+            const first = String(value).split(',')[0]?.trim();
+            return first || null;
+        };
 
-        // Find college by domain
-        const collegeDomain = await prisma.collegeDomain.findUnique({
-            where: { domain },
-            include: { college: true },
-        });
+        const extractHostname = (value) => {
+            const raw = pickFirst(value);
+            if (!raw) return null;
 
-        if (collegeDomain && collegeDomain.status === 'active') {
-            req.collegeId = collegeDomain.collegeId;
-            req.collegeName = collegeDomain.collegeName;
-            req.collegeData = collegeDomain.college;
+            try {
+                // If it's a URL (Origin/Referer), parse hostname.
+                if (/^https?:\/\//i.test(raw)) {
+                    return new URL(raw).hostname;
+                }
+            } catch {
+                // ignore
+            }
+
+            // Otherwise treat as host header value.
+            return String(raw).split(':')[0];
+        };
+
+        const normalizeDomain = (value) => {
+            const hostname = extractHostname(value);
+            if (!hostname) return null;
+            const d = String(hostname).trim().toLowerCase();
+            if (!d) return null;
+            return d.startsWith('www.') ? d.slice(4) : d;
+        };
+
+        const candidates = [
+            req.headers['x-forwarded-host'],
+            req.headers['x-original-host'],
+            req.get('host'),
+            req.get('origin'),
+            req.get('referer'),
+        ]
+            .map(normalizeDomain)
+            .filter(Boolean);
+
+        const uniqueCandidates = Array.from(new Set(candidates));
+        for (const domain of uniqueCandidates) {
+            const collegeDomain = await prisma.collegeDomain.findUnique({
+                where: { domain },
+                include: { college: true },
+            });
+
+            if (collegeDomain && collegeDomain.status === 'active') {
+                req.collegeId = collegeDomain.collegeId;
+                req.collegeName = collegeDomain.collegeName;
+                req.collegeData = collegeDomain.college;
+                break;
+            }
         }
 
         // For localhost or development, allow domain in query or headers
@@ -98,7 +137,15 @@ const authorize = (...allowedRoles) => {
             return res.status(401).json({ success: false, message: 'User not authenticated' });
         }
 
-        if (!allowedRoles.includes(req.user.role)) {
+        const normalizeRole = (role) => {
+            if (!role) return '';
+            return String(role).trim().toLowerCase();
+        };
+
+        const userRole = normalizeRole(req.user.role);
+        const allowed = allowedRoles.map(normalizeRole);
+
+        if (!allowed.includes(userRole)) {
             return res.status(403).json({ 
                 success: false, 
                 message: 'Access denied: Insufficient permissions' 

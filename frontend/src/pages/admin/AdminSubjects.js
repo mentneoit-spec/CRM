@@ -12,6 +12,7 @@ import {
 } from '@mui/icons-material';
 import DashboardLayout from '../../components/DashboardLayout';
 import { fetchSubjects, createSubject, fetchClasses, fetchTeachers } from '../../redux/slices/adminSlice';
+import { adminAPI } from '../../config/api';
 import BulkSubjectImportDialog from '../../components/admin/BulkSubjectImportDialog';
 
 const AdminSubjects = () => {
@@ -26,8 +27,22 @@ const AdminSubjects = () => {
     // Dialog State
     const [openAddDialog, setOpenAddDialog] = useState(false);
     const [openImportDialog, setOpenImportDialog] = useState(false);
+    const [openEditDialog, setOpenEditDialog] = useState(false);
+    const [editingSubject, setEditingSubject] = useState(null);
+    const [editSaving, setEditSaving] = useState(false);
     const [newSubject, setNewSubject] = useState({
         subName: '', subCode: '', sessions: '10', sclassId: '', teacherId: '', maxMarks: 100, passingMarks: 40
+    });
+
+    const [editSubject, setEditSubject] = useState({
+        subName: '',
+        subCode: '',
+        sessions: '10',
+        sclassId: '',
+        teacherId: '',
+        maxMarks: 100,
+        passingMarks: 40,
+        description: '',
     });
 
     useEffect(() => {
@@ -49,6 +64,58 @@ const AdminSubjects = () => {
                 dispatch(fetchSubjects()); // Refresh to get the associated class data
             }
         });
+    };
+
+    const openEdit = (subject) => {
+        setEditingSubject(subject);
+        setEditSubject({
+            subName: subject?.subName || '',
+            subCode: subject?.subCode || '',
+            sessions: String(subject?.sessions ?? '10'),
+            sclassId: subject?.sclassId || '',
+            teacherId: subject?.teacherId || '',
+            maxMarks: Number(subject?.maxMarks ?? 100),
+            passingMarks: Number(subject?.passingMarks ?? 40),
+            description: subject?.description || '',
+        });
+        setOpenEditDialog(true);
+    };
+
+    const handleEditSubmit = async (e) => {
+        e.preventDefault();
+        if (!editingSubject?.id) return;
+        setEditSaving(true);
+        try {
+            await adminAPI.updateSubject(editingSubject.id, {
+                subName: editSubject.subName,
+                subCode: editSubject.subCode,
+                description: editSubject.description,
+                sclassId: editSubject.sclassId,
+                sessions: String(editSubject.sessions || ''),
+                maxMarks: Number(editSubject.maxMarks),
+                passingMarks: Number(editSubject.passingMarks),
+                teacherId: editSubject.teacherId || null,
+            });
+            setOpenEditDialog(false);
+            setEditingSubject(null);
+            dispatch(fetchSubjects());
+        } catch {
+            // errors are already handled globally by api interceptor
+        } finally {
+            setEditSaving(false);
+        }
+    };
+
+    const handleDeleteSubject = async (subject) => {
+        const ok = window.confirm(`Delete subject "${subject?.subName || ''}"? This cannot be undone.`);
+        if (!ok) return;
+
+        try {
+            await adminAPI.deleteSubject(subject.id);
+            dispatch(fetchSubjects());
+        } catch {
+            // errors are already handled globally by api interceptor
+        }
     };
 
     const filteredSubjects = subjects?.filter((sub) =>
@@ -126,10 +193,14 @@ const AdminSubjects = () => {
                                         </TableCell>
                                         <TableCell align="center">
                                             <Tooltip title="Edit Subject">
-                                                <IconButton color="primary" size="small"><EditIcon fontSize="small" /></IconButton>
+                                                <IconButton color="primary" size="small" onClick={() => openEdit(sub)}>
+                                                    <EditIcon fontSize="small" />
+                                                </IconButton>
                                             </Tooltip>
                                             <Tooltip title="Delete Subject">
-                                                <IconButton color="error" size="small"><DeleteIcon fontSize="small" /></IconButton>
+                                                <IconButton color="error" size="small" onClick={() => handleDeleteSubject(sub)}>
+                                                    <DeleteIcon fontSize="small" />
+                                                </IconButton>
                                             </Tooltip>
                                         </TableCell>
                                     </TableRow>
@@ -206,6 +277,111 @@ const AdminSubjects = () => {
                         <Button onClick={() => setOpenAddDialog(false)} color="inherit">Cancel</Button>
                         <Button type="submit" variant="contained" disabled={loading}>
                             {loading ? 'Saving...' : 'Create Subject'}
+                        </Button>
+                    </DialogActions>
+                </form>
+            </Dialog>
+
+            {/* Edit Subject Dialog */}
+            <Dialog open={openEditDialog} onClose={() => setOpenEditDialog(false)} maxWidth="sm" fullWidth>
+                <form onSubmit={handleEditSubmit}>
+                    <DialogTitle sx={{ fontWeight: 'bold' }}>Edit Subject</DialogTitle>
+                    <DialogContent dividers>
+                        <Grid container spacing={2}>
+                            <Grid item xs={12} sm={8}>
+                                <TextField
+                                    label="Subject Name"
+                                    fullWidth
+                                    required
+                                    value={editSubject.subName}
+                                    onChange={(e) => setEditSubject({ ...editSubject, subName: e.target.value })}
+                                />
+                            </Grid>
+                            <Grid item xs={12} sm={4}>
+                                <TextField
+                                    label="Subject Code"
+                                    fullWidth
+                                    required
+                                    value={editSubject.subCode}
+                                    onChange={(e) => setEditSubject({ ...editSubject, subCode: e.target.value })}
+                                />
+                            </Grid>
+
+                            <Grid item xs={12}>
+                                <FormControl fullWidth required>
+                                    <InputLabel>Associated Class</InputLabel>
+                                    <Select
+                                        value={editSubject.sclassId}
+                                        onChange={(e) => setEditSubject({ ...editSubject, sclassId: e.target.value })}
+                                        label="Associated Class"
+                                    >
+                                        {classes?.map((cls) => (
+                                            <MenuItem key={cls.id} value={cls.id}>{cls.sclassName} ({cls.academicYear})</MenuItem>
+                                        ))}
+                                    </Select>
+                                </FormControl>
+                            </Grid>
+
+                            <Grid item xs={12}>
+                                <FormControl fullWidth>
+                                    <InputLabel>Assign Teacher</InputLabel>
+                                    <Select
+                                        value={editSubject.teacherId}
+                                        onChange={(e) => setEditSubject({ ...editSubject, teacherId: e.target.value })}
+                                        label="Assign Teacher"
+                                    >
+                                        <MenuItem value=""><em>Unassigned</em></MenuItem>
+                                        {teachers?.map((t) => (
+                                            <MenuItem key={t.id} value={t.id}>{t.name} ({t.email})</MenuItem>
+                                        ))}
+                                    </Select>
+                                </FormControl>
+                            </Grid>
+
+                            <Grid item xs={12}>
+                                <TextField
+                                    label="Description"
+                                    fullWidth
+                                    value={editSubject.description}
+                                    onChange={(e) => setEditSubject({ ...editSubject, description: e.target.value })}
+                                    multiline
+                                    minRows={2}
+                                />
+                            </Grid>
+
+                            <Grid item xs={12} sm={4}>
+                                <TextField
+                                    label="Total Sessions"
+                                    type="number"
+                                    fullWidth
+                                    value={editSubject.sessions}
+                                    onChange={(e) => setEditSubject({ ...editSubject, sessions: e.target.value })}
+                                />
+                            </Grid>
+                            <Grid item xs={12} sm={4}>
+                                <TextField
+                                    label="Max Marks"
+                                    type="number"
+                                    fullWidth
+                                    value={editSubject.maxMarks}
+                                    onChange={(e) => setEditSubject({ ...editSubject, maxMarks: Number(e.target.value) })}
+                                />
+                            </Grid>
+                            <Grid item xs={12} sm={4}>
+                                <TextField
+                                    label="Passing Marks"
+                                    type="number"
+                                    fullWidth
+                                    value={editSubject.passingMarks}
+                                    onChange={(e) => setEditSubject({ ...editSubject, passingMarks: Number(e.target.value) })}
+                                />
+                            </Grid>
+                        </Grid>
+                    </DialogContent>
+                    <DialogActions sx={{ p: 2 }}>
+                        <Button onClick={() => setOpenEditDialog(false)} color="inherit">Cancel</Button>
+                        <Button type="submit" variant="contained" disabled={editSaving}>
+                            {editSaving ? 'Saving...' : 'Save Changes'}
                         </Button>
                     </DialogActions>
                 </form>

@@ -47,6 +47,26 @@ const normalizeApiBaseUrl = (url) => {
 
 const API_URL = normalizeApiBaseUrl(process.env.REACT_APP_API_URL);
 
+const safeRedirectToRoleHome = () => {
+  try {
+    const userRaw = localStorage.getItem('user');
+    const user = userRaw ? JSON.parse(userRaw) : null;
+    const role = String(user?.role || '').trim();
+    const roleRoutes = {
+      Student: '/student/dashboard',
+      Teacher: '/teacher/dashboard',
+      Parent: '/parent/dashboard',
+      Admin: '/admin/dashboard',
+      SuperAdmin: '/superadmin/dashboard',
+      AccountsTeam: '/accounts/dashboard',
+      TransportTeam: '/transport/dashboard',
+    };
+    window.location.href = roleRoutes[role] || '/';
+  } catch {
+    window.location.href = '/';
+  }
+};
+
 // Create axios instance with default config
 const api = axios.create({
   baseURL: API_URL,
@@ -101,6 +121,11 @@ api.interceptors.response.use(
       localStorage.removeItem('user');
       window.location.href = '/login';
     }
+
+    if (error.response?.status === 403) {
+      // Logged in but not allowed for this route
+      safeRedirectToRoleHome();
+    }
     return Promise.reject(error);
   }
 );
@@ -141,6 +166,16 @@ export const teacherAPI = {
   updateProfile: (data) => api.put('/teacher/profile', data),
   getClasses: () => api.get('/teacher/classes'),
   getStudents: (classId) => api.get(`/teacher/classes/${classId}/students`),
+  createStudent: (data) => api.post('/teacher/students', data),
+  bulkImportStudents: (file, mode = 'skip') => {
+    const safeMode = String(mode || 'skip').toLowerCase() === 'update' ? 'update' : 'skip';
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post(`/teacher/students/import?mode=${encodeURIComponent(safeMode)}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 120000,
+    });
+  },
   markAttendance: (data) => api.post('/teacher/attendance', data),
   getAttendance: (classId, params) => {
     if (classId) return api.get(`/teacher/attendance/${classId}`, params ? { params } : undefined);
@@ -156,6 +191,22 @@ export const teacherAPI = {
   getExams: () => api.get('/teacher/exams'),
   getAssignments: () => api.get('/teacher/assignments'),
   getNotices: () => api.get('/teacher/notices'),
+};
+
+// Upload APIs
+export const uploadAPI = {
+  uploadProfile: (file) => {
+    const formData = new FormData();
+    formData.append('files', file);
+    return api.post('/upload/profile', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+  },
+  uploadDocuments: (files, folder) => {
+    const formData = new FormData();
+    files.forEach((file) => formData.append('files', file));
+    if (folder) formData.append('folder', folder);
+    return api.post('/upload/documents', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+  },
+  deleteFile: (fileKey) => api.delete(`/upload/${fileKey}`),
 };
 
 // Parent APIs

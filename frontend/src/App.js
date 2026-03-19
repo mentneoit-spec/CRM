@@ -90,6 +90,35 @@ import TeacherDashboard from './pages/teacher/TeacherDashboard';
 import AdminRegisterPage from './pages/admin/AdminRegisterPage';
 import AdminProfileModern from './pages/admin/AdminProfileModern';
 import ChooseUser from './pages/ChooseUser';
+import ProtectedRoute from './components/ProtectedRoute';
+
+const getStoredRoleHome = () => {
+  try {
+    const userRaw = localStorage.getItem('user');
+    const user = userRaw ? JSON.parse(userRaw) : null;
+    const role = user?.role;
+    switch (String(role || '').trim()) {
+      case 'Student':
+        return '/student/dashboard';
+      case 'Teacher':
+        return '/teacher/dashboard';
+      case 'Parent':
+        return '/parent/dashboard';
+      case 'Admin':
+        return '/admin/dashboard';
+      case 'SuperAdmin':
+        return '/superadmin/dashboard';
+      case 'AccountsTeam':
+        return '/accounts/dashboard';
+      case 'TransportTeam':
+        return '/transport/dashboard';
+      default:
+        return '/';
+    }
+  } catch {
+    return '/';
+  }
+};
 
 function App() {
   return (
@@ -106,85 +135,318 @@ function App() {
           <Route path="/connection-test" element={<ConnectionTest />} />
 
           {/* Modern Dashboards */}
-          <Route path="/superadmin/dashboard" element={<SuperAdminDashboard />} />
-          <Route path="/superadmin/colleges" element={<CollegesList />} />
-          <Route path="/superadmin/colleges/create" element={<CreateSchoolPage />} />
-          <Route path="/superadmin/colleges/edit" element={<EditSchoolPage />} />
-          <Route path="/superadmin/colleges/plan" element={<AssignPlanPage />} />
-          <Route path="/superadmin/colleges/storage" element={<StorageLimitPage />} />
-          <Route path="/superadmin/colleges/status" element={<CollegeStatusPage />} />
-          <Route path="/superadmin/colleges/delete" element={<CollegeDeletePage />} />
-          <Route path="/superadmin/colleges/domain" element={<CustomDomainPage />} />
-          <Route path="/superadmin/colleges/white-label" element={<WhiteLabelPage />} />
-          <Route path="/superadmin/admins" element={<AdminManagementPage />} />
-          <Route path="/superadmin/monitoring" element={<MonitoringPage />} />
-          <Route path="/superadmin/security" element={<SecurityPage />} />
-          <Route path="/superadmin/profile" element={<SuperAdminProfilePage />} />
-          <Route path="/superadmin/settings" element={<SuperAdminSettingsPage />} />
-          <Route path="/admin/dashboard" element={<AdminDashboardModern />} />
-          <Route path="/admin/teachers" element={<AdminTeachers />} />
-          <Route path="/admin/students" element={<AdminStudents />} />
-          <Route path="/admin/classes" element={<AdminClasses />} />
-          <Route path="/admin/admissions" element={<AdminAdmissions />} />
-          <Route path="/admin/subjects" element={<AdminSubjects />} />
-          <Route path="/admin/fees" element={<AdminFees />} />
-          <Route path="/admin/teams" element={<TeamManagement />} />
-          <Route path="/admin/transport" element={<AdminTransport />} />
-          <Route path="/admin/reports" element={<AdminReports />} />
-          <Route path="/admin/settings" element={<AdminSettings />} />
-          <Route path="/admin/profile" element={<AdminProfileModern />} />
-          <Route path="/teacher/dashboard" element={<TeacherDashboardModern />} />
-          <Route path="/teacher/classes" element={<TeacherClassesModern />} />
-          <Route path="/teacher/students" element={<TeacherStudentsModern />} />
-          <Route path="/teacher/attendance" element={<TeacherAttendance />} />
-          <Route path="/teacher/assignments" element={<TeacherAssignments />} />
-          <Route path="/teacher/exams" element={<TeacherExams />} />
-          <Route path="/teacher/reports" element={<TeacherReports />} />
-          <Route path="/teacher/profile" element={<TeacherProfileModern />} />
-          <Route path="/teacher/settings" element={<TeacherSettingsModern />} />
-          <Route path="/parent/dashboard" element={<ParentDashboardModern />} />
-          <Route path="/parent/attendance" element={<ParentAttendance />} />
-          <Route path="/parent/homework" element={<ParentHomework />} />
-          <Route path="/parent/exams" element={<ParentExamResults />} />
-          <Route path="/parent/fees" element={<ParentFees />} />
-          <Route path="/parent/payment-history" element={<ParentPaymentHistory />} />
-          <Route path="/parent/profile" element={<ParentProfile />} />
-          <Route path="/parent/settings" element={<ParentSettingsPage />} />
-          <Route path="/parent/feedback" element={<ParentFeedback />} />
+          <Route path="/dashboard" element={<Navigate to={getStoredRoleHome()} replace />} />
 
-          <Route path="/transport/dashboard" element={<TransportDashboard />} />
-          <Route path="/transport/routes" element={<RoutesPage />} />
-          <Route path="/transport/assign-bus" element={<AssignBusPage />} />
-          <Route path="/transport/attendance" element={<BusAttendancePage />} />
-          <Route path="/transport/fees" element={<BusFeesPage />} />
-          <Route path="/transport/reports" element={<TransportReports />} />
-          <Route path="/transport/profile" element={<TransportProfilePage />} />
-          <Route path="/transport/settings" element={<TransportSettingsPage />} />
+          <Route
+            path="/superadmin/dashboard"
+            element={<ProtectedRoute allowedRoles={["SuperAdmin"]} element={<SuperAdminDashboard />} />}
+          />
+          <Route
+            path="/superadmin/colleges"
+            element={<ProtectedRoute allowedRoles={["SuperAdmin"]} element={<CollegesList />} />}
+          />
+          <Route
+            path="/superadmin/colleges/create"
+            element={<ProtectedRoute allowedRoles={["SuperAdmin"]} element={<CreateSchoolPage />} />}
+          />
+          <Route
+            path="/superadmin/colleges/edit"
+            element={<ProtectedRoute allowedRoles={["SuperAdmin"]} element={<EditSchoolPage />} />}
+          />
+          <Route
+            path="/superadmin/colleges/plan"
+            element={<ProtectedRoute allowedRoles={["SuperAdmin"]} element={<AssignPlanPage />} />}
+          />
+          <Route
+            path="/superadmin/colleges/storage"
+            element={<ProtectedRoute allowedRoles={["SuperAdmin"]} element={<StorageLimitPage />} />}
+          />
+          <Route
+            path="/superadmin/colleges/status"
+            element={<ProtectedRoute allowedRoles={["SuperAdmin"]} element={<CollegeStatusPage />} />}
+          />
+          <Route
+            path="/superadmin/colleges/delete"
+            element={<ProtectedRoute allowedRoles={["SuperAdmin"]} element={<CollegeDeletePage />} />}
+          />
+          <Route
+            path="/superadmin/colleges/domain"
+            element={<ProtectedRoute allowedRoles={["SuperAdmin"]} element={<CustomDomainPage />} />}
+          />
+          <Route
+            path="/superadmin/colleges/white-label"
+            element={<ProtectedRoute allowedRoles={["SuperAdmin"]} element={<WhiteLabelPage />} />}
+          />
+          <Route
+            path="/superadmin/admins"
+            element={<ProtectedRoute allowedRoles={["SuperAdmin"]} element={<AdminManagementPage />} />}
+          />
+          <Route
+            path="/superadmin/monitoring"
+            element={<ProtectedRoute allowedRoles={["SuperAdmin"]} element={<MonitoringPage />} />}
+          />
+          <Route
+            path="/superadmin/security"
+            element={<ProtectedRoute allowedRoles={["SuperAdmin"]} element={<SecurityPage />} />}
+          />
+          <Route
+            path="/superadmin/profile"
+            element={<ProtectedRoute allowedRoles={["SuperAdmin"]} element={<SuperAdminProfilePage />} />}
+          />
+          <Route
+            path="/superadmin/settings"
+            element={<ProtectedRoute allowedRoles={["SuperAdmin"]} element={<SuperAdminSettingsPage />} />}
+          />
 
-          <Route path="/accounts/dashboard" element={<AccountsDashboard />} />
-          <Route path="/accounts/payments" element={<AllPaymentsPage />} />
-          <Route path="/accounts/razorpay" element={<RazorpayTransactions />} />
-          <Route path="/accounts/manual" element={<ManualPaymentEntry />} />
-          <Route path="/accounts/refunds" element={<RefundsPage />} />
-          <Route path="/accounts/reports" element={<PaymentReports />} />
-          <Route path="/accounts/export" element={<ExportCSVPage />} />
-          <Route path="/accounts/profile" element={<AccountsProfilePage />} />
-          <Route path="/accounts/settings" element={<AccountsSettingsPage />} />
+          <Route
+            path="/admin/dashboard"
+            element={<ProtectedRoute allowedRoles={["Admin", "SuperAdmin"]} element={<AdminDashboardModern />} />}
+          />
+          <Route
+            path="/admin/teachers"
+            element={<ProtectedRoute allowedRoles={["Admin", "SuperAdmin"]} element={<AdminTeachers />} />}
+          />
+          <Route
+            path="/admin/students"
+            element={<ProtectedRoute allowedRoles={["Admin", "SuperAdmin"]} element={<AdminStudents />} />}
+          />
+          <Route
+            path="/admin/classes"
+            element={<ProtectedRoute allowedRoles={["Admin", "SuperAdmin"]} element={<AdminClasses />} />}
+          />
+          <Route
+            path="/admin/admissions"
+            element={<ProtectedRoute allowedRoles={["Admin", "SuperAdmin"]} element={<AdminAdmissions />} />}
+          />
+          <Route
+            path="/admin/subjects"
+            element={<ProtectedRoute allowedRoles={["Admin", "SuperAdmin"]} element={<AdminSubjects />} />}
+          />
+          <Route
+            path="/admin/fees"
+            element={<ProtectedRoute allowedRoles={["Admin", "SuperAdmin"]} element={<AdminFees />} />}
+          />
+          <Route
+            path="/admin/teams"
+            element={<ProtectedRoute allowedRoles={["Admin", "SuperAdmin"]} element={<TeamManagement />} />}
+          />
+          <Route
+            path="/admin/transport"
+            element={<ProtectedRoute allowedRoles={["Admin", "SuperAdmin"]} element={<AdminTransport />} />}
+          />
+          <Route
+            path="/admin/reports"
+            element={<ProtectedRoute allowedRoles={["Admin", "SuperAdmin"]} element={<AdminReports />} />}
+          />
+          <Route
+            path="/admin/settings"
+            element={<ProtectedRoute allowedRoles={["Admin", "SuperAdmin"]} element={<AdminSettings />} />}
+          />
+          <Route
+            path="/admin/profile"
+            element={<ProtectedRoute allowedRoles={["Admin", "SuperAdmin"]} element={<AdminProfileModern />} />}
+          />
 
-          <Route path="/student/dashboard" element={<StudentDashboardModern />} />
-          <Route path="/student/homework" element={<StudentHomework />} />
-          <Route path="/student/attendance" element={<StudentAttendance />} />
-          <Route path="/student/tests" element={<StudentTests />} />
-          <Route path="/student/marks" element={<StudentMarks />} />
-          <Route path="/student/fees" element={<StudentFees />} />
-          <Route path="/student/profile" element={<StudentProfilePage />} />
-          <Route path="/student/settings" element={<StudentSettingsPage />} />
-          <Route path="/student/complaints" element={<StudentComplaint />} />
-          <Route path="/student/assignments" element={<StudentHomework />} />
-          <Route path="/student/results" element={<StudentMarks />} />
-          <Route path="/student/courses" element={<StudentTests />} />
-          <Route path="/student/transport" element={<StudentDashboardModern />} />
-          <Route path="/student/notices" element={<StudentDashboardModern />} />
+          <Route
+            path="/teacher/dashboard"
+            element={<ProtectedRoute allowedRoles={["Teacher"]} element={<TeacherDashboardModern />} />}
+          />
+          <Route
+            path="/teacher/classes"
+            element={<ProtectedRoute allowedRoles={["Teacher"]} element={<TeacherClassesModern />} />}
+          />
+          <Route
+            path="/teacher/students"
+            element={<ProtectedRoute allowedRoles={["Teacher"]} element={<TeacherStudentsModern />} />}
+          />
+          <Route
+            path="/teacher/attendance"
+            element={<ProtectedRoute allowedRoles={["Teacher"]} element={<TeacherAttendance />} />}
+          />
+          <Route
+            path="/teacher/assignments"
+            element={<ProtectedRoute allowedRoles={["Teacher"]} element={<TeacherAssignments />} />}
+          />
+          <Route
+            path="/teacher/exams"
+            element={<ProtectedRoute allowedRoles={["Teacher"]} element={<TeacherExams />} />}
+          />
+          <Route
+            path="/teacher/reports"
+            element={<ProtectedRoute allowedRoles={["Teacher"]} element={<TeacherReports />} />}
+          />
+          <Route
+            path="/teacher/profile"
+            element={<ProtectedRoute allowedRoles={["Teacher"]} element={<TeacherProfileModern />} />}
+          />
+          <Route
+            path="/teacher/settings"
+            element={<ProtectedRoute allowedRoles={["Teacher"]} element={<TeacherSettingsModern />} />}
+          />
+
+          <Route
+            path="/parent/dashboard"
+            element={<ProtectedRoute allowedRoles={["Parent"]} element={<ParentDashboardModern />} />}
+          />
+          <Route
+            path="/parent/attendance"
+            element={<ProtectedRoute allowedRoles={["Parent"]} element={<ParentAttendance />} />}
+          />
+          <Route
+            path="/parent/homework"
+            element={<ProtectedRoute allowedRoles={["Parent"]} element={<ParentHomework />} />}
+          />
+          <Route
+            path="/parent/exams"
+            element={<ProtectedRoute allowedRoles={["Parent"]} element={<ParentExamResults />} />}
+          />
+          <Route
+            path="/parent/fees"
+            element={<ProtectedRoute allowedRoles={["Parent"]} element={<ParentFees />} />}
+          />
+          <Route
+            path="/parent/payment-history"
+            element={<ProtectedRoute allowedRoles={["Parent"]} element={<ParentPaymentHistory />} />}
+          />
+          <Route
+            path="/parent/profile"
+            element={<ProtectedRoute allowedRoles={["Parent"]} element={<ParentProfile />} />}
+          />
+          <Route
+            path="/parent/settings"
+            element={<ProtectedRoute allowedRoles={["Parent"]} element={<ParentSettingsPage />} />}
+          />
+          <Route
+            path="/parent/feedback"
+            element={<ProtectedRoute allowedRoles={["Parent"]} element={<ParentFeedback />} />}
+          />
+
+          <Route
+            path="/transport/dashboard"
+            element={<ProtectedRoute allowedRoles={["TransportTeam", "Admin", "SuperAdmin"]} element={<TransportDashboard />} />}
+          />
+          <Route
+            path="/transport/routes"
+            element={<ProtectedRoute allowedRoles={["TransportTeam", "Admin", "SuperAdmin"]} element={<RoutesPage />} />}
+          />
+          <Route
+            path="/transport/assign-bus"
+            element={<ProtectedRoute allowedRoles={["TransportTeam", "Admin", "SuperAdmin"]} element={<AssignBusPage />} />}
+          />
+          <Route
+            path="/transport/attendance"
+            element={<ProtectedRoute allowedRoles={["TransportTeam", "Admin", "SuperAdmin"]} element={<BusAttendancePage />} />}
+          />
+          <Route
+            path="/transport/fees"
+            element={<ProtectedRoute allowedRoles={["TransportTeam", "Admin", "SuperAdmin"]} element={<BusFeesPage />} />}
+          />
+          <Route
+            path="/transport/reports"
+            element={<ProtectedRoute allowedRoles={["TransportTeam", "Admin", "SuperAdmin"]} element={<TransportReports />} />}
+          />
+          <Route
+            path="/transport/profile"
+            element={<ProtectedRoute allowedRoles={["TransportTeam", "Admin", "SuperAdmin"]} element={<TransportProfilePage />} />}
+          />
+          <Route
+            path="/transport/settings"
+            element={<ProtectedRoute allowedRoles={["TransportTeam", "Admin", "SuperAdmin"]} element={<TransportSettingsPage />} />}
+          />
+
+          <Route
+            path="/accounts/dashboard"
+            element={<ProtectedRoute allowedRoles={["AccountsTeam", "Admin", "SuperAdmin"]} element={<AccountsDashboard />} />}
+          />
+          <Route
+            path="/accounts/payments"
+            element={<ProtectedRoute allowedRoles={["AccountsTeam", "Admin", "SuperAdmin"]} element={<AllPaymentsPage />} />}
+          />
+          <Route
+            path="/accounts/razorpay"
+            element={<ProtectedRoute allowedRoles={["AccountsTeam", "Admin", "SuperAdmin"]} element={<RazorpayTransactions />} />}
+          />
+          <Route
+            path="/accounts/manual"
+            element={<ProtectedRoute allowedRoles={["AccountsTeam", "Admin", "SuperAdmin"]} element={<ManualPaymentEntry />} />}
+          />
+          <Route
+            path="/accounts/refunds"
+            element={<ProtectedRoute allowedRoles={["AccountsTeam", "Admin", "SuperAdmin"]} element={<RefundsPage />} />}
+          />
+          <Route
+            path="/accounts/reports"
+            element={<ProtectedRoute allowedRoles={["AccountsTeam", "Admin", "SuperAdmin"]} element={<PaymentReports />} />}
+          />
+          <Route
+            path="/accounts/export"
+            element={<ProtectedRoute allowedRoles={["AccountsTeam", "Admin", "SuperAdmin"]} element={<ExportCSVPage />} />}
+          />
+          <Route
+            path="/accounts/profile"
+            element={<ProtectedRoute allowedRoles={["AccountsTeam", "Admin", "SuperAdmin"]} element={<AccountsProfilePage />} />}
+          />
+          <Route
+            path="/accounts/settings"
+            element={<ProtectedRoute allowedRoles={["AccountsTeam", "Admin", "SuperAdmin"]} element={<AccountsSettingsPage />} />}
+          />
+
+          <Route
+            path="/student/dashboard"
+            element={<ProtectedRoute allowedRoles={["Student"]} element={<StudentDashboardModern />} />}
+          />
+          <Route
+            path="/student/homework"
+            element={<ProtectedRoute allowedRoles={["Student"]} element={<StudentHomework />} />}
+          />
+          <Route
+            path="/student/attendance"
+            element={<ProtectedRoute allowedRoles={["Student"]} element={<StudentAttendance />} />}
+          />
+          <Route
+            path="/student/tests"
+            element={<ProtectedRoute allowedRoles={["Student"]} element={<StudentTests />} />}
+          />
+          <Route
+            path="/student/marks"
+            element={<ProtectedRoute allowedRoles={["Student"]} element={<StudentMarks />} />}
+          />
+          <Route
+            path="/student/fees"
+            element={<ProtectedRoute allowedRoles={["Student"]} element={<StudentFees />} />}
+          />
+          <Route
+            path="/student/profile"
+            element={<ProtectedRoute allowedRoles={["Student"]} element={<StudentProfilePage />} />}
+          />
+          <Route
+            path="/student/settings"
+            element={<ProtectedRoute allowedRoles={["Student"]} element={<StudentSettingsPage />} />}
+          />
+          <Route
+            path="/student/complaints"
+            element={<ProtectedRoute allowedRoles={["Student"]} element={<StudentComplaint />} />}
+          />
+          <Route
+            path="/student/assignments"
+            element={<ProtectedRoute allowedRoles={["Student"]} element={<StudentHomework />} />}
+          />
+          <Route
+            path="/student/results"
+            element={<ProtectedRoute allowedRoles={["Student"]} element={<StudentMarks />} />}
+          />
+          <Route
+            path="/student/courses"
+            element={<ProtectedRoute allowedRoles={["Student"]} element={<StudentTests />} />}
+          />
+          <Route
+            path="/student/transport"
+            element={<ProtectedRoute allowedRoles={["Student"]} element={<StudentDashboardModern />} />}
+          />
+          <Route
+            path="/student/notices"
+            element={<ProtectedRoute allowedRoles={["Student"]} element={<StudentDashboardModern />} />}
+          />
 
           {/* Old Routes (backward compatibility) */}
           <Route path="/old-home" element={<Homepage />} />

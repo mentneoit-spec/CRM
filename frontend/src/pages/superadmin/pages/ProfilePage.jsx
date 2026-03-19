@@ -3,7 +3,7 @@ import { Button } from "../../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/card";
 import { Input } from "../../../components/ui/input";
 import SuperAdminLayout from "../layout/SuperAdminLayout";
-import { authAPI } from "../../../config/api";
+import { authAPI, uploadAPI } from "../../../config/api";
 
 function ProfilePage() {
   const [loading, setLoading] = useState(true);
@@ -14,6 +14,8 @@ function ProfilePage() {
 
   const [nameDraft, setNameDraft] = useState("");
   const [phoneDraft, setPhoneDraft] = useState("");
+  const [profileImageDraft, setProfileImageDraft] = useState("");
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -28,6 +30,7 @@ function ProfilePage() {
         setProfile(data);
         setNameDraft(data?.name || "");
         setPhoneDraft(data?.phone || "");
+        setProfileImageDraft(data?.profileImage || "");
       } catch (e) {
         if (!cancelled) setError(e?.message || "Failed to load profile");
       } finally {
@@ -51,7 +54,11 @@ function ProfilePage() {
 
     setSaving(true);
     try {
-      const res = await authAPI.updateMyProfile({ name: nameDraft.trim(), phone: phoneDraft.trim() });
+      const res = await authAPI.updateMyProfile({
+        name: nameDraft.trim(),
+        phone: phoneDraft.trim(),
+        profileImage: profileImageDraft,
+      });
       const updated = res?.data ?? null;
       setProfile((prev) => (updated ? ({ ...(prev || {}), ...updated }) : prev));
       setSuccess(res?.message || "Profile updated successfully.");
@@ -66,6 +73,7 @@ function ProfilePage() {
               ...user,
               name: nameDraft.trim(),
               phone: phoneDraft.trim(),
+              profileImage: profileImageDraft,
             })
           );
         }
@@ -98,6 +106,46 @@ function ProfilePage() {
             {loading ? <p className="text-sm text-gray-500">Loading…</p> : null}
             {error ? <p className="text-sm text-red-600">{error}</p> : null}
             {success ? <p className="text-sm text-green-600">{success}</p> : null}
+
+            <div className="flex items-center gap-4">
+              <div className="h-20 w-20 overflow-hidden rounded-full border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
+                {profileImageDraft ? (
+                  <img src={profileImageDraft} alt="Profile" className="h-full w-full object-cover" />
+                ) : null}
+              </div>
+              <div className="space-y-2">
+                <Input
+                  type="file"
+                  accept="image/*"
+                  disabled={uploading || saving || loading}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setError("");
+                    setSuccess("");
+                    setUploading(true);
+                    try {
+                      const res = await uploadAPI.uploadProfile(file);
+                      const url = res?.data?.url || null;
+                      if (!url) throw new Error('Upload succeeded but no URL returned');
+                      setProfileImageDraft(url);
+                      setSuccess('Profile photo uploaded. Click “Save Changes” to apply.');
+                    } catch (err) {
+                      setError(err?.message || 'Failed to upload photo');
+                    } finally {
+                      setUploading(false);
+                      try { e.target.value = ''; } catch { /* ignore */ }
+                    }
+                  }}
+                />
+                <Input
+                  placeholder="Profile image URL"
+                  value={profileImageDraft}
+                  onChange={(e) => setProfileImageDraft(e.target.value)}
+                  disabled={uploading || saving || loading}
+                />
+              </div>
+            </div>
 
             <div className="grid gap-2 md:grid-cols-2">
               <Input placeholder="Full name" value={nameDraft} onChange={(e) => setNameDraft(e.target.value)} />

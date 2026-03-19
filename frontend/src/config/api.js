@@ -25,6 +25,26 @@ const normalizeApiBaseUrl = (url) => {
 
 const API_BASE_URL = normalizeApiBaseUrl(process.env.REACT_APP_API_URL);
 
+const safeRedirectToRoleHome = () => {
+  try {
+    const userRaw = localStorage.getItem('user');
+    const user = userRaw ? JSON.parse(userRaw) : null;
+    const role = String(user?.role || '').trim();
+    const roleRoutes = {
+      Student: '/student/dashboard',
+      Teacher: '/teacher/dashboard',
+      Parent: '/parent/dashboard',
+      Admin: '/admin/dashboard',
+      SuperAdmin: '/superadmin/dashboard',
+      AccountsTeam: '/accounts/dashboard',
+      TransportTeam: '/transport/dashboard',
+    };
+    window.location.href = roleRoutes[role] || '/';
+  } catch {
+    window.location.href = '/';
+  }
+};
+
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: { 'Content-Type': 'application/json' },
@@ -58,6 +78,10 @@ api.interceptors.response.use(
       if (error.response.status === 401) {
         localStorage.clear();
         window.location.href = '/login';
+      }
+
+      if (error.response.status === 403) {
+        safeRedirectToRoleHome();
       }
       return Promise.reject(error.response.data || { message: 'Request failed' });
     }
@@ -123,6 +147,47 @@ export const adminAPI = {
   getStudent: (id) => api.get(`/admin/students/${id}`),
   updateStudent: (id, data) => api.put(`/admin/students/${id}`, data),
   deleteStudent: (id) => api.delete(`/admin/students/${id}`),
+  bulkImportStudents: (file, mode = 'skip') => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post(`/admin/students/import?mode=${encodeURIComponent(mode)}`, formData, {
+      // CSV imports can take longer than normal API calls.
+      timeout: 120000,
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  bulkImportTeachers: (file, mode = 'skip') => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post(`/admin/teachers/import?mode=${encodeURIComponent(mode)}`, formData, {
+      timeout: 120000,
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  bulkImportClasses: (file, mode = 'skip') => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post(`/admin/classes/import?mode=${encodeURIComponent(mode)}`, formData, {
+      timeout: 120000,
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  bulkImportSubjects: (file, mode = 'skip') => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post(`/admin/subjects/import?mode=${encodeURIComponent(mode)}`, formData, {
+      timeout: 120000,
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  bulkImportAdmissions: (file, mode = 'skip') => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post(`/admin/admissions/import?mode=${encodeURIComponent(mode)}`, formData, {
+      timeout: 120000,
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
   createClass: (data) => api.post('/admin/classes', data),
   getClasses: () => api.get('/admin/classes'),
   getClass: (id) => api.get(`/admin/classes/${id}`),

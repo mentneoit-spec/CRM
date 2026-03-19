@@ -51,6 +51,7 @@ const updateParentProfile = async (req, res) => {
     try {
         const parentId = req.user.id;
         const { name, email, phone, occupation, address } = req.body;
+        const profileImage = req.body.profileImage ?? req.body.profile_image;
 
         const parent = await prisma.parent.update({
             where: { userId: parentId },
@@ -60,13 +61,19 @@ const updateParentProfile = async (req, res) => {
                 phone,
                 occupation,
                 address,
+                profileImage: profileImage === undefined ? undefined : profileImage,
             },
         });
 
         // Also update user table
         await prisma.user.update({
             where: { id: parentId },
-            data: { name, email, phone },
+            data: {
+                name,
+                email,
+                phone,
+                profileImage: profileImage === undefined ? undefined : profileImage,
+            },
         });
 
         res.status(200).json({

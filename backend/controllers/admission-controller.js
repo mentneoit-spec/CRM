@@ -1,6 +1,27 @@
 const prisma = require('../lib/prisma');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
+const { Readable } = require('stream');
+const csvParser = require('csv-parser');
+
+const normalizeCsvKey = (key) => {
+    return String(key || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[\s/]+/g, '_')
+        .replace(/[^a-z0-9_]/g, '');
+};
+
+const pickCsvValue = (row, keys) => {
+    for (const key of keys) {
+        const normalized = normalizeCsvKey(key);
+        if (Object.prototype.hasOwnProperty.call(row, normalized)) {
+            const value = row[normalized];
+            if (value !== undefined && value !== null && String(value).trim() !== '') return String(value).trim();
+        }
+    }
+    return '';
+};
 
 function normalizeDate(value) {
     if (!value) return null;
@@ -14,6 +35,200 @@ async function generateAdmissionNumber(collegeId) {
     const suffix = crypto.randomBytes(3).toString('hex').toUpperCase();
     return `ADM${year}-${collegeId.slice(0, 4).toUpperCase()}-${suffix}`;
 }
+
+// ==================== ADMISSIONS (BULK IMPORT) ====================
+
+const bulkImportAdmissions = async (req, res) => {
+    try {
+        const collegeId = req.collegeId || req.query.collegeId;
+        if (!collegeId) {
+            return res.status(400).json({ success: false, message: 'College ID required' });
+        }
+
+        const mode = String(req.query.mode || 'skip').toLowerCase() === 'update' ? 'update' : 'skip';
+
+        const file = Array.isArray(req.files) ? req.files[0] : null;
+        if (!file) {
+            return res.status(400).json({ success: false, message: 'CSV file is required (field name: file)' });
+        }
+
+        const rows = [];
+        await new Promise((resolve, reject) => {
+            Readable.from([file.buffer])
+                .pipe(
+                    csvParser({
+                        mapHeaders: ({ header }) => normalizeCsvKey(header),
+                    })
+                )
+                .on('data', (data) => rows.push(data))
+                .on('end', resolve)
+                .on('error', reject);
+        });
+
+        let created = 0;
+        let updated = 0;
+        let skipped = 0;
+        const errors = [];
+
+        const allowedStatus = new Set(['pending', 'approved', 'rejected']);
+
+        for (let index = 0; index < rows.length; index++) {
+            const raw = rows[index] || {};
+            const rowNumber = index + 2;
+            try {
+                const admissionNumber = pickCsvValue(raw, ['admission_number', 'admissionnumber', 'id']);
+                const applicantName = pickCsvValue(raw, ['applicant_name', 'student_name', 'studentname', 'name']);
+                const applicantEmail = pickCsvValue(raw, ['applicant_email', 'email']);
+                const applicantPhone = pickCsvValue(raw, ['applicant_phone', 'phone', 'mobile', 'contact']);
+                const appliedFor = pickCsvValue(raw, ['applied_for', 'class_applied', 'class']);
+                const dateOfBirthRaw = pickCsvValue(raw, ['date_of_birth', 'dob']);
+                const gender = pickCsvValue(raw, ['gender']);
+                const fatherName = pickCsvValue(raw, ['father_name', 'fathername']);
+                const motherName = pickCsvValue(raw, ['mother_name', 'mothername']);
+                const address = pickCsvValue(raw, ['address']);
+                const previousSchool = pickCsvValue(raw, ['previous_school', 'school']);
+                const previousGrade = pickCsvValue(raw, ['previous_grade', 'grade']);
+                const documents = pickCsvValue(raw, ['documents']);
+                const comments = pickCsvValue(raw, ['comments', 'comment', 'notes']);
+                const statusRaw = pickCsvValue(raw, ['status']);
+
+                if (!applicantName || !applicantEmail || !applicantPhone || !address) {
+                    errors.push({ row: rowNumber, admissionNumber: admissionNumber || null, message: 'Missing required: applicantName, applicantEmail, applicantPhone, and/or address' });
+                    continue;
+                }
+
+                const dob = normalizeDate(dateOfBirthRaw);
+                if (dateOfBirthRaw && !dob) {
+                    errors.push({ row: rowNumber, admissionNumber: admissionNumber || null, message: `Invalid dateOfBirth: ${dateOfBirthRaw}` });
+                    continue;
+                }
+
+                let status = 'pending';
+                if (statusRaw) {
+                    const normalizedStatus = String(statusRaw).trim().toLowerCase();
+                    if (!allowedStatus.has(normalizedStatus)) {
+                        errors.push({ row: rowNumber, admissionNumber: admissionNumber || null, message: `Invalid status: ${statusRaw}. Allowed: pending, approved, rejected` });
+                        continue;
+                    }
+                    status = normalizedStatus;
+                }
+
+                let existing = null;
+                if (admissionNumber) {
+                    existing = await prisma.admission.findFirst({ where: { collegeId, admissionNumber } });
+                }
+
+                if (existing) {
+                    if (mode === 'skip') {
+                        skipped++;
+                        continue;
+                    }
+
+                    const updateData = {
+                        applicantName,
+                        applicantEmail,
+                        applicantPhone,
+                        address,
+                    };
+                    if (appliedFor) updateData.appliedFor = appliedFor;
+                    if (dob !== null) updateData.dateOfBirth = dob;
+                    if (gender) updateData.gender = gender;
+                    if (fatherName) updateData.fatherName = fatherName;
+                    if (motherName) updateData.motherName = motherName;
+                    if (previousSchool) updateData.previousSchool = previousSchool;
+                    if (previousGrade) updateData.previousGrade = previousGrade;
+                    if (documents) updateData.documents = documents;
+                    if (comments) updateData.comments = comments;
+                    if (statusRaw) updateData.status = status;
+
+                    await prisma.admission.update({ where: { id: existing.id }, data: updateData });
+                    updated++;
+                    continue;
+                }
+
+                if (admissionNumber) {
+                    await prisma.admission.create({
+                        data: {
+                            admissionNumber,
+                            applicantName,
+                            applicantEmail,
+                            applicantPhone,
+                            appliedFor: appliedFor || null,
+                            dateOfBirth: dob,
+                            gender: gender || null,
+                            fatherName: fatherName || null,
+                            motherName: motherName || null,
+                            address,
+                            previousSchool: previousSchool || null,
+                            previousGrade: previousGrade || null,
+                            documents: documents || null,
+                            comments: comments || null,
+                            collegeId,
+                            status,
+                        },
+                    });
+                    created++;
+                    continue;
+                }
+
+                // Generate admissionNumber with retry on unique collision
+                for (let attempt = 0; attempt < 3; attempt++) {
+                    const generated = await generateAdmissionNumber(collegeId);
+                    try {
+                        await prisma.admission.create({
+                            data: {
+                                admissionNumber: generated,
+                                applicantName,
+                                applicantEmail,
+                                applicantPhone,
+                                appliedFor: appliedFor || null,
+                                dateOfBirth: dob,
+                                gender: gender || null,
+                                fatherName: fatherName || null,
+                                motherName: motherName || null,
+                                address,
+                                previousSchool: previousSchool || null,
+                                previousGrade: previousGrade || null,
+                                documents: documents || null,
+                                comments: comments || null,
+                                collegeId,
+                                status,
+                            },
+                        });
+                        created++;
+                        break;
+                    } catch (err) {
+                        if (err?.code === 'P2002' && attempt < 2) continue;
+                        throw err;
+                    }
+                }
+            } catch (rowError) {
+                errors.push({
+                    row: rowNumber,
+                    admissionNumber: pickCsvValue(raw, ['admission_number', 'admissionnumber', 'id']) || null,
+                    message: rowError?.message || 'Row import failed',
+                });
+            }
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Bulk import completed',
+            data: {
+                mode,
+                totalRows: rows.length,
+                created,
+                updated,
+                skipped,
+                errorCount: errors.length,
+                errors,
+            },
+        });
+    } catch (error) {
+        console.error('Bulk import admissions error:', error);
+        res.status(500).json({ success: false, message: 'Error importing admissions' });
+    }
+};
 
 // ==================== ADMISSION FORM ====================
 
@@ -452,6 +667,7 @@ const getAdmissionStats = async (req, res) => {
 
 module.exports = {
     createAdmissionForm,
+    bulkImportAdmissions,
     getAllAdmissions,
     getAdmissionDetails,
     updateAdmissionDetails,

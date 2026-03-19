@@ -12,12 +12,34 @@ const memoryVerifyStore = new Map();
 
 // Initialize Redis client
 const initRedis = async () => {
+    const redisEnabledEnv = process.env.REDIS_ENABLED;
+    const redisEnabled = redisEnabledEnv === undefined
+        ? true
+        : !['0', 'false', 'no', 'off'].includes(String(redisEnabledEnv).trim().toLowerCase());
+
+    if (!redisEnabled) {
+        if (process.env.NODE_ENV !== 'test') {
+            console.log('⏭ Redis disabled via REDIS_ENABLED=false');
+        }
+        isRedisConnected = false;
+        redisClient = null;
+        return null;
+    }
+
     try {
+        // If initRedis is called twice, avoid recreating a client.
+        if (redisClient && (redisClient.isOpen || redisClient.isReady)) {
+            return redisClient;
+        }
+
+        const maxRetriesEnv = process.env.REDIS_MAX_RETRIES;
+        const maxRetries = Number.isFinite(Number(maxRetriesEnv)) ? Number(maxRetriesEnv) : 10;
+
         redisClient = redis.createClient({
             url: process.env.REDIS_URL || 'redis://localhost:6379',
             socket: {
                 reconnectStrategy: (retries) => {
-                    if (retries > 10) {
+                    if (retries > maxRetries) {
                         console.error('Redis: Max reconnection attempts reached');
                         return new Error('Redis connection failed');
                     }
@@ -59,6 +81,15 @@ const initRedis = async () => {
             console.error('Redis initialization error:', error);
         }
         isRedisConnected = false;
+        // Ensure callers can safely call closeRedis() later.
+        try {
+            if (redisClient && redisClient.isOpen) {
+                await redisClient.quit();
+            }
+        } catch (_) {
+            // Ignore
+        }
+        redisClient = null;
         return null;
     }
 };
@@ -340,12 +371,27 @@ const invalidateUserCache = async (userId) => {
 // Graceful shutdown
 const closeRedis = async () => {
     try {
-        if (redisClient) {
-            await redisClient.quit();
+        if (!redisClient) return;
+
+        // node-redis exposes isOpen/isReady; avoid QUIT on a closed client.
+        if (redisClient.isOpen === false) {
+            redisClient = null;
+            isRedisConnected = false;
+            return;
+        }
+
+        await redisClient.quit();
+        if (process.env.NODE_ENV !== 'test') {
             console.log('✓ Redis connection closed');
         }
     } catch (error) {
-        console.error('Redis close error:', error);
+        // Swallow shutdown errors (e.g. ClientClosedError) to avoid unhandled rejections.
+        if (process.env.NODE_ENV !== 'test') {
+            console.warn('Redis close error:', error?.message || error);
+        }
+    } finally {
+        redisClient = null;
+        isRedisConnected = false;
     }
 };
 

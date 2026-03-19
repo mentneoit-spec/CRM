@@ -12,6 +12,7 @@ import {
 } from '@mui/icons-material';
 import DashboardLayout from '../../components/DashboardLayout';
 import { fetchTeachers, createTeacher, clearAdminError } from '../../redux/slices/adminSlice';
+import BulkTeacherImportDialog from '../../components/admin/BulkTeacherImportDialog';
 
 const AdminTeachers = () => {
     const dispatch = useDispatch();
@@ -24,6 +25,7 @@ const AdminTeachers = () => {
 
     // Dialog State
     const [openAddDialog, setOpenAddDialog] = useState(false);
+    const [openImportDialog, setOpenImportDialog] = useState(false);
     const [newTeacher, setNewTeacher] = useState({
         name: '', email: '', phone: '', password: '',
         qualification: '', experience: '', specialization: ''
@@ -72,6 +74,9 @@ const AdminTeachers = () => {
                 <Box>
                     <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => dispatch(fetchTeachers())} sx={{ mr: 2 }}>
                         Refresh
+                    </Button>
+                    <Button variant="outlined" onClick={() => setOpenImportDialog(true)} sx={{ mr: 2 }}>
+                        Import CSV
                     </Button>
                     <Button
                         variant="contained"
@@ -199,6 +204,8 @@ const AdminTeachers = () => {
                     </DialogActions>
                 </form>
             </Dialog>
+
+            <BulkTeacherImportDialog open={openImportDialog} onClose={() => setOpenImportDialog(false)} />
         </DashboardLayout>
     );
 };

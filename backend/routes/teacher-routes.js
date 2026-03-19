@@ -6,6 +6,8 @@ const {
     getMyClasses,
     getClassStudents,
     getMyStudents,
+    createStudentForTeacher,
+    bulkImportStudentsForTeacher,
     markAttendance,
     getAttendanceReport,
     uploadMarks,
@@ -21,6 +23,7 @@ const {
     getMyNotices,
 } = require('../controllers/teacher-controller');
 const { authorize, authorizeCollege } = require('../middleware/auth');
+const { uploadMemory } = require('../utils/file-upload-service');
 
 // ==================== DASHBOARD & PROFILE ====================
 router.get('/dashboard', authorize('Teacher'), authorizeCollege, getDashboard);
@@ -31,6 +34,16 @@ router.put('/profile', authorize('Teacher'), authorizeCollege, updateTeacherProf
 router.get('/classes', authorize('Teacher'), authorizeCollege, getMyClasses);
 router.get('/classes/:classId/students', authorize('Teacher'), authorizeCollege, getClassStudents);
 router.get('/students', authorize('Teacher'), authorizeCollege, getMyStudents);
+
+// Teacher can add students manually and bulk import
+router.post('/students', authorize('Teacher'), authorizeCollege, createStudentForTeacher);
+router.post(
+    '/students/import',
+    authorize('Teacher'),
+    authorizeCollege,
+    uploadMemory('file', 1, 'spreadsheet'),
+    bulkImportStudentsForTeacher
+);
 
 // ==================== ATTENDANCE ====================
 router.post('/attendance', authorize('Teacher'), authorizeCollege, markAttendance);

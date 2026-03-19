@@ -1,4 +1,7 @@
 const prisma = require('../lib/prisma');
+const bcrypt = require('bcryptjs');
+const csvParser = require('csv-parser');
+const { Readable } = require('stream');
 
 // ==================== TEACHER PROFILE ====================
 
@@ -41,6 +44,7 @@ const updateTeacherProfile = async (req, res) => {
     try {
         const teacherId = req.user.id;
         const { name, phone, qualification, experience, specialization } = req.body;
+        const profileImage = req.body.profileImage ?? req.body.profile_image;
 
         const teacher = await prisma.teacher.update({
             where: { userId: teacherId },
@@ -50,13 +54,18 @@ const updateTeacherProfile = async (req, res) => {
                 qualification,
                 experience: experience ? parseInt(experience) : undefined,
                 specialization,
+                profileImage: profileImage === undefined ? undefined : profileImage,
             },
         });
 
         // Also update user
         await prisma.user.update({
             where: { id: teacherId },
-            data: { name, phone },
+            data: {
+                name,
+                phone,
+                profileImage: profileImage === undefined ? undefined : profileImage,
+            },
         });
 
         res.status(200).json({
@@ -118,6 +127,362 @@ const getMyClasses = async (req, res) => {
 };
 
 // Get my students (across accessible classes) or filtered by classId
+
+// ==================== STUDENT MANAGEMENT (TEACHER) ====================
+
+const normalizeCsvKey = (key) => {
+    return String(key || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[\s/]+/g, '_')
+        .replace(/[^a-z0-9_]/g, '');
+};
+
+const pickCsvValue = (row, keys) => {
+    for (const key of keys) {
+        const normalized = normalizeCsvKey(key);
+        if (Object.prototype.hasOwnProperty.call(row, normalized)) {
+            const value = row[normalized];
+            if (value !== undefined && value !== null && String(value).trim() !== '') return String(value).trim();
+        }
+    }
+    return '';
+};
+
+const getTeacherAndAccessibleClasses = async ({ teacherUserId, collegeId }) => {
+    const teacher = await prisma.teacher.findUnique({ where: { userId: teacherUserId } });
+    if (!teacher) {
+        return { teacher: null, classes: [] };
+    }
+
+    const classes = await prisma.sclass.findMany({
+        where: {
+            collegeId,
+            OR: [
+                { classTeacherId: teacher.id },
+                {
+                    Subjects: {
+                        some: { teacherId: teacher.id },
+                    },
+                },
+            ],
+        },
+        select: {
+            id: true,
+            sclassName: true,
+            sclassCode: true,
+        },
+        orderBy: { sclassName: 'asc' },
+    });
+
+    return { teacher, classes };
+};
+
+const createStudentForTeacher = async (req, res) => {
+    try {
+        const collegeId = req.collegeId;
+        const teacherUserId = req.user.id;
+
+        const { name, studentId, email, phone, password, sclassId, sectionId } = req.body || {};
+        const profileImage = req.body?.profileImage ?? req.body?.profile_image;
+
+        if (!name || !studentId || !sclassId) {
+            return res.status(400).json({ success: false, message: 'Required fields missing: name, studentId, sclassId' });
+        }
+
+        const { teacher, classes } = await getTeacherAndAccessibleClasses({ teacherUserId, collegeId });
+        if (!teacher) {
+            return res.status(404).json({ success: false, message: 'Teacher not found' });
+        }
+
+        const accessibleClassIds = new Set(classes.map((c) => c.id));
+        if (!accessibleClassIds.has(String(sclassId))) {
+            return res.status(403).json({ success: false, message: 'Not allowed to add students to this class' });
+        }
+
+        const existing = await prisma.student.findFirst({ where: { collegeId, studentId: String(studentId).trim() } });
+        if (existing) {
+            return res.status(400).json({ success: false, message: 'Student ID already exists' });
+        }
+
+        let resolvedSectionId = null;
+        if (sectionId) {
+            const section = await prisma.section.findFirst({
+                where: { id: String(sectionId), collegeId, sclassId: String(sclassId) },
+            });
+            if (!section) {
+                return res.status(400).json({ success: false, message: 'Invalid sectionId for this class' });
+            }
+            resolvedSectionId = section.id;
+        }
+
+        const fallbackPassword = String(process.env.DEFAULT_STUDENT_PASSWORD || '').trim() || 'Student@123';
+        const effectivePassword = String(password || '').trim() || fallbackPassword;
+        const hashedPassword = await bcrypt.hash(effectivePassword, 10);
+
+        const result = await prisma.$transaction(async (tx) => {
+            const user = await tx.user.create({
+                data: {
+                    name: String(name).trim(),
+                    email: email ? String(email).trim() : null,
+                    phone: phone ? String(phone).trim() : null,
+                    password: hashedPassword,
+                    profileImage: profileImage ? String(profileImage).trim() : null,
+                    role: 'Student',
+                    collegeId,
+                    isActive: true,
+                },
+            });
+
+            const student = await tx.student.create({
+                data: {
+                    name: String(name).trim(),
+                    studentId: String(studentId).trim(),
+                    email: email ? String(email).trim() : null,
+                    phone: phone ? String(phone).trim() : null,
+                    password: hashedPassword,
+                    profileImage: profileImage ? String(profileImage).trim() : null,
+                    collegeId,
+                    sclassId: String(sclassId),
+                    sectionId: resolvedSectionId,
+                    userId: user.id,
+                    isActive: true,
+                },
+                include: {
+                    section: true,
+                    sclass: true,
+                },
+            });
+
+            return { user, student };
+        });
+
+        res.status(201).json({ success: true, message: 'Student created successfully', data: result });
+    } catch (error) {
+        console.error('Teacher create student error:', error);
+        res.status(500).json({ success: false, message: 'Error creating student' });
+    }
+};
+
+const bulkImportStudentsForTeacher = async (req, res) => {
+    try {
+        const collegeId = req.collegeId;
+        const teacherUserId = req.user.id;
+
+        const mode = String(req.query.mode || 'skip').toLowerCase() === 'update' ? 'update' : 'skip';
+
+        const file = Array.isArray(req.files) ? req.files[0] : null;
+        if (!file) {
+            return res.status(400).json({ success: false, message: 'CSV file is required (field name: file)' });
+        }
+
+        const { teacher, classes } = await getTeacherAndAccessibleClasses({ teacherUserId, collegeId });
+        if (!teacher) {
+            return res.status(404).json({ success: false, message: 'Teacher not found' });
+        }
+
+        const accessibleClassIds = new Set(classes.map((c) => c.id));
+        const classByName = new Map(classes.map((c) => [String(c.sclassName || '').toLowerCase(), c]));
+        const classByCode = new Map(classes.map((c) => [String(c.sclassCode || '').toLowerCase(), c]));
+
+        const rows = [];
+        await new Promise((resolve, reject) => {
+            Readable.from([file.buffer])
+                .pipe(csvParser({ mapHeaders: ({ header }) => normalizeCsvKey(header) }))
+                .on('data', (data) => rows.push(data))
+                .on('end', resolve)
+                .on('error', reject);
+        });
+
+        let created = 0;
+        let updated = 0;
+        let skipped = 0;
+        let defaultPasswordUsed = 0;
+        const errors = [];
+
+        const fallbackPassword = String(process.env.DEFAULT_STUDENT_PASSWORD || '').trim() || 'Student@123';
+        const allowedBoards = new Set(['STATE', 'CBSE', 'IGCSE', 'IB']);
+
+        for (let index = 0; index < rows.length; index++) {
+            const raw = rows[index] || {};
+            const rowNumber = index + 2;
+
+            try {
+                const studentId = pickCsvValue(raw, ['student_id', 'studentid', 'roll_no', 'roll', 'id']);
+                const name = pickCsvValue(raw, ['name', 'student_name', 'full_name']);
+                const email = pickCsvValue(raw, ['email', 'student_email']);
+                const phone = pickCsvValue(raw, ['phone', 'mobile', 'contact']);
+                const password = pickCsvValue(raw, ['password', 'temp_password', 'temporary_password']);
+                const classIdRaw = pickCsvValue(raw, ['class_id', 'sclass_id', 'sclassid']);
+                const className = pickCsvValue(raw, ['class', 'class_name', 'sclass', 'sclass_name']);
+                const classCode = pickCsvValue(raw, ['class_code', 'sclass_code']);
+                const sectionName = pickCsvValue(raw, ['section', 'section_name']);
+                const parentName = pickCsvValue(raw, ['parent_name', 'guardian_name']);
+                const parentPhone = pickCsvValue(raw, ['parent_phone', 'guardian_phone']);
+                const boardRaw = pickCsvValue(raw, ['board']);
+                const group = pickCsvValue(raw, ['group']);
+                const integratedCourse = pickCsvValue(raw, ['integrated_course', 'integratedcourse']);
+                const profileImage = pickCsvValue(raw, ['profile_image', 'profileimage']);
+
+                if (!studentId || !name) {
+                    errors.push({ row: rowNumber, studentId: studentId || null, message: 'Missing required: studentId and/or name' });
+                    continue;
+                }
+
+                let sclass = null;
+                if (classIdRaw) {
+                    if (!accessibleClassIds.has(classIdRaw)) {
+                        errors.push({ row: rowNumber, studentId, message: `Not allowed for classId: ${classIdRaw}` });
+                        continue;
+                    }
+                    sclass = classes.find((c) => c.id === classIdRaw) || null;
+                } else if (classCode) {
+                    sclass = classByCode.get(String(classCode).toLowerCase()) || null;
+                } else if (className) {
+                    sclass = classByName.get(String(className).toLowerCase()) || null;
+                }
+
+                if (!sclass) {
+                    errors.push({ row: rowNumber, studentId, message: 'Missing/invalid Class (must be one of your assigned classes)' });
+                    continue;
+                }
+
+                let section = null;
+                if (sectionName) {
+                    section = await prisma.section.findFirst({
+                        where: { collegeId, sclassId: sclass.id, sectionName },
+                    });
+                    if (!section) {
+                        errors.push({ row: rowNumber, studentId, message: `Section not found: ${sectionName} (Class: ${sclass.sclassName})` });
+                        continue;
+                    }
+                }
+
+                let board = null;
+                if (boardRaw) {
+                    const normalizedBoard = String(boardRaw).trim().toUpperCase();
+                    if (!allowedBoards.has(normalizedBoard)) {
+                        errors.push({ row: rowNumber, studentId, message: `Invalid board: ${boardRaw}. Allowed: ${Array.from(allowedBoards).join(', ')}` });
+                        continue;
+                    }
+                    board = normalizedBoard;
+                }
+
+                const existingStudent = await prisma.student.findFirst({ where: { collegeId, studentId } });
+                if (existingStudent) {
+                    const canTouchExisting = !existingStudent.sclassId || accessibleClassIds.has(existingStudent.sclassId);
+                    if (!canTouchExisting) {
+                        errors.push({ row: rowNumber, studentId, message: 'Not allowed to update a student outside your classes' });
+                        continue;
+                    }
+
+                    if (mode === 'skip') {
+                        skipped++;
+                        continue;
+                    }
+
+                    const updateData = { name };
+                    if (email) updateData.email = email;
+                    if (phone) updateData.phone = phone;
+                    if (parentName) updateData.parentName = parentName;
+                    if (parentPhone) updateData.parentPhone = parentPhone;
+                    if (profileImage) updateData.profileImage = profileImage;
+                    if (board) updateData.board = board;
+                    if (integratedCourse) updateData.integratedCourse = integratedCourse;
+                    if (group) updateData.group = group;
+                    updateData.sclassId = sclass.id;
+                    if (section) updateData.sectionId = section.id;
+
+                    await prisma.student.update({ where: { id: existingStudent.id }, data: updateData });
+
+                    if (existingStudent.userId) {
+                        const userUpdate = { name };
+                        if (email) userUpdate.email = email;
+                        if (phone) userUpdate.phone = phone;
+                        if (profileImage) userUpdate.profileImage = profileImage;
+                        await prisma.user.update({ where: { id: existingStudent.userId }, data: userUpdate });
+                    }
+
+                    if (password) {
+                        const hashed = await bcrypt.hash(password, 10);
+                        await prisma.student.update({ where: { id: existingStudent.id }, data: { password: hashed } });
+                        if (existingStudent.userId) {
+                            await prisma.user.update({ where: { id: existingStudent.userId }, data: { password: hashed } });
+                        }
+                    }
+
+                    updated++;
+                    continue;
+                }
+
+                const effectivePassword = password || fallbackPassword;
+                if (!password) defaultPasswordUsed++;
+                const hashedPassword = await bcrypt.hash(effectivePassword, 10);
+
+                await prisma.$transaction(async (tx) => {
+                    const user = await tx.user.create({
+                        data: {
+                            name,
+                            email: email || null,
+                            phone: phone || null,
+                            password: hashedPassword,
+                            profileImage: profileImage || null,
+                            role: 'Student',
+                            collegeId,
+                            isActive: true,
+                        },
+                    });
+
+                    await tx.student.create({
+                        data: {
+                            name,
+                            studentId,
+                            email: email || null,
+                            phone: phone || null,
+                            password: hashedPassword,
+                            parentName: parentName || null,
+                            parentPhone: parentPhone || null,
+                            profileImage: profileImage || null,
+                            board,
+                            integratedCourse: integratedCourse || null,
+                            group: group || null,
+                            collegeId,
+                            sclassId: sclass.id,
+                            sectionId: section ? section.id : null,
+                            userId: user.id,
+                            isActive: true,
+                        },
+                    });
+                });
+
+                created++;
+            } catch (rowError) {
+                errors.push({
+                    row: rowNumber,
+                    studentId: pickCsvValue(raw, ['student_id', 'studentid', 'roll_no', 'roll', 'id']) || null,
+                    message: rowError?.message || 'Row import failed',
+                });
+            }
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Student import completed',
+            data: {
+                totalRows: rows.length,
+                created,
+                updated,
+                skipped,
+                defaultPasswordUsed,
+                errorCount: errors.length,
+                errors,
+            },
+        });
+    } catch (error) {
+        console.error('Teacher bulk import students error:', error);
+        res.status(500).json({ success: false, message: 'Error importing students' });
+    }
+};
 const getMyStudents = async (req, res) => {
     try {
         const collegeId = req.collegeId;
@@ -844,6 +1209,8 @@ module.exports = {
     getMyClasses,
     getClassStudents,
     getMyStudents,
+    createStudentForTeacher,
+    bulkImportStudentsForTeacher,
     markAttendance,
     getAttendanceReport,
     uploadMarks,

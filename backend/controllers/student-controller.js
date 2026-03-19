@@ -39,20 +39,30 @@ const getStudentProfile = async (req, res) => {
 const updateStudentProfile = async (req, res) => {
     try {
         const studentId = req.user.id;
-        const { name, phone } = req.body;
+        const { name, phone, board, group } = req.body;
+        const integratedCourse = req.body.integratedCourse ?? req.body.integrated_course;
+        const profileImage = req.body.profileImage ?? req.body.profile_image;
 
         const student = await prisma.student.update({
             where: { userId: studentId },
             data: {
                 name,
                 phone,
+                profileImage: profileImage === undefined ? undefined : profileImage,
+                board: board === undefined ? undefined : board,
+                integratedCourse: integratedCourse === undefined ? undefined : integratedCourse,
+                group: group === undefined ? undefined : group,
             },
         });
 
         // Also update user
         await prisma.user.update({
             where: { id: studentId },
-            data: { name, phone },
+            data: {
+                name,
+                phone,
+                profileImage: profileImage === undefined ? undefined : profileImage,
+            },
         });
 
         res.status(200).json({

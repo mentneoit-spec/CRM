@@ -12,6 +12,7 @@ import {
 } from '@mui/icons-material';
 import DashboardLayout from '../../components/DashboardLayout';
 import { fetchClasses, createClass, fetchTeachers } from '../../redux/slices/adminSlice';
+import BulkClassImportDialog from '../../components/admin/BulkClassImportDialog';
 
 const AdminClasses = () => {
     const dispatch = useDispatch();
@@ -24,6 +25,7 @@ const AdminClasses = () => {
 
     // Dialog State
     const [openAddDialog, setOpenAddDialog] = useState(false);
+    const [openImportDialog, setOpenImportDialog] = useState(false);
     const [newClass, setNewClass] = useState({
         sclassName: '', sclassCode: '', academicYear: new Date().getFullYear().toString(),
         description: '', classTeacherId: ''
@@ -67,6 +69,9 @@ const AdminClasses = () => {
                 <Box>
                     <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => dispatch(fetchClasses())} sx={{ mr: 2 }}>
                         Refresh
+                    </Button>
+                    <Button variant="outlined" onClick={() => setOpenImportDialog(true)} sx={{ mr: 2 }}>
+                        Import CSV
                     </Button>
                     <Button variant="contained" color="primary" startIcon={<AddIcon />} onClick={() => setOpenAddDialog(true)}>
                         Add New Class
@@ -197,6 +202,8 @@ const AdminClasses = () => {
                     </DialogActions>
                 </form>
             </Dialog>
+
+            <BulkClassImportDialog open={openImportDialog} onClose={() => setOpenImportDialog(false)} />
         </DashboardLayout>
     );
 };

@@ -2,6 +2,8 @@ const prisma = require('../lib/prisma');
 const bcrypt = require('bcryptjs');
 const { generateToken } = require('../utils/jwt');
 const crypto = require('crypto');
+const { Readable } = require('stream');
+const csvParser = require('csv-parser');
 
 // ==================== COLLEGE SETTINGS / BRANDING ====================
 
@@ -292,7 +294,22 @@ const createTeacher = async (req, res) => {
 const createStudent = async (req, res) => {
     try {
         const collegeId = req.collegeId || req.query.collegeId;
-        const { name, studentId, email, phone, password, sclassId, sectionId, parentName, parentPhone } = req.body;
+        const {
+            name,
+            studentId,
+            email,
+            phone,
+            password,
+            sclassId,
+            sectionId,
+            parentName,
+            parentPhone,
+            board,
+            group,
+        } = req.body;
+
+        const integratedCourse = req.body.integratedCourse ?? req.body.integrated_course;
+        const profileImage = req.body.profileImage ?? req.body.profile_image;
 
         if (!name || !studentId || !password || !collegeId || !sclassId) {
             return res.status(400).json({ success: false, message: 'Required fields missing' });
@@ -342,6 +359,10 @@ const createStudent = async (req, res) => {
                 password: hashedPassword,
                 parentName,
                 parentPhone,
+                profileImage,
+                board,
+                integratedCourse,
+                group,
                 collegeId,
                 sclassId,
                 sectionId: sectionId || null,
@@ -990,8 +1011,13 @@ const updateStudent = async (req, res) => {
             sectionId,
             parentName,
             parentPhone,
+            board,
+            group,
             isActive,
         } = req.body;
+
+        const integratedCourse = req.body.integratedCourse ?? req.body.integrated_course;
+        const profileImage = req.body.profileImage ?? req.body.profile_image;
 
         const student = await prisma.student.findFirst({ where: { id, collegeId } });
         if (!student) {
@@ -1004,6 +1030,10 @@ const updateStudent = async (req, res) => {
                 name,
                 email,
                 phone,
+                profileImage: profileImage === undefined ? undefined : profileImage,
+                board: board === undefined ? undefined : board,
+                integratedCourse: integratedCourse === undefined ? undefined : integratedCourse,
+                group: group === undefined ? undefined : group,
                 sclassId: sclassId === undefined ? undefined : sclassId,
                 sectionId: sectionId === undefined ? undefined : (sectionId || null),
                 parentName,
@@ -1023,6 +1053,7 @@ const updateStudent = async (req, res) => {
                     name: name === undefined ? undefined : name,
                     email: email === undefined ? undefined : email,
                     phone: phone === undefined ? undefined : phone,
+                    profileImage: profileImage === undefined ? undefined : profileImage,
                     isActive: isActive === undefined ? undefined : Boolean(isActive),
                 },
             });
@@ -1061,6 +1092,682 @@ const deleteStudent = async (req, res) => {
     } catch (error) {
         console.error('Delete student error:', error);
         res.status(500).json({ success: false, message: 'Error deleting student' });
+    }
+};
+
+// ==================== STUDENTS (BULK IMPORT) ====================
+
+const normalizeCsvKey = (key) => {
+    return String(key || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[\s/]+/g, '_')
+        .replace(/[^a-z0-9_]/g, '');
+};
+
+const pickCsvValue = (row, keys) => {
+    for (const key of keys) {
+        const normalized = normalizeCsvKey(key);
+        if (Object.prototype.hasOwnProperty.call(row, normalized)) {
+            const value = row[normalized];
+            if (value !== undefined && value !== null && String(value).trim() !== '') return String(value).trim();
+        }
+    }
+    return '';
+};
+
+const bulkImportStudents = async (req, res) => {
+    try {
+        const collegeId = req.collegeId || req.query.collegeId;
+        if (!collegeId) {
+            return res.status(400).json({ success: false, message: 'College ID required' });
+        }
+
+        const mode = String(req.query.mode || 'skip').toLowerCase() === 'update' ? 'update' : 'skip';
+
+        const file = Array.isArray(req.files) ? req.files[0] : null;
+        if (!file) {
+            return res.status(400).json({ success: false, message: 'CSV file is required (field name: file)' });
+        }
+
+        const rows = [];
+        await new Promise((resolve, reject) => {
+            Readable.from([file.buffer])
+                .pipe(
+                    csvParser({
+                        mapHeaders: ({ header }) => normalizeCsvKey(header),
+                    })
+                )
+                .on('data', (data) => rows.push(data))
+                .on('end', resolve)
+                .on('error', reject);
+        });
+
+        let created = 0;
+        let updated = 0;
+        let skipped = 0;
+        let defaultPasswordUsed = 0;
+        const errors = [];
+
+        const fallbackPassword = String(process.env.DEFAULT_STUDENT_PASSWORD || '').trim() || 'Student@123';
+
+        const allowedBoards = new Set(['STATE', 'CBSE', 'IGCSE', 'IB']);
+
+        for (let index = 0; index < rows.length; index++) {
+            const raw = rows[index] || {};
+            const rowNumber = index + 2; // header is row 1
+            try {
+                const studentId = pickCsvValue(raw, ['student_id', 'studentid', 'roll_no', 'roll', 'id']);
+                const name = pickCsvValue(raw, ['name', 'student_name', 'full_name']);
+                const email = pickCsvValue(raw, ['email', 'student_email']);
+                const phone = pickCsvValue(raw, ['phone', 'mobile', 'contact']);
+                const password = pickCsvValue(raw, ['password', 'temp_password', 'temporary_password']);
+                const className = pickCsvValue(raw, ['class', 'class_name', 'sclass', 'sclass_name']);
+                const sectionName = pickCsvValue(raw, ['section', 'section_name']);
+                const parentName = pickCsvValue(raw, ['parent_name', 'guardian_name']);
+                const parentPhone = pickCsvValue(raw, ['parent_phone', 'guardian_phone']);
+                const boardRaw = pickCsvValue(raw, ['board']);
+                const group = pickCsvValue(raw, ['group']);
+                const integratedCourse = pickCsvValue(raw, ['integrated_course', 'integratedcourse']);
+                const profileImage = pickCsvValue(raw, ['profile_image', 'profileimage']);
+
+                if (!studentId || !name) {
+                    errors.push({ row: rowNumber, studentId: studentId || null, message: 'Missing required: studentId and/or name' });
+                    continue;
+                }
+
+                let board = null;
+                if (boardRaw) {
+                    const normalizedBoard = String(boardRaw).trim().toUpperCase();
+                    if (!allowedBoards.has(normalizedBoard)) {
+                        errors.push({ row: rowNumber, studentId, message: `Invalid board: ${boardRaw}. Allowed: ${Array.from(allowedBoards).join(', ')}` });
+                        continue;
+                    }
+                    board = normalizedBoard;
+                }
+
+                let sclass = null;
+                if (className) {
+                    sclass = await prisma.sclass.findFirst({ where: { collegeId, sclassName: className } });
+                    if (!sclass) {
+                        errors.push({ row: rowNumber, studentId, message: `Class not found: ${className}` });
+                        continue;
+                    }
+                }
+
+                let section = null;
+                if (sectionName) {
+                    if (!sclass) {
+                        errors.push({ row: rowNumber, studentId, message: 'Section provided but Class is missing/invalid' });
+                        continue;
+                    }
+                    section = await prisma.section.findFirst({
+                        where: { collegeId, sclassId: sclass.id, sectionName },
+                    });
+                    if (!section) {
+                        errors.push({ row: rowNumber, studentId, message: `Section not found: ${sectionName} (Class: ${className})` });
+                        continue;
+                    }
+                }
+
+                const existingStudent = await prisma.student.findFirst({ where: { collegeId, studentId } });
+                if (existingStudent) {
+                    if (mode === 'skip') {
+                        skipped++;
+                        continue;
+                    }
+
+                    const updateData = { name };
+                    if (email) updateData.email = email;
+                    if (phone) updateData.phone = phone;
+                    if (parentName) updateData.parentName = parentName;
+                    if (parentPhone) updateData.parentPhone = parentPhone;
+                    if (profileImage) updateData.profileImage = profileImage;
+                    if (board) updateData.board = board;
+                    if (integratedCourse) updateData.integratedCourse = integratedCourse;
+                    if (group) updateData.group = group;
+                    if (sclass) updateData.sclassId = sclass.id;
+                    if (section) updateData.sectionId = section.id;
+
+                    await prisma.student.update({ where: { id: existingStudent.id }, data: updateData });
+
+                    if (existingStudent.userId) {
+                        const userUpdate = { name };
+                        if (email) userUpdate.email = email;
+                        if (phone) userUpdate.phone = phone;
+                        if (profileImage) userUpdate.profileImage = profileImage;
+                        await prisma.user.update({ where: { id: existingStudent.userId }, data: userUpdate });
+                    }
+
+                    if (password) {
+                        const hashed = await bcrypt.hash(password, 10);
+                        await prisma.student.update({ where: { id: existingStudent.id }, data: { password: hashed } });
+                        if (existingStudent.userId) {
+                            await prisma.user.update({ where: { id: existingStudent.userId }, data: { password: hashed } });
+                        }
+                    }
+
+                    updated++;
+                    continue;
+                }
+
+                const effectivePassword = password || fallbackPassword;
+                if (!password) defaultPasswordUsed++;
+
+                if (!sclass) {
+                    errors.push({ row: rowNumber, studentId, message: 'Missing required: Class' });
+                    continue;
+                }
+
+                const hashedPassword = await bcrypt.hash(effectivePassword, 10);
+
+                await prisma.$transaction(async (tx) => {
+                    const user = await tx.user.create({
+                        data: {
+                            name,
+                            email: email || null,
+                            phone: phone || null,
+                            password: hashedPassword,
+                            profileImage: profileImage || null,
+                            role: 'Student',
+                            collegeId,
+                            isActive: true,
+                        },
+                    });
+
+                    await tx.student.create({
+                        data: {
+                            name,
+                            studentId,
+                            email: email || null,
+                            phone: phone || null,
+                            password: hashedPassword,
+                            parentName: parentName || null,
+                            parentPhone: parentPhone || null,
+                            profileImage: profileImage || null,
+                            board,
+                            integratedCourse: integratedCourse || null,
+                            group: group || null,
+                            collegeId,
+                            sclassId: sclass.id,
+                            sectionId: section ? section.id : null,
+                            userId: user.id,
+                            isActive: true,
+                        },
+                    });
+                });
+
+                created++;
+            } catch (rowError) {
+                errors.push({
+                    row: rowNumber,
+                    studentId: pickCsvValue(raw, ['student_id', 'studentid', 'roll_no', 'roll', 'id']) || null,
+                    message: rowError?.message || 'Row import failed',
+                });
+            }
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Bulk import completed',
+            data: {
+                mode,
+                totalRows: rows.length,
+                created,
+                updated,
+                skipped,
+                defaultPasswordUsed,
+                defaultPasswordHint: defaultPasswordUsed > 0 ? 'Students created without a CSV password were assigned a temporary default password. Ask them to change it after first login.' : null,
+                errorCount: errors.length,
+                errors,
+            },
+        });
+    } catch (error) {
+        console.error('Bulk import students error:', error);
+        res.status(500).json({ success: false, message: 'Error importing students' });
+    }
+};
+
+// ==================== TEACHERS (BULK IMPORT) ====================
+
+const bulkImportTeachers = async (req, res) => {
+    try {
+        const collegeId = req.collegeId || req.query.collegeId;
+        if (!collegeId) {
+            return res.status(400).json({ success: false, message: 'College ID required' });
+        }
+
+        const mode = String(req.query.mode || 'skip').toLowerCase() === 'update' ? 'update' : 'skip';
+
+        const file = Array.isArray(req.files) ? req.files[0] : null;
+        if (!file) {
+            return res.status(400).json({ success: false, message: 'CSV file is required (field name: file)' });
+        }
+
+        const rows = [];
+        await new Promise((resolve, reject) => {
+            Readable.from([file.buffer])
+                .pipe(
+                    csvParser({
+                        mapHeaders: ({ header }) => normalizeCsvKey(header),
+                    })
+                )
+                .on('data', (data) => rows.push(data))
+                .on('end', resolve)
+                .on('error', reject);
+        });
+
+        let created = 0;
+        let updated = 0;
+        let skipped = 0;
+        let defaultPasswordUsed = 0;
+        const errors = [];
+
+        const fallbackPassword = String(process.env.DEFAULT_TEACHER_PASSWORD || '').trim() || 'Teacher@123';
+
+        for (let index = 0; index < rows.length; index++) {
+            const raw = rows[index] || {};
+            const rowNumber = index + 2;
+            try {
+                const name = pickCsvValue(raw, ['name', 'teacher_name', 'full_name']);
+                const email = pickCsvValue(raw, ['email', 'teacher_email']);
+                const phone = pickCsvValue(raw, ['phone', 'mobile', 'contact']);
+                const password = pickCsvValue(raw, ['password', 'temp_password', 'temporary_password']);
+                const qualification = pickCsvValue(raw, ['qualification', 'degree']);
+                const experienceRaw = pickCsvValue(raw, ['experience', 'years_experience', 'years']);
+                const specialization = pickCsvValue(raw, ['specialization', 'subject', 'dept', 'department']);
+
+                if (!name || !email) {
+                    errors.push({ row: rowNumber, email: email || null, message: 'Missing required: name and/or email' });
+                    continue;
+                }
+
+                const experience = experienceRaw ? parseInt(experienceRaw, 10) : null;
+                if (experienceRaw && Number.isNaN(experience)) {
+                    errors.push({ row: rowNumber, email, message: `Invalid experience: ${experienceRaw}` });
+                    continue;
+                }
+
+                const existingTeacher = await prisma.teacher.findFirst({ where: { collegeId, email } });
+                if (existingTeacher) {
+                    if (mode === 'skip') {
+                        skipped++;
+                        continue;
+                    }
+
+                    const updateData = { name };
+                    if (phone) updateData.phone = phone;
+                    if (qualification) updateData.qualification = qualification;
+                    if (experience !== null) updateData.experience = experience;
+                    if (specialization) updateData.specialization = specialization;
+
+                    await prisma.teacher.update({ where: { id: existingTeacher.id }, data: updateData });
+
+                    if (existingTeacher.userId) {
+                        const userUpdate = { name };
+                        if (phone) userUpdate.phone = phone;
+                        await prisma.user.update({ where: { id: existingTeacher.userId }, data: userUpdate });
+                    }
+
+                    if (password) {
+                        const hashed = await bcrypt.hash(password, 10);
+                        await prisma.teacher.update({ where: { id: existingTeacher.id }, data: { password: hashed } });
+                        if (existingTeacher.userId) {
+                            await prisma.user.update({ where: { id: existingTeacher.userId }, data: { password: hashed } });
+                        }
+                    }
+
+                    updated++;
+                    continue;
+                }
+
+                const existingUser = await prisma.user.findFirst({ where: { collegeId, email } });
+                if (existingUser) {
+                    errors.push({ row: rowNumber, email, message: 'Email already registered as a user' });
+                    continue;
+                }
+
+                const effectivePassword = password || fallbackPassword;
+                if (!password) defaultPasswordUsed++;
+                const hashedPassword = await bcrypt.hash(effectivePassword, 10);
+
+                await prisma.$transaction(async (tx) => {
+                    const user = await tx.user.create({
+                        data: {
+                            name,
+                            email,
+                            phone: phone || null,
+                            password: hashedPassword,
+                            role: 'Teacher',
+                            collegeId,
+                            isEmailVerified: true,
+                            isActive: true,
+                        },
+                    });
+
+                    await tx.teacher.create({
+                        data: {
+                            name,
+                            email,
+                            phone: phone || null,
+                            password: hashedPassword,
+                            qualification: qualification || null,
+                            experience,
+                            specialization: specialization || null,
+                            collegeId,
+                            userId: user.id,
+                            isActive: true,
+                        },
+                    });
+                });
+
+                created++;
+            } catch (rowError) {
+                errors.push({
+                    row: rowNumber,
+                    email: pickCsvValue(raw, ['email', 'teacher_email']) || null,
+                    message: rowError?.message || 'Row import failed',
+                });
+            }
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Bulk import completed',
+            data: {
+                mode,
+                totalRows: rows.length,
+                created,
+                updated,
+                skipped,
+                defaultPasswordUsed,
+                defaultPasswordHint: defaultPasswordUsed > 0 ? 'Teachers created without a CSV password were assigned a temporary default password. Ask them to change it after first login.' : null,
+                errorCount: errors.length,
+                errors,
+            },
+        });
+    } catch (error) {
+        console.error('Bulk import teachers error:', error);
+        res.status(500).json({ success: false, message: 'Error importing teachers' });
+    }
+};
+
+// ==================== CLASSES (BULK IMPORT) ====================
+
+const bulkImportClasses = async (req, res) => {
+    try {
+        const collegeId = req.collegeId || req.query.collegeId;
+        if (!collegeId) {
+            return res.status(400).json({ success: false, message: 'College ID required' });
+        }
+
+        const mode = String(req.query.mode || 'skip').toLowerCase() === 'update' ? 'update' : 'skip';
+
+        const file = Array.isArray(req.files) ? req.files[0] : null;
+        if (!file) {
+            return res.status(400).json({ success: false, message: 'CSV file is required (field name: file)' });
+        }
+
+        const rows = [];
+        await new Promise((resolve, reject) => {
+            Readable.from([file.buffer])
+                .pipe(
+                    csvParser({
+                        mapHeaders: ({ header }) => normalizeCsvKey(header),
+                    })
+                )
+                .on('data', (data) => rows.push(data))
+                .on('end', resolve)
+                .on('error', reject);
+        });
+
+        let created = 0;
+        let updated = 0;
+        let skipped = 0;
+        const errors = [];
+
+        for (let index = 0; index < rows.length; index++) {
+            const raw = rows[index] || {};
+            const rowNumber = index + 2;
+            try {
+                const sclassName = pickCsvValue(raw, ['sclass_name', 'class_name', 'class', 'name']);
+                const sclassCode = pickCsvValue(raw, ['sclass_code', 'class_code', 'code']);
+                const academicYear = pickCsvValue(raw, ['academic_year', 'year']);
+                const description = pickCsvValue(raw, ['description', 'notes']);
+                const classTeacherEmail = pickCsvValue(raw, ['class_teacher_email', 'teacher_email', 'teacher']);
+
+                if (!sclassName) {
+                    errors.push({ row: rowNumber, code: sclassCode || null, message: 'Missing required: class name' });
+                    continue;
+                }
+
+                let classTeacherId = null;
+                if (classTeacherEmail) {
+                    const teacher = await prisma.teacher.findFirst({ where: { collegeId, email: classTeacherEmail } });
+                    if (!teacher) {
+                        errors.push({ row: rowNumber, code: sclassCode || sclassName, message: `Class teacher not found: ${classTeacherEmail}` });
+                        continue;
+                    }
+                    classTeacherId = teacher.id;
+                }
+
+                const existing = sclassCode
+                    ? await prisma.sclass.findFirst({ where: { collegeId, sclassCode } })
+                    : await prisma.sclass.findFirst({ where: { collegeId, sclassName } });
+
+                if (existing) {
+                    if (mode === 'skip') {
+                        skipped++;
+                        continue;
+                    }
+
+                    const updateData = {};
+                    if (sclassName) updateData.sclassName = sclassName;
+                    if (sclassCode) updateData.sclassCode = sclassCode;
+                    if (academicYear) updateData.academicYear = academicYear;
+                    if (description) updateData.description = description;
+                    if (classTeacherEmail) updateData.classTeacherId = classTeacherId;
+
+                    await prisma.sclass.update({ where: { id: existing.id }, data: updateData });
+                    updated++;
+                    continue;
+                }
+
+                await prisma.sclass.create({
+                    data: {
+                        sclassName,
+                        sclassCode: sclassCode || sclassName,
+                        academicYear: academicYear || new Date().getFullYear().toString(),
+                        description: description || null,
+                        collegeId,
+                        classTeacherId: classTeacherEmail ? classTeacherId : null,
+                    },
+                });
+
+                created++;
+            } catch (rowError) {
+                errors.push({
+                    row: rowNumber,
+                    code: pickCsvValue(raw, ['sclass_code', 'class_code', 'code']) || null,
+                    message: rowError?.message || 'Row import failed',
+                });
+            }
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Bulk import completed',
+            data: {
+                mode,
+                totalRows: rows.length,
+                created,
+                updated,
+                skipped,
+                errorCount: errors.length,
+                errors,
+            },
+        });
+    } catch (error) {
+        console.error('Bulk import classes error:', error);
+        res.status(500).json({ success: false, message: 'Error importing classes' });
+    }
+};
+
+// ==================== SUBJECTS (BULK IMPORT) ====================
+
+const bulkImportSubjects = async (req, res) => {
+    try {
+        const collegeId = req.collegeId || req.query.collegeId;
+        if (!collegeId) {
+            return res.status(400).json({ success: false, message: 'College ID required' });
+        }
+
+        const mode = String(req.query.mode || 'skip').toLowerCase() === 'update' ? 'update' : 'skip';
+
+        const file = Array.isArray(req.files) ? req.files[0] : null;
+        if (!file) {
+            return res.status(400).json({ success: false, message: 'CSV file is required (field name: file)' });
+        }
+
+        const rows = [];
+        await new Promise((resolve, reject) => {
+            Readable.from([file.buffer])
+                .pipe(
+                    csvParser({
+                        mapHeaders: ({ header }) => normalizeCsvKey(header),
+                    })
+                )
+                .on('data', (data) => rows.push(data))
+                .on('end', resolve)
+                .on('error', reject);
+        });
+
+        let created = 0;
+        let updated = 0;
+        let skipped = 0;
+        const errors = [];
+
+        for (let index = 0; index < rows.length; index++) {
+            const raw = rows[index] || {};
+            const rowNumber = index + 2;
+            try {
+                const subName = pickCsvValue(raw, ['sub_name', 'subject_name', 'name']);
+                const subCode = pickCsvValue(raw, ['sub_code', 'subject_code', 'code']);
+                const description = pickCsvValue(raw, ['description', 'notes']);
+                const sclassIdRaw = pickCsvValue(raw, ['sclass_id', 'class_id']);
+                const classCode = pickCsvValue(raw, ['sclass_code', 'class_code']);
+                const className = pickCsvValue(raw, ['sclass_name', 'class_name', 'class']);
+                const maxMarksRaw = pickCsvValue(raw, ['max_marks', 'maxmarks']);
+                const passingMarksRaw = pickCsvValue(raw, ['passing_marks', 'passingmarks']);
+                const sessionsRaw = pickCsvValue(raw, ['sessions', 'total_sessions']);
+                const teacherEmail = pickCsvValue(raw, ['teacher_email', 'teacher']);
+
+                if (!subName || !subCode) {
+                    errors.push({ row: rowNumber, subCode: subCode || null, message: 'Missing required: subName and/or subCode' });
+                    continue;
+                }
+
+                let sclass = null;
+                if (sclassIdRaw) {
+                    sclass = await prisma.sclass.findFirst({ where: { collegeId, id: sclassIdRaw } });
+                } else if (classCode) {
+                    sclass = await prisma.sclass.findFirst({ where: { collegeId, sclassCode: classCode } });
+                } else if (className) {
+                    sclass = await prisma.sclass.findFirst({ where: { collegeId, sclassName: className } });
+                }
+
+                if (!sclass) {
+                    errors.push({ row: rowNumber, subCode, message: 'Missing/invalid class reference (sclassId or classCode or className)' });
+                    continue;
+                }
+
+                let teacherId = null;
+                if (teacherEmail) {
+                    const teacher = await prisma.teacher.findFirst({ where: { collegeId, email: teacherEmail } });
+                    if (!teacher) {
+                        errors.push({ row: rowNumber, subCode, message: `Teacher not found: ${teacherEmail}` });
+                        continue;
+                    }
+                    teacherId = teacher.id;
+                }
+
+                const maxMarks = maxMarksRaw ? parseInt(maxMarksRaw, 10) : undefined;
+                if (maxMarksRaw && Number.isNaN(maxMarks)) {
+                    errors.push({ row: rowNumber, subCode, message: `Invalid maxMarks: ${maxMarksRaw}` });
+                    continue;
+                }
+
+                const passingMarks = passingMarksRaw ? parseInt(passingMarksRaw, 10) : undefined;
+                if (passingMarksRaw && Number.isNaN(passingMarks)) {
+                    errors.push({ row: rowNumber, subCode, message: `Invalid passingMarks: ${passingMarksRaw}` });
+                    continue;
+                }
+
+                const sessions = sessionsRaw ? parseInt(sessionsRaw, 10) : undefined;
+                if (sessionsRaw && Number.isNaN(sessions)) {
+                    errors.push({ row: rowNumber, subCode, message: `Invalid sessions: ${sessionsRaw}` });
+                    continue;
+                }
+
+                const existing = await prisma.subject.findFirst({ where: { collegeId, sclassId: sclass.id, subCode } });
+                if (existing) {
+                    if (mode === 'skip') {
+                        skipped++;
+                        continue;
+                    }
+
+                    const updateData = { subName };
+                    if (description) updateData.description = description;
+                    if (typeof maxMarks === 'number') updateData.maxMarks = maxMarks;
+                    if (typeof passingMarks === 'number') updateData.passingMarks = passingMarks;
+                    if (typeof sessions === 'number') updateData.sessions = sessions;
+                    if (teacherEmail) updateData.teacherId = teacherId;
+
+                    await prisma.subject.update({ where: { id: existing.id }, data: updateData });
+                    updated++;
+                    continue;
+                }
+
+                await prisma.subject.create({
+                    data: {
+                        subName,
+                        subCode,
+                        description: description || null,
+                        collegeId,
+                        sclassId: sclass.id,
+                        maxMarks: typeof maxMarks === 'number' ? maxMarks : 100,
+                        passingMarks: typeof passingMarks === 'number' ? passingMarks : 40,
+                        sessions: typeof sessions === 'number' ? sessions : undefined,
+                        teacherId,
+                    },
+                });
+
+                created++;
+            } catch (rowError) {
+                errors.push({
+                    row: rowNumber,
+                    subCode: pickCsvValue(raw, ['sub_code', 'subject_code', 'code']) || null,
+                    message: rowError?.message || 'Row import failed',
+                });
+            }
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Bulk import completed',
+            data: {
+                mode,
+                totalRows: rows.length,
+                created,
+                updated,
+                skipped,
+                errorCount: errors.length,
+                errors,
+            },
+        });
+    } catch (error) {
+        console.error('Bulk import subjects error:', error);
+        res.status(500).json({ success: false, message: 'Error importing subjects' });
     }
 };
 
@@ -1378,6 +2085,10 @@ module.exports = {
     getStudent,
     updateStudent,
     deleteStudent,
+    bulkImportStudents,
+    bulkImportTeachers,
+    bulkImportClasses,
+    bulkImportSubjects,
     createTeamMember,
     getTeamMembers,
     createClass,

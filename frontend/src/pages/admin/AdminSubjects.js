@@ -12,6 +12,7 @@ import {
 } from '@mui/icons-material';
 import DashboardLayout from '../../components/DashboardLayout';
 import { fetchSubjects, createSubject, fetchClasses, fetchTeachers } from '../../redux/slices/adminSlice';
+import BulkSubjectImportDialog from '../../components/admin/BulkSubjectImportDialog';
 
 const AdminSubjects = () => {
     const dispatch = useDispatch();
@@ -24,6 +25,7 @@ const AdminSubjects = () => {
 
     // Dialog State
     const [openAddDialog, setOpenAddDialog] = useState(false);
+    const [openImportDialog, setOpenImportDialog] = useState(false);
     const [newSubject, setNewSubject] = useState({
         subName: '', subCode: '', sessions: '10', sclassId: '', teacherId: '', maxMarks: 100, passingMarks: 40
     });
@@ -66,6 +68,9 @@ const AdminSubjects = () => {
                 <Box>
                     <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => dispatch(fetchSubjects())} sx={{ mr: 2 }}>
                         Refresh
+                    </Button>
+                    <Button variant="outlined" onClick={() => setOpenImportDialog(true)} sx={{ mr: 2 }}>
+                        Import CSV
                     </Button>
                     <Button variant="contained" color="primary" startIcon={<AddIcon />} onClick={() => setOpenAddDialog(true)}>
                         Add Subject
@@ -205,6 +210,8 @@ const AdminSubjects = () => {
                     </DialogActions>
                 </form>
             </Dialog>
+
+            <BulkSubjectImportDialog open={openImportDialog} onClose={() => setOpenImportDialog(false)} />
         </DashboardLayout>
     );
 };

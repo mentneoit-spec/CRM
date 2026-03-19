@@ -19,8 +19,11 @@ const login = async (req, res) => {
     try {
         const { email, password, collegeId } = req.body;
         const normalizedEmail = String(email || '').trim().toLowerCase();
+        const passwordInput = String(password || '');
 
-        if (!normalizedEmail || !password) {
+        const normalizedCollegeId = String(collegeId || '').trim();
+
+        if (!normalizedEmail || !passwordInput) {
             return res.status(400).json({
                 success: false,
                 message: 'Email and password are required'
@@ -29,9 +32,9 @@ const login = async (req, res) => {
 
         let user;
 
-        if (collegeId) {
+        if (normalizedCollegeId) {
             user = await prisma.user.findUnique({
-                where: { email_collegeId: { email: normalizedEmail, collegeId } },
+                where: { email_collegeId: { email: normalizedEmail, collegeId: normalizedCollegeId } },
                 include: { college: true },
             });
         } else {
@@ -79,7 +82,14 @@ const login = async (req, res) => {
             });
         }
 
-        const isPasswordValid = await bcrypt.compare(password, user.password);
+        if (!user.password || typeof user.password !== 'string') {
+            return res.status(401).json({
+                success: false,
+                message: 'Invalid email or password'
+            });
+        }
+
+        const isPasswordValid = await bcrypt.compare(passwordInput, user.password);
         if (!isPasswordValid) {
             return res.status(401).json({
                 success: false,
@@ -125,8 +135,9 @@ const superAdminLogin = async (req, res) => {
     try {
         const { email, password, twoFAToken } = req.body;
         const normalizedEmail = String(email || '').trim().toLowerCase();
+        const passwordInput = String(password || '');
 
-        if (!normalizedEmail || !password) {
+        if (!normalizedEmail || !passwordInput) {
             return res.status(400).json({
                 success: false,
                 message: 'Email and password are required'
@@ -144,7 +155,14 @@ const superAdminLogin = async (req, res) => {
             });
         }
 
-        const isPasswordValid = await bcrypt.compare(password, superAdmin.password);
+        if (!superAdmin.password || typeof superAdmin.password !== 'string') {
+            return res.status(401).json({
+                success: false,
+                message: 'Invalid email or password'
+            });
+        }
+
+        const isPasswordValid = await bcrypt.compare(passwordInput, superAdmin.password);
         if (!isPasswordValid) {
             return res.status(401).json({
                 success: false,

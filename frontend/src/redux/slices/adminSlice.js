@@ -1,6 +1,13 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { adminAPI, transportAPI } from '../../config/api';
 
+const toApiErrorMessage = (error, fallback) => {
+    const backendMessage = error?.response?.data?.message;
+    const backendPath = error?.response?.data?.path;
+    const message = backendMessage || error?.message || fallback;
+    return backendPath ? `${message} (${backendPath})` : message;
+};
+
 // Async Thunks
 export const fetchTeachers = createAsyncThunk('admin/fetchTeachers', async (params = {}, { rejectWithValue }) => {
     try {
@@ -37,6 +44,69 @@ export const createStudent = createAsyncThunk('admin/createStudent', async (data
         return response?.data?.student || response?.data || null;
     } catch (error) {
         return rejectWithValue(error?.message || error?.response?.data?.message || 'Failed to create student');
+    }
+});
+
+export const updateStudent = createAsyncThunk('admin/updateStudent', async ({ id, data }, { rejectWithValue }) => {
+    try {
+        const response = await adminAPI.updateStudent(id, data);
+        return response?.data || null;
+    } catch (error) {
+        return rejectWithValue(error?.message || error?.response?.data?.message || 'Failed to update student');
+    }
+});
+
+export const deleteStudent = createAsyncThunk('admin/deleteStudent', async (id, { rejectWithValue }) => {
+    try {
+        const response = await adminAPI.deleteStudent(id);
+        return { id, response };
+    } catch (error) {
+        return rejectWithValue(error?.message || error?.response?.data?.message || 'Failed to delete student');
+    }
+});
+
+export const bulkImportStudents = createAsyncThunk('admin/bulkImportStudents', async ({ file, mode }, { rejectWithValue }) => {
+    try {
+        const response = await adminAPI.bulkImportStudents(file, mode);
+        return response;
+    } catch (error) {
+        return rejectWithValue(toApiErrorMessage(error, 'Failed to import students'));
+    }
+});
+
+export const bulkImportTeachers = createAsyncThunk('admin/bulkImportTeachers', async ({ file, mode }, { rejectWithValue }) => {
+    try {
+        const response = await adminAPI.bulkImportTeachers(file, mode);
+        return response;
+    } catch (error) {
+        return rejectWithValue(toApiErrorMessage(error, 'Failed to import teachers'));
+    }
+});
+
+export const bulkImportClasses = createAsyncThunk('admin/bulkImportClasses', async ({ file, mode }, { rejectWithValue }) => {
+    try {
+        const response = await adminAPI.bulkImportClasses(file, mode);
+        return response;
+    } catch (error) {
+        return rejectWithValue(toApiErrorMessage(error, 'Failed to import classes'));
+    }
+});
+
+export const bulkImportSubjects = createAsyncThunk('admin/bulkImportSubjects', async ({ file, mode }, { rejectWithValue }) => {
+    try {
+        const response = await adminAPI.bulkImportSubjects(file, mode);
+        return response;
+    } catch (error) {
+        return rejectWithValue(toApiErrorMessage(error, 'Failed to import subjects'));
+    }
+});
+
+export const bulkImportAdmissions = createAsyncThunk('admin/bulkImportAdmissions', async ({ file, mode }, { rejectWithValue }) => {
+    try {
+        const response = await adminAPI.bulkImportAdmissions(file, mode);
+        return response;
+    } catch (error) {
+        return rejectWithValue(toApiErrorMessage(error, 'Failed to import admissions'));
     }
 });
 
@@ -195,6 +265,12 @@ const adminSlice = createSlice({
     reducers: {
         clearAdminError: (state) => { state.error = null; },
         clearAdminSuccess: (state) => { state.success = false; state.message = ''; },
+        clearAdminStatus: (state) => {
+            state.loading = false;
+            state.error = null;
+            state.success = false;
+            state.message = '';
+        },
     },
     extraReducers: (builder) => {
         builder
@@ -213,6 +289,69 @@ const adminSlice = createSlice({
             .addCase(createStudent.pending, (state) => { state.loading = true; state.error = null; state.success = false; })
             .addCase(createStudent.fulfilled, (state, action) => { state.loading = false; state.success = true; state.message = 'Student added!'; if (action.payload) state.students.push(action.payload); })
             .addCase(createStudent.rejected, (state, action) => { state.loading = false; state.error = action.payload; })
+
+            .addCase(updateStudent.pending, (state) => { state.loading = true; state.error = null; state.success = false; })
+            .addCase(updateStudent.fulfilled, (state, action) => {
+                state.loading = false;
+                state.success = true;
+                state.message = 'Student updated!';
+                const updated = action.payload;
+                if (updated?.id) {
+                    const idx = state.students.findIndex(s => s.id === updated.id);
+                    if (idx !== -1) state.students[idx] = { ...state.students[idx], ...updated };
+                }
+            })
+            .addCase(updateStudent.rejected, (state, action) => { state.loading = false; state.error = action.payload; })
+
+            .addCase(deleteStudent.pending, (state) => { state.loading = true; state.error = null; state.success = false; })
+            .addCase(deleteStudent.fulfilled, (state, action) => {
+                state.loading = false;
+                state.success = true;
+                state.message = 'Student deleted!';
+                const deletedId = action.payload?.id;
+                if (deletedId) state.students = state.students.filter(s => s.id !== deletedId);
+            })
+            .addCase(deleteStudent.rejected, (state, action) => { state.loading = false; state.error = action.payload; })
+
+            .addCase(bulkImportStudents.pending, (state) => { state.loading = true; state.error = null; state.success = false; })
+            .addCase(bulkImportStudents.fulfilled, (state) => {
+                state.loading = false;
+                state.success = true;
+                state.message = 'Import completed!';
+            })
+            .addCase(bulkImportStudents.rejected, (state, action) => { state.loading = false; state.error = action.payload; })
+
+            .addCase(bulkImportTeachers.pending, (state) => { state.loading = true; state.error = null; state.success = false; })
+            .addCase(bulkImportTeachers.fulfilled, (state) => {
+                state.loading = false;
+                state.success = true;
+                state.message = 'Import completed!';
+            })
+            .addCase(bulkImportTeachers.rejected, (state, action) => { state.loading = false; state.error = action.payload; })
+
+            .addCase(bulkImportClasses.pending, (state) => { state.loading = true; state.error = null; state.success = false; })
+            .addCase(bulkImportClasses.fulfilled, (state) => {
+                state.loading = false;
+                state.success = true;
+                state.message = 'Import completed!';
+            })
+            .addCase(bulkImportClasses.rejected, (state, action) => { state.loading = false; state.error = action.payload; })
+
+            .addCase(bulkImportSubjects.pending, (state) => { state.loading = true; state.error = null; state.success = false; })
+            .addCase(bulkImportSubjects.fulfilled, (state) => {
+                state.loading = false;
+                state.success = true;
+                state.message = 'Import completed!';
+            })
+            .addCase(bulkImportSubjects.rejected, (state, action) => { state.loading = false; state.error = action.payload; })
+
+            .addCase(bulkImportAdmissions.pending, (state) => { state.loading = true; state.error = null; state.success = false; })
+            .addCase(bulkImportAdmissions.fulfilled, (state) => {
+                state.loading = false;
+                state.success = true;
+                state.message = 'Import completed!';
+            })
+            .addCase(bulkImportAdmissions.rejected, (state, action) => { state.loading = false; state.error = action.payload; })
 
             // Classes
             .addCase(fetchClasses.pending, (state) => { state.loading = true; state.error = null; })
@@ -278,5 +417,5 @@ const adminSlice = createSlice({
     },
 });
 
-export const { clearAdminError, clearAdminSuccess } = adminSlice.actions;
+export const { clearAdminError, clearAdminSuccess, clearAdminStatus } = adminSlice.actions;
 export default adminSlice.reducer;

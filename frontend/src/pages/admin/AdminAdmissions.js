@@ -12,6 +12,7 @@ import {
 } from '@mui/icons-material';
 import DashboardLayout from '../../components/DashboardLayout';
 import { fetchAdmissions, approveAdmission, rejectAdmission } from '../../redux/slices/adminSlice';
+import BulkAdmissionImportDialog from '../../components/admin/BulkAdmissionImportDialog';
 
 const AdminAdmissions = () => {
     const dispatch = useDispatch();
@@ -26,6 +27,8 @@ const AdminAdmissions = () => {
     const [openReject, setOpenReject] = useState(false);
     const [rejectId, setRejectId] = useState(null);
     const [rejectReason, setRejectReason] = useState('');
+
+    const [openImportDialog, setOpenImportDialog] = useState(false);
 
     useEffect(() => {
         dispatch(fetchAdmissions());
@@ -78,9 +81,14 @@ const AdminAdmissions = () => {
                 <Typography variant="h4" sx={{ fontWeight: 700, color: 'text.primary' }}>
                     Admissions Management
                 </Typography>
-                <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => dispatch(fetchAdmissions())}>
-                    Refresh List
-                </Button>
+                <Box>
+                    <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => dispatch(fetchAdmissions())} sx={{ mr: 2 }}>
+                        Refresh List
+                    </Button>
+                    <Button variant="outlined" onClick={() => setOpenImportDialog(true)}>
+                        Import CSV
+                    </Button>
+                </Box>
             </Box>
 
             <Paper sx={{ width: '100%', overflow: 'hidden', boxShadow: 3, borderRadius: 2 }}>
@@ -185,6 +193,8 @@ const AdminAdmissions = () => {
                     </Button>
                 </DialogActions>
             </Dialog>
+
+            <BulkAdmissionImportDialog open={openImportDialog} onClose={() => setOpenImportDialog(false)} />
         </DashboardLayout>
     );
 };

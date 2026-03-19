@@ -7,6 +7,15 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ==================== SHARED ENUMS ====================
+
+enum Board {
+  STATE
+  CBSE
+  IGCSE
+  IB
+}
+
 // ==================== SUPER ADMIN & PLATFORM ====================
 
 model SuperAdmin {
@@ -400,6 +409,9 @@ model Student {
   parentName      String?
   parentPhone     String?
   profileImage    String?
+  board           Board?
+  integratedCourse String?
+  group           String?
   admissionYear   Int?
   admissionNumber String?
 

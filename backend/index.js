@@ -3,12 +3,19 @@ const cors = require("cors");
 const dotenv = require("dotenv");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
+const path = require('path');
 const prisma = require("./lib/prisma");
 
 dotenv.config();
 
 const app = express();
 const PORT = parseInt(process.env.PORT) || 5000;
+
+// Avoid browser/proxy caching on API responses (prevents 304 responses confusing XHR clients).
+app.use('/api', (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+});
 
 // ==================== SECURITY MIDDLEWARE ====================
 
@@ -70,6 +77,19 @@ app.use("/api/", limiter);
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
+// Serve locally uploaded files (used when S3 is not configured)
+// Helmet defaults to Cross-Origin-Resource-Policy: same-origin, which blocks
+// images from loading on a different origin (e.g. frontend :3000). Allow
+// cross-origin *for uploads only*.
+app.use(
+  '/uploads',
+  (req, res, next) => {
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    next();
+  },
+  express.static(path.join(__dirname, 'uploads'))
+);
+
 // ==================== DATABASE CONNECTION ====================
 
 async function connectDB() {
@@ -91,6 +111,16 @@ async function connectRedis() {
   // Skip Redis connection in test environment
   if (process.env.NODE_ENV === 'test') {
     console.log('⏭ Skipping Redis connection in test mode');
+    return;
+  }
+
+  const redisEnabledEnv = process.env.REDIS_ENABLED;
+  const redisEnabled = redisEnabledEnv === undefined
+    ? true
+    : !['0', 'false', 'no', 'off'].includes(String(redisEnabledEnv).trim().toLowerCase());
+
+  if (!redisEnabled) {
+    console.log('⏭ Skipping Redis connection (REDIS_ENABLED=false)');
     return;
   }
   
@@ -159,6 +189,9 @@ app.use("/api/parent", authMiddleware, require("./routes/parent-routes"));
 app.use("/api/accounts", authMiddleware, require("./routes/accounts-routes"));
 app.use("/api/transport", authMiddleware, require("./routes/transport-routes"));
 
+// Uploads
+app.use('/api/upload', authMiddleware, require('./routes/upload-routes'));
+
 // Admission (public if required)
 app.use("/api/admission", require("./routes/admission-routes"));
 
@@ -216,16 +249,41 @@ function startServer(port) {
   });
 
   // Graceful Shutdown
-  process.on("SIGINT", async () => {
-    console.log("\nShutting down gracefully...");
-    await prisma.$disconnect();
-    await closeRedis();
-    const { closeQueues } = require("./utils/queue-service");
-    await closeQueues();
-    server.close(() => {
+  const gracefulShutdown = async (signal) => {
+    try {
+      console.log(`\nShutting down gracefully (${signal})...`);
+      try {
+        await prisma.$disconnect();
+      } catch (err) {
+        console.warn('Prisma disconnect error:', err?.message || err);
+      }
+
+      try {
+        await closeRedis();
+      } catch (err) {
+        console.warn('Redis close error:', err?.message || err);
+      }
+
+      // queue-service initializes Bull queues at import time; only attempt to close if available.
+      try {
+        const { closeQueues } = require("./utils/queue-service");
+        if (typeof closeQueues === 'function') {
+          await closeQueues();
+        }
+      } catch (err) {
+        console.warn('Queue shutdown skipped:', err?.message || err);
+      }
+
+      await new Promise((resolve) => server.close(resolve));
       process.exit(0);
-    });
-  });
+    } catch (err) {
+      console.error('Graceful shutdown failed:', err);
+      process.exit(1);
+    }
+  };
+
+  process.on("SIGINT", () => { void gracefulShutdown('SIGINT'); });
+  process.on("SIGTERM", () => { void gracefulShutdown('SIGTERM'); });
 
   return server; // Return the server
 }

@@ -11,7 +11,8 @@ import {
     Delete as DeleteIcon, Refresh as RefreshIcon, ContentCopy as ContentCopyIcon
 } from '@mui/icons-material';
 import DashboardLayout from '../../components/DashboardLayout';
-import { fetchStudents, createStudent, fetchClasses } from '../../redux/slices/adminSlice';
+import { fetchStudents, createStudent, fetchClasses, updateStudent, deleteStudent } from '../../redux/slices/adminSlice';
+import BulkStudentImportDialog from '../../components/admin/BulkStudentImportDialog';
 
 const AdminStudents = () => {
     const dispatch = useDispatch();
@@ -24,9 +25,22 @@ const AdminStudents = () => {
 
     // Dialog State
     const [openAddDialog, setOpenAddDialog] = useState(false);
+    const [openEditDialog, setOpenEditDialog] = useState(false);
+    const [openImportDialog, setOpenImportDialog] = useState(false);
     const [newStudent, setNewStudent] = useState({
         name: '', studentId: '', email: '', phone: '', password: '',
         sclassId: '', parentName: '', parentPhone: ''
+    });
+
+    const [editStudent, setEditStudent] = useState({
+        id: '',
+        name: '',
+        studentId: '',
+        email: '',
+        phone: '',
+        sclassId: '',
+        parentName: '',
+        parentPhone: ''
     });
 
     useEffect(() => {
@@ -48,6 +62,37 @@ const AdminStudents = () => {
         });
     };
 
+    const handleEditOpen = (student) => {
+        setEditStudent({
+            id: student.id,
+            name: student.name || '',
+            studentId: student.studentId || '',
+            email: student.email || '',
+            phone: student.phone || '',
+            sclassId: student.sclassId || student.sclass?.id || '',
+            parentName: student.parentName || '',
+            parentPhone: student.parentPhone || ''
+        });
+        setOpenEditDialog(true);
+    };
+
+    const handleEditSubmit = (e) => {
+        e.preventDefault();
+        const { id, ...data } = editStudent;
+        dispatch(updateStudent({ id, data })).then((res) => {
+            if (!res.error) {
+                setOpenEditDialog(false);
+            }
+        });
+    };
+
+    const handleDelete = (student) => {
+        if (!student?.id) return;
+        const ok = window.confirm(`Delete student ${student.studentId || ''} (${student.name || ''})?`);
+        if (!ok) return;
+        dispatch(deleteStudent(student.id));
+    };
+
     const filteredStudents = students?.filter((student) =>
         student.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         student.studentId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -65,6 +110,9 @@ const AdminStudents = () => {
                 <Box>
                     <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => dispatch(fetchStudents())} sx={{ mr: 2 }}>
                         Refresh
+                    </Button>
+                    <Button variant="outlined" onClick={() => setOpenImportDialog(true)} sx={{ mr: 2 }}>
+                        Import CSV
                     </Button>
                     <Button variant="contained" color="primary" startIcon={<AddIcon />} onClick={() => setOpenAddDialog(true)}>
                         Admit Student
@@ -112,7 +160,7 @@ const AdminStudents = () => {
                                         <TableCell sx={{ fontWeight: 500 }}>{student.name}</TableCell>
                                         <TableCell>
                                             <Typography variant="body2">{student.sclass?.sclassName || 'N/A'}</Typography>
-                                            {student.section && <Typography variant="caption" color="text.secondary">Sec: {student.section.name}</Typography>}
+                                            {student.section && <Typography variant="caption" color="text.secondary">Sec: {student.section.sectionName}</Typography>}
                                         </TableCell>
                                         <TableCell>
                                             <Typography variant="body2">{student.email}</Typography>
@@ -124,10 +172,10 @@ const AdminStudents = () => {
                                         </TableCell>
                                         <TableCell align="center">
                                             <Tooltip title="Edit Student">
-                                                <IconButton color="primary" size="small"><EditIcon fontSize="small" /></IconButton>
+                                                <IconButton color="primary" size="small" onClick={() => handleEditOpen(student)}><EditIcon fontSize="small" /></IconButton>
                                             </Tooltip>
                                             <Tooltip title="Delete Student">
-                                                <IconButton color="error" size="small"><DeleteIcon fontSize="small" /></IconButton>
+                                                <IconButton color="error" size="small" onClick={() => handleDelete(student)}><DeleteIcon fontSize="small" /></IconButton>
                                             </Tooltip>
                                         </TableCell>
                                     </TableRow>
@@ -207,6 +255,64 @@ const AdminStudents = () => {
                     </DialogActions>
                 </form>
             </Dialog>
+
+            {/* Edit Student Dialog */}
+            <Dialog open={openEditDialog} onClose={() => setOpenEditDialog(false)} maxWidth="md" fullWidth>
+                <form onSubmit={handleEditSubmit}>
+                    <DialogTitle sx={{ fontWeight: 'bold' }}>Edit Student</DialogTitle>
+                    <DialogContent dividers>
+                        <Grid container spacing={2}>
+                            <Grid item xs={12}>
+                                <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>Student Information</Typography>
+                            </Grid>
+                            <Grid item xs={12} sm={6}>
+                                <TextField label="Full Name" fullWidth required value={editStudent.name} onChange={(e) => setEditStudent({ ...editStudent, name: e.target.value })} />
+                            </Grid>
+                            <Grid item xs={12} sm={6}>
+                                <TextField label="Student ID / Roll No" fullWidth required value={editStudent.studentId} onChange={(e) => setEditStudent({ ...editStudent, studentId: e.target.value })} />
+                            </Grid>
+                            <Grid item xs={12} sm={6}>
+                                <TextField label="Email" type="email" fullWidth value={editStudent.email} onChange={(e) => setEditStudent({ ...editStudent, email: e.target.value })} />
+                            </Grid>
+                            <Grid item xs={12} sm={6}>
+                                <TextField label="Contact Number" fullWidth value={editStudent.phone} onChange={(e) => setEditStudent({ ...editStudent, phone: e.target.value })} />
+                            </Grid>
+                            <Grid item xs={12} sm={6}>
+                                <FormControl fullWidth>
+                                    <InputLabel>Class</InputLabel>
+                                    <Select
+                                        value={editStudent.sclassId}
+                                        onChange={(e) => setEditStudent({ ...editStudent, sclassId: e.target.value })}
+                                        label="Class"
+                                    >
+                                        {classes?.map((cls) => (
+                                            <MenuItem key={cls.id} value={cls.id}>{cls.sclassName}</MenuItem>
+                                        ))}
+                                    </Select>
+                                </FormControl>
+                            </Grid>
+
+                            <Grid item xs={12} sx={{ mt: 2 }}>
+                                <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>Parent/Guardian Information</Typography>
+                            </Grid>
+                            <Grid item xs={12} sm={6}>
+                                <TextField label="Parent/Guardian Name" fullWidth value={editStudent.parentName} onChange={(e) => setEditStudent({ ...editStudent, parentName: e.target.value })} />
+                            </Grid>
+                            <Grid item xs={12} sm={6}>
+                                <TextField label="Parent Contact Number" fullWidth value={editStudent.parentPhone} onChange={(e) => setEditStudent({ ...editStudent, parentPhone: e.target.value })} />
+                            </Grid>
+                        </Grid>
+                    </DialogContent>
+                    <DialogActions sx={{ p: 2 }}>
+                        <Button onClick={() => setOpenEditDialog(false)} color="inherit">Cancel</Button>
+                        <Button type="submit" variant="contained" disabled={loading}>
+                            {loading ? 'Saving...' : 'Save Changes'}
+                        </Button>
+                    </DialogActions>
+                </form>
+            </Dialog>
+
+            <BulkStudentImportDialog open={openImportDialog} onClose={() => setOpenImportDialog(false)} />
         </DashboardLayout>
     );
 };

@@ -2,7 +2,7 @@ import ParentLayout from "../layout/ParentLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/card";
 import { UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
-import { parentAPI } from "../../../services/api";
+import { parentAPI, uploadAPI } from "../../../services/api";
 import { Input } from "../../../components/ui/input";
 import { Button } from "../../../components/ui/button";
 
@@ -18,6 +18,8 @@ function ParentProfile() {
   const [phoneDraft, setPhoneDraft] = useState("");
   const [occupationDraft, setOccupationDraft] = useState("");
   const [addressDraft, setAddressDraft] = useState("");
+  const [profileImageDraft, setProfileImageDraft] = useState("");
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -34,6 +36,7 @@ function ParentProfile() {
         setPhoneDraft(profile?.phone || "");
         setOccupationDraft(profile?.occupation || "");
         setAddressDraft(profile?.address || "");
+        setProfileImageDraft(profile?.profileImage || "");
       } catch (e) {
         if (!isMounted) return;
         setParent(null);
@@ -62,6 +65,7 @@ function ParentProfile() {
       phone: phoneDraft.trim(),
       occupation: occupationDraft.trim(),
       address: addressDraft.trim(),
+      profileImage: profileImageDraft,
     };
 
     if (!payload.name) {
@@ -86,6 +90,7 @@ function ParentProfile() {
               ...user,
               name: payload.name,
               phone: payload.phone,
+              profileImage: payload.profileImage,
             })
           );
         }
@@ -104,8 +109,12 @@ function ParentProfile() {
     <ParentLayout title="Profile">
       <Card className="rounded-3xl">
         <CardContent className="flex flex-col items-center gap-4 py-10 text-center">
-          <div className="flex h-24 w-24 items-center justify-center rounded-full bg-indigo-600 text-white">
-            <UserRound className="h-10 w-10" />
+          <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-indigo-600 text-white">
+            {profileImageDraft ? (
+              <img src={profileImageDraft} alt="Profile" className="h-full w-full object-cover" />
+            ) : (
+              <UserRound className="h-10 w-10" />
+            )}
           </div>
           <div>
             <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{displayName}</h2>
@@ -121,6 +130,40 @@ function ParentProfile() {
         <CardContent className="space-y-3">
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
           {success ? <p className="text-sm text-green-600">{success}</p> : null}
+
+          <div className="space-y-2">
+            <Input
+              type="file"
+              accept="image/*"
+              disabled={uploading || saving || loading}
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                setError("");
+                setSuccess("");
+                setUploading(true);
+                try {
+                  const res = await uploadAPI.uploadProfile(file);
+                  const url = res?.data?.data?.url || null;
+                  if (!url) throw new Error('Upload succeeded but no URL returned');
+                  setProfileImageDraft(url);
+                  setSuccess('Profile photo uploaded. Click “Save Changes” to apply.');
+                } catch (err) {
+                  const message = err?.response?.data?.message || err?.message || 'Failed to upload photo.';
+                  setError(message);
+                } finally {
+                  setUploading(false);
+                  try { e.target.value = ''; } catch { /* ignore */ }
+                }
+              }}
+            />
+            <Input
+              placeholder="Profile image URL"
+              value={profileImageDraft}
+              onChange={(e) => setProfileImageDraft(e.target.value)}
+              disabled={uploading || saving || loading}
+            />
+          </div>
 
           <Input placeholder="Full name" value={nameDraft} onChange={(e) => setNameDraft(e.target.value)} />
           <Input placeholder="Email" value={emailDraft} onChange={(e) => setEmailDraft(e.target.value)} />

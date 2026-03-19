@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   Alert,
   Box,
+  Avatar,
   Button,
   Card,
   CardContent,
@@ -11,7 +12,7 @@ import {
 } from '@mui/material';
 import { useDispatch } from 'react-redux';
 import DashboardLayout from '../../components/DashboardLayout';
-import { teacherAPI } from '../../services/api';
+import { teacherAPI, uploadAPI } from '../../services/api';
 import { updateUser as updateAuthUser } from '../../redux/slices/authSlice';
 
 const TeacherProfileModern = () => {
@@ -19,6 +20,7 @@ const TeacherProfileModern = () => {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -29,6 +31,7 @@ const TeacherProfileModern = () => {
     qualification: '',
     experience: '',
     specialization: '',
+    profileImage: '',
   });
 
   useEffect(() => {
@@ -48,6 +51,7 @@ const TeacherProfileModern = () => {
           qualification: data?.qualification || '',
           experience: data?.experience?.toString?.() || '',
           specialization: data?.specialization || '',
+          profileImage: data?.profileImage || '',
         });
       } catch (e) {
         if (!cancelled) setError(e?.response?.data?.message || 'Failed to load profile');
@@ -75,6 +79,7 @@ const TeacherProfileModern = () => {
       qualification: form.qualification.trim(),
       experience: form.experience,
       specialization: form.specialization.trim(),
+      profileImage: form.profileImage,
     };
 
     if (!payload.name) {
@@ -90,11 +95,32 @@ const TeacherProfileModern = () => {
       setSuccess(res?.data?.message || 'Profile updated successfully.');
 
       // Keep auth sidebar/header in sync
-      dispatch(updateAuthUser({ name: payload.name, phone: payload.phone }));
+      dispatch(updateAuthUser({ name: payload.name, phone: payload.phone, profileImage: payload.profileImage }));
     } catch (e) {
       setError(e?.response?.data?.message || 'Failed to update profile');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const onSelectPhoto = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    setError('');
+    setSuccess('');
+    try {
+      const res = await uploadAPI.uploadProfile(file);
+      const url = res?.data?.data?.url || res?.data?.data?.[0]?.url || res?.data?.url || null;
+      if (!url) throw new Error('Upload succeeded but no URL returned');
+      setForm((prev) => ({ ...prev, profileImage: url }));
+      setSuccess('Profile photo uploaded. Click “Save Changes” to apply.');
+    } catch (err) {
+      setError(err?.response?.data?.message || err?.message || 'Failed to upload photo');
+    } finally {
+      setUploading(false);
+      try { e.target.value = ''; } catch { /* ignore */ }
     }
   };
 
@@ -114,6 +140,25 @@ const TeacherProfileModern = () => {
         <Card>
           <CardContent>
             <Grid container spacing={2}>
+              <Grid item xs={12}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+                  <Avatar src={form.profileImage || undefined} sx={{ width: 72, height: 72 }}>
+                    {String(form.name || '?').charAt(0)}
+                  </Avatar>
+                  <Button variant="outlined" component="label" disabled={loading || saving || uploading}>
+                    {uploading ? 'Uploading…' : 'Upload Photo'}
+                    <input hidden type="file" accept="image/*" onChange={onSelectPhoto} />
+                  </Button>
+                  <TextField
+                    label="Profile Image URL"
+                    value={form.profileImage}
+                    onChange={onChange('profileImage')}
+                    sx={{ minWidth: { xs: '100%', md: 420 } }}
+                    disabled={loading || saving}
+                  />
+                </Box>
+              </Grid>
+
               <Grid item xs={12} md={6}>
                 <TextField
                   label="Full name"

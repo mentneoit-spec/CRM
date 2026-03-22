@@ -99,25 +99,32 @@ const getAllColleges = async (req, res) => {
 
         const filter = status ? { status } : {};
 
-        const colleges = await prisma.college.findMany({
-            where: filter,
-            skip: parseInt(skip),
-            take: parseInt(limit),
-            include: {
-                Domains: true,
-                _count: {
-                    select: {
-                        Users: true,
-                        Students: true,
-                        Teachers: true,
-                        Payments: true,
-                    },
+        // Run both queries in parallel
+        const [colleges, total] = await Promise.all([
+            prisma.college.findMany({
+                where: filter,
+                skip: parseInt(skip),
+                take: parseInt(limit),
+                select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    phone: true,
+                    address: true,
+                    city: true,
+                    state: true,
+                    country: true,
+                    status: true,
+                    subscriptionPlan: true,
+                    storageUsed: true,
+                    storageLimit: true,
+                    createdAt: true,
+                    updatedAt: true,
                 },
-            },
-            orderBy: { createdAt: 'desc' },
-        });
-
-        const total = await prisma.college.count({ where: filter });
+                orderBy: { createdAt: 'desc' },
+            }),
+            prisma.college.count({ where: filter }),
+        ]);
 
         res.status(200).json({
             success: true,
@@ -533,25 +540,28 @@ const resetAdminPassword = async (req, res) => {
 
 // ==================== PLATFORM MONITORING ====================
 
-// Get platform analytics
+// Get platform analytics (optimized with parallel queries)
 const getPlatformAnalytics = async (req, res) => {
     try {
-        const totalColleges = await prisma.college.count();
-        const activeColleges = await prisma.college.count({ where: { status: 'active' } });
-        const totalUsers = await prisma.user.count();
-        const totalStudents = await prisma.student.count();
-        const totalTeachers = await prisma.teacher.count();
-        const totalPayments = await prisma.payment.aggregate({
-            where: { status: 'completed' },
-            _sum: { amount: true },
-        });
-
-        const revenueStats = await prisma.payment.groupBy({
-            by: ['status'],
-            where: { status: 'completed' },
-            _sum: { amount: true },
-            _count: true,
-        });
+        // Run all queries in parallel for better performance
+        const [
+            totalColleges,
+            activeColleges,
+            totalUsers,
+            totalStudents,
+            totalTeachers,
+            totalPayments,
+        ] = await Promise.all([
+            prisma.college.count(),
+            prisma.college.count({ where: { status: 'active' } }),
+            prisma.user.count(),
+            prisma.student.count(),
+            prisma.teacher.count(),
+            prisma.payment.aggregate({
+                where: { status: 'completed' },
+                _sum: { amount: true },
+            }),
+        ]);
 
         res.status(200).json({
             success: true,
@@ -564,7 +574,6 @@ const getPlatformAnalytics = async (req, res) => {
                 students: totalStudents,
                 teachers: totalTeachers,
                 revenue: totalPayments._sum.amount || 0,
-                revenueStats,
             },
         });
     } catch (error) {
@@ -573,7 +582,7 @@ const getPlatformAnalytics = async (req, res) => {
     }
 };
 
-// Get audit logs
+// Get audit logs (optimized)
 const getAuditLogs = async (req, res) => {
     try {
         const { collegeId, page = 1, limit = 20 } = req.query;
@@ -581,15 +590,31 @@ const getAuditLogs = async (req, res) => {
 
         const filter = collegeId ? { collegeId } : {};
 
-        const logs = await prisma.auditLog.findMany({
-            where: filter,
-            skip: parseInt(skip),
-            take: parseInt(limit),
-            include: { user: true, college: true },
-            orderBy: { createdAt: 'desc' },
-        });
-
-        const total = await prisma.auditLog.count({ where: filter });
+        // Run both queries in parallel
+        const [logs, total] = await Promise.all([
+            prisma.auditLog.findMany({
+                where: filter,
+                skip: parseInt(skip),
+                take: parseInt(limit),
+                select: {
+                    id: true,
+                    action: true,
+                    entityType: true,
+                    entityId: true,
+                    changes: true,
+                    createdAt: true,
+                    user: {
+                        select: {
+                            id: true,
+                            name: true,
+                            email: true,
+                        },
+                    },
+                },
+                orderBy: { createdAt: 'desc' },
+            }),
+            prisma.auditLog.count({ where: filter }),
+        ]);
 
         res.status(200).json({
             success: true,

@@ -19,7 +19,7 @@ const ConnectionTest = () => {
     try {
       const hostname = window.location.hostname;
       const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
-      return isLocal ? 'http://localhost:5000/api' : '/api';
+      return isLocal ? 'http://localhost:5001/api' : '/api';
     } catch {
       return '/api';
     }

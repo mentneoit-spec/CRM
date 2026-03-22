@@ -1,0 +1,11 @@
+Student ID,Roll No,Name,Class,Section,Contact,Parent Info,Actions
+STU001,1,Arjun Kumar,10A,A,9876543210,Father: Rajesh Kumar - 9876543211,Active
+STU002,2,Priya Sharma,10A,A,9876543212,Mother: Anjali Sharma - 9876543213,Active
+STU003,3,Neha Gupta,10A,B,9876543214,Father: Amit Gupta - 9876543215,Active
+STU004,4,Rohan Singh,10B,A,9876543216,Mother: Priya Singh - 9876543217,Active
+STU005,5,Ananya Patel,10B,B,9876543218,Father: Vikram Patel - 9876543219,Active
+STU006,6,Aditya Verma,12A,A,9876543220,Mother: Deepa Verma - 9876543221,Active
+STU007,7,Divya Nair,12A,B,9876543222,Father: Suresh Nair - 9876543223,Active
+STU008,8,Karan Malhotra,12B,A,9876543224,Mother: Kavya Malhotra - 9876543225,Active
+STU009,9,Sneha Desai,12B,B,9876543226,Father: Ramesh Desai - 9876543227,Active
+STU010,10,Varun Chopra,10A,A,9876543228,Mother: Sunita Chopra - 9876543229,Active

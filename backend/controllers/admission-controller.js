@@ -320,7 +320,7 @@ const createAdmissionForm = async (req, res) => {
 const getAllAdmissions = async (req, res) => {
     try {
         const collegeId = req.collegeId || req.query.collegeId;
-        const { status, page = 1, limit = 10 } = req.query;
+        const { status, page = 1, limit = 50 } = req.query;
 
         let filter = { collegeId };
         if (status) filter.status = status;
@@ -331,6 +331,16 @@ const getAllAdmissions = async (req, res) => {
             where: filter,
             skip: parseInt(skip),
             take: parseInt(limit),
+            select: {
+                id: true,
+                studentName: true,
+                email: true,
+                phone: true,
+                class: true,
+                status: true,
+                createdAt: true,
+                admissionTeam: { select: { id: true, name: true } },
+            },
             orderBy: { createdAt: 'desc' },
         });
 

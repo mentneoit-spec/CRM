@@ -5,7 +5,7 @@ const getDefaultApiBaseUrl = () => {
     if (typeof window !== 'undefined' && window.location) {
       const hostname = window.location.hostname;
       if (hostname === 'localhost' || hostname === '127.0.0.1') {
-        return 'http://localhost:5000/api';
+        return 'http://localhost:5001/api';
       }
       return '/api';
     }
@@ -235,6 +235,9 @@ export const adminAPI = {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
+
+  // Payments & Receipts
+  downloadPaymentReceipt: (paymentId) => api.get(`/admin/payments/${paymentId}/receipt`, { responseType: 'blob' }),
 };
 
 export const teacherAPI = {

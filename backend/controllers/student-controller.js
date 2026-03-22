@@ -1,4 +1,16 @@
 const prisma = require('../lib/prisma');
+const Razorpay = require('razorpay');
+const crypto = require('crypto');
+const { generatePaymentReceipt } = require('../utils/payment-receipt');
+
+// Initialize Razorpay
+let razorpay = null;
+if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_SECRET) {
+    razorpay = new Razorpay({
+        key_id: process.env.RAZORPAY_KEY_ID,
+        key_secret: process.env.RAZORPAY_SECRET,
+    });
+}
 
 // ==================== STUDENT PROFILE ====================
 
@@ -39,20 +51,43 @@ const getStudentProfile = async (req, res) => {
 const updateStudentProfile = async (req, res) => {
     try {
         const studentId = req.user.id;
-        const { name, phone, board, group } = req.body;
+        const { name, phone, board, group, rollNum, dateOfBirth, gender, sclassId, sectionId, customClassName, customSectionName } = req.body;
         const integratedCourse = req.body.integratedCourse ?? req.body.integrated_course;
         const profileImage = req.body.profileImage ?? req.body.profile_image;
 
+        const updateData = {
+            name,
+            phone,
+            profileImage: profileImage === undefined ? undefined : profileImage,
+            board: board === undefined ? undefined : board,
+            integratedCourse: integratedCourse === undefined ? undefined : integratedCourse,
+            group: group === undefined ? undefined : group,
+            rollNum: rollNum === undefined ? undefined : (rollNum ? parseInt(rollNum, 10) : null),
+            dateOfBirth: dateOfBirth === undefined ? undefined : dateOfBirth,
+            gender: gender === undefined ? undefined : gender,
+        };
+
+        // Handle class - either use ID or custom name
+        if (customClassName) {
+            updateData.customClassName = customClassName;
+            updateData.sclassId = null;
+        } else if (sclassId) {
+            updateData.sclassId = sclassId;
+            updateData.customClassName = null;
+        }
+
+        // Handle section - either use ID or custom name
+        if (customSectionName) {
+            updateData.customSectionName = customSectionName;
+            updateData.sectionId = null;
+        } else if (sectionId) {
+            updateData.sectionId = sectionId;
+            updateData.customSectionName = null;
+        }
+
         const student = await prisma.student.update({
             where: { userId: studentId },
-            data: {
-                name,
-                phone,
-                profileImage: profileImage === undefined ? undefined : profileImage,
-                board: board === undefined ? undefined : board,
-                integratedCourse: integratedCourse === undefined ? undefined : integratedCourse,
-                group: group === undefined ? undefined : group,
-            },
+            data: updateData,
         });
 
         // Also update user
@@ -377,10 +412,20 @@ const getMyFees = async (req, res) => {
             }
         });
 
+        // Add paidAmount and pendingAmount to each fee
+        const feesWithAmounts = fees.map(fee => {
+            const paidAmount = fee.Payments.reduce((sum, p) => sum + p.amount, 0);
+            return {
+                ...fee,
+                paidAmount,
+                pendingAmount: fee.amount - paidAmount,
+            };
+        });
+
         res.status(200).json({
             success: true,
             data: {
-                fees,
+                fees: feesWithAmounts,
                 summary: {
                     totalFee,
                     totalPaid,
@@ -727,6 +772,247 @@ const getMyTeachers = async (req, res) => {
 
 };
 
+// ==================== PAYMENT CREATION ====================
+
+// Create payment (Razorpay order)
+const createMyPayment = async (req, res) => {
+    try {
+        const { amount, feeType, feeId } = req.body;
+        const studentId = req.user.id;
+        const collegeId = req.collegeId;
+
+        // Validate amount
+        if (!amount) {
+            return res.status(400).json({ success: false, message: 'Amount required' });
+        }
+
+        const parsedAmount = parseFloat(amount);
+        if (isNaN(parsedAmount) || parsedAmount <= 0) {
+            return res.status(400).json({ success: false, message: 'Amount must be a positive number' });
+        }
+
+        if (!razorpay) {
+            return res.status(500).json({ success: false, message: 'Razorpay not configured' });
+        }
+
+        // Verify student
+        const student = await prisma.student.findUnique({
+            where: { userId: studentId },
+        });
+
+        if (!student || student.collegeId !== collegeId) {
+            return res.status(404).json({ success: false, message: 'Student not found' });
+        }
+
+        // Find fee if feeId provided
+        let linkedFeeId = null;
+        if (feeId) {
+            const fee = await prisma.fee.findUnique({
+                where: { id: feeId },
+            });
+            if (fee && fee.studentId === student.id && fee.collegeId === collegeId) {
+                linkedFeeId = fee.id;
+            }
+        } else if (feeType) {
+            // Find first pending fee of this type
+            const fee = await prisma.fee.findFirst({
+                where: {
+                    studentId: student.id,
+                    collegeId,
+                    feeType: feeType,
+                },
+            });
+            if (fee) {
+                linkedFeeId = fee.id;
+            }
+        }
+
+        // Create Razorpay order
+        const timestamp = Date.now().toString().slice(-8); // Last 8 digits of timestamp
+        const receipt = `RCP${timestamp}`.substring(0, 40); // Max 40 chars
+        
+        const razorpayOrder = await razorpay.orders.create({
+            amount: Math.round(parsedAmount * 100), // Amount in paise
+            currency: 'INR',
+            receipt: receipt,
+            notes: {
+                studentId: student.id,
+                collegeId,
+                feeType: feeType || 'Fee Payment',
+            },
+        });
+
+        // Create payment record with fee link
+        const payment = await prisma.payment.create({
+            data: {
+                transactionId: razorpayOrder.id,
+                paymentMethod: 'razorpay',
+                amount: parsedAmount,
+                status: 'pending',
+                studentId: student.id,
+                collegeId,
+                feeId: linkedFeeId,
+                notes: feeType || 'Fee Payment',
+            },
+        });
+
+        res.status(201).json({
+            success: true,
+            message: 'Razorpay order created successfully',
+            data: {
+                paymentId: payment.id,
+                razorpayOrderId: razorpayOrder.id,
+                amount: razorpayOrder.amount / 100,
+                studentId: student.id,
+                studentName: student.name,
+            },
+        });
+    } catch (error) {
+        console.error('Create payment error:', error.message || error);
+        console.error('Error details:', {
+            message: error.message,
+            code: error.code,
+            statusCode: error.statusCode,
+            description: error.description,
+        });
+        
+        // Return more specific error messages
+        if (error.statusCode === 400) {
+            return res.status(400).json({ 
+                success: false, 
+                message: error.description || 'Invalid payment request' 
+            });
+        }
+        
+        res.status(500).json({ 
+            success: false, 
+            message: error.message || 'Error creating payment' 
+        });
+    }
+};
+
+// Verify payment
+const verifyMyPayment = async (req, res) => {
+    try {
+        const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
+        const studentId = req.user.id;
+        const collegeId = req.collegeId;
+
+        // Verify student
+        const student = await prisma.student.findUnique({
+            where: { userId: studentId },
+            include: { college: true },
+        });
+
+        if (!student || student.collegeId !== collegeId) {
+            return res.status(404).json({ success: false, message: 'Student not found' });
+        }
+
+        // Verify signature
+        const message = `${razorpayOrderId}|${razorpayPaymentId}`;
+        const expectedSignature = crypto
+            .createHmac('sha256', process.env.RAZORPAY_SECRET)
+            .update(message)
+            .digest('hex');
+
+        if (expectedSignature !== razorpaySignature) {
+            return res.status(400).json({ success: false, message: 'Invalid payment signature' });
+        }
+
+        // Update payment status
+        const payment = await prisma.payment.update({
+            where: { transactionId: razorpayOrderId },
+            data: {
+                status: 'completed',
+                razorpayPaymentId: razorpayPaymentId,
+                paymentDate: new Date(),
+            },
+        });
+
+        // Generate receipt
+        let receiptUrl = null;
+        try {
+            const receiptData = await generatePaymentReceipt({
+                paymentId: payment.id,
+                studentName: student.name,
+                studentId: student.studentId,
+                collegeName: student.college.name,
+                amount: payment.amount,
+                feeType: payment.notes,
+                paymentDate: payment.paymentDate,
+                transactionId: payment.razorpayPaymentId,
+                paymentMethod: payment.paymentMethod,
+            });
+            receiptUrl = receiptData.url;
+        } catch (receiptError) {
+            console.error('Receipt generation error:', receiptError);
+            // Don't fail payment verification if receipt generation fails
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Payment verified successfully',
+            data: {
+                ...payment,
+                receiptUrl,
+            },
+        });
+    } catch (error) {
+        console.error('Verify payment error:', error);
+        res.status(500).json({ success: false, message: 'Error verifying payment' });
+    }
+};
+
+// Download payment receipt
+const downloadPaymentReceipt = async (req, res) => {
+    try {
+        const { paymentId } = req.params;
+        const studentId = req.user.id;
+        const collegeId = req.collegeId;
+
+        // Verify student
+        const student = await prisma.student.findUnique({
+            where: { userId: studentId },
+        });
+
+        if (!student || student.collegeId !== collegeId) {
+            return res.status(404).json({ success: false, message: 'Student not found' });
+        }
+
+        // Verify payment belongs to student
+        const payment = await prisma.payment.findUnique({
+            where: { id: paymentId },
+        });
+
+        if (!payment || payment.studentId !== student.id || payment.collegeId !== collegeId) {
+            return res.status(404).json({ success: false, message: 'Payment not found' });
+        }
+
+        if (payment.status !== 'completed') {
+            return res.status(400).json({ success: false, message: 'Receipt only available for completed payments' });
+        }
+
+        // Generate receipt on demand
+        const receiptData = await generatePaymentReceipt({
+            paymentId: payment.id,
+            studentName: student.name,
+            studentId: student.studentId,
+            collegeName: student.college?.name || 'School',
+            amount: payment.amount,
+            feeType: payment.notes,
+            paymentDate: payment.paymentDate,
+            transactionId: payment.razorpayPaymentId,
+            paymentMethod: payment.paymentMethod,
+        });
+
+        // Send file
+        res.download(receiptData.filepath, `receipt_${paymentId}.pdf`);
+    } catch (error) {
+        console.error('Download receipt error:', error);
+        res.status(500).json({ success: false, message: 'Error downloading receipt' });
+    }
+};
+
 module.exports = {
     getStudentProfile,
     updateStudentProfile,
@@ -735,6 +1021,9 @@ module.exports = {
     getMyExams,
     getMyFees,
     getMyPaymentHistory,
+    createMyPayment,
+    verifyMyPayment,
+    downloadPaymentReceipt,
     getMyHomework,
     getMyTimetable,
     getMyNotices,

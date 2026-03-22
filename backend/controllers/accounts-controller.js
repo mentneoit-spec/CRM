@@ -22,9 +22,18 @@ const getAllPayments = async (req, res) => {
 
         const payments = await prisma.payment.findMany({
             where: filter,
-            include: {
-                student: { select: { name: true, email: true } },
-                fee: true,
+            select: {
+                id: true,
+                amount: true,
+                status: true,
+                paymentDate: true,
+                notes: true,
+                transactionId: true,
+                createdAt: true,
+                studentId: true,
+                feeId: true,
+                student: { select: { id: true, name: true, email: true, sclass: { select: { sclassName: true } } } },
+                fee: { select: { id: true, feeType: true, amount: true } },
             },
             skip: parseInt(skip),
             take: parseInt(limit),

@@ -443,6 +443,8 @@ model Student {
   group           String?
   admissionYear   Int?
   admissionNumber String?
+  customClassName String?   // Manual class entry
+  customSectionName String? // Manual section entry
 
   collegeId       String
   college         College  @relation(fields: [collegeId], references: [id], onDelete: Cascade)
@@ -486,7 +488,7 @@ model Parent {
   id              String    @id @default(uuid())
   name            String
   email           String?
-  phone           String    @unique
+  phone           String
   password        String
   profileImage    String?
   relation        String?   // Father, Mother, Guardian
@@ -507,6 +509,7 @@ model Parent {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
+  @@unique([collegeId, phone])
   @@index([collegeId])
   @@index([phone])
 }

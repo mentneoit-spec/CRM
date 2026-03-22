@@ -58,6 +58,7 @@ const AdminStudents = () => {
             if (!res.error) {
                 setOpenAddDialog(false);
                 setNewStudent({ name: '', studentId: '', email: '', phone: '', password: '', sclassId: '', parentName: '', parentPhone: '' });
+                dispatch(fetchStudents());
             }
         });
     };
@@ -82,6 +83,7 @@ const AdminStudents = () => {
         dispatch(updateStudent({ id, data })).then((res) => {
             if (!res.error) {
                 setOpenEditDialog(false);
+                dispatch(fetchStudents());
             }
         });
     };
@@ -90,7 +92,11 @@ const AdminStudents = () => {
         if (!student?.id) return;
         const ok = window.confirm(`Delete student ${student.studentId || ''} (${student.name || ''})?`);
         if (!ok) return;
-        dispatch(deleteStudent(student.id));
+        dispatch(deleteStudent(student.id)).then((res) => {
+            if (!res.error) {
+                dispatch(fetchStudents());
+            }
+        });
     };
 
     const filteredStudents = students?.filter((student) =>

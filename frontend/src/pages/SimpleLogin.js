@@ -24,7 +24,7 @@ const SimpleLogin = () => {
         if (typeof window !== 'undefined' && window.location) {
           const hostname = window.location.hostname;
           const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
-          if (isLocal) return 'http://localhost:5000/api';
+          if (isLocal) return 'http://localhost:5001/api';
           return '/api';
         }
       } catch {

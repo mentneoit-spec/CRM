@@ -2,12 +2,12 @@ import React, { useEffect, useState } from "react";
 import { Box, Button, CircularProgress, Stack, TextField } from "@mui/material";
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { addStuff } from '../../../redux/userRelated/userHandle';
 import { underControl } from '../../../redux/userRelated/userSlice';
 import { BlueButton } from "../../../components/buttonStyles";
 import Popup from "../../../components/Popup";
 import Classroom from "../../../assets/classroom.png";
 import styled from "styled-components";
+import axios from 'axios';
 
 const AddClass = () => {
     const [sclassName, setSclassName] = useState("");
@@ -16,43 +16,55 @@ const AddClass = () => {
     const navigate = useNavigate()
 
     const userState = useSelector(state => state.user);
-    const { status, currentUser, response, error, tempDetails } = userState;
-
-    const adminID = currentUser._id
-    const address = "Sclass"
+    const { currentUser } = userState;
 
     const [loader, setLoader] = useState(false)
     const [message, setMessage] = useState("");
     const [showPopup, setShowPopup] = useState(false);
 
-    const fields = {
-        sclassName,
-        adminID,
-    };
-
-    const submitHandler = (event) => {
+    const submitHandler = async (event) => {
         event.preventDefault()
+        
+        if (!sclassName.trim()) {
+            setMessage("Please enter a class name")
+            setShowPopup(true)
+            return
+        }
+
         setLoader(true)
-        dispatch(addStuff(fields, address))
+        
+        try {
+            const token = localStorage.getItem('token')
+            const response = await axios.post(
+                `${process.env.REACT_APP_BASE_URL}/admin/classes`,
+                { sclassName },
+                {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    }
+                }
+            )
+
+            if (response.data.success) {
+                setMessage("Class created successfully!")
+                setShowPopup(true)
+                setTimeout(() => {
+                    navigate("/Admin/classes")
+                }, 1500)
+            } else {
+                setMessage(response.data.message || "Failed to create class")
+                setShowPopup(true)
+                setLoader(false)
+            }
+        } catch (error) {
+            console.error('Error creating class:', error)
+            setMessage(error.response?.data?.message || "Error creating class")
+            setShowPopup(true)
+            setLoader(false)
+        }
     };
 
-    useEffect(() => {
-        if (status === 'added' && tempDetails) {
-            navigate("/Admin/classes/class/" + tempDetails._id)
-            dispatch(underControl())
-            setLoader(false)
-        }
-        else if (status === 'failed') {
-            setMessage(response)
-            setShowPopup(true)
-            setLoader(false)
-        }
-        else if (status === 'error') {
-            setMessage("Network Error")
-            setShowPopup(true)
-            setLoader(false)
-        }
-    }, [status, navigate, error, response, dispatch, tempDetails]);
     return (
         <>
             <StyledContainer>

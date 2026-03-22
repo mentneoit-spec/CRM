@@ -6,7 +6,7 @@ const getDefaultApiBaseUrl = () => {
       const hostname = window.location.hostname;
 
       if (hostname === 'localhost' || hostname === '127.0.0.1') {
-        return 'http://localhost:5000/api';
+        return 'http://localhost:5001/api';
       }
 
       // Production: prefer same-origin API (avoids CORS and mismatched backends)
@@ -152,6 +152,9 @@ export const studentAPI = {
   getResults: () => api.get('/student/results'),
   getFees: () => api.get('/student/fees'),
   getPaymentHistory: (params) => api.get('/student/payments', params ? { params } : undefined),
+  createPayment: (data) => api.post('/student/payments', data),
+  verifyPayment: (data) => api.post('/student/payments/verify', data),
+  downloadPaymentReceipt: (paymentId) => api.get(`/student/payments/${paymentId}/receipt`, { responseType: 'blob' }),
   getSubjects: () => api.get('/student/subjects'),
   getHomework: () => api.get('/student/homework'),
   getNotices: () => api.get('/student/notices'),

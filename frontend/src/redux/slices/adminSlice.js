@@ -11,8 +11,10 @@ const toApiErrorMessage = (error, fallback) => {
 // Async Thunks
 export const fetchTeachers = createAsyncThunk('admin/fetchTeachers', async (params = {}, { rejectWithValue }) => {
     try {
-        const response = await adminAPI.getTeachers(params);
-        return response?.data?.data || [];
+        // Add default pagination if not provided
+        const queryParams = { limit: 50, ...params };
+        const response = await adminAPI.getTeachers(queryParams);
+        return response?.data || [];
     } catch (error) {
         return rejectWithValue(error?.message || error?.response?.data?.message || 'Failed to fetch teachers');
     }
@@ -21,8 +23,8 @@ export const fetchTeachers = createAsyncThunk('admin/fetchTeachers', async (para
 export const createTeacher = createAsyncThunk('admin/createTeacher', async (data, { rejectWithValue }) => {
     try {
         const response = await adminAPI.createTeacher(data);
-        // backend returns { success, data: { user, teacher } }
-        return response?.data?.data?.teacher || null;
+        // API interceptor unwraps response, so response is { success, message, data: { user, teacher } }
+        return response?.data?.teacher || null;
     } catch (error) {
         return rejectWithValue(error?.message || error?.response?.data?.message || 'Failed to create teacher');
     }
@@ -30,10 +32,10 @@ export const createTeacher = createAsyncThunk('admin/createTeacher', async (data
 
 export const fetchStudents = createAsyncThunk('admin/fetchStudents', async (params = {}, { rejectWithValue }) => {
     try {
-        const response = await adminAPI.getStudents(params);
-        // api.js interceptor already unwraps axios to the JSON payload.
-        // Backend shape is typically: { success: true, data: [...] }
-        return response?.data || response?.data?.data || [];
+        // Add default pagination if not provided
+        const queryParams = { limit: 50, ...params };
+        const response = await adminAPI.getStudents(queryParams);
+        return response?.data || [];
     } catch (error) {
         return rejectWithValue(error?.message || error?.response?.data?.message || 'Failed to fetch students');
     }
@@ -42,8 +44,8 @@ export const fetchStudents = createAsyncThunk('admin/fetchStudents', async (para
 export const createStudent = createAsyncThunk('admin/createStudent', async (data, { rejectWithValue }) => {
     try {
         const response = await adminAPI.createStudent(data);
-        // backend returns { success, data: { user, student } }
-        return response?.data?.data?.student || null;
+        // API interceptor unwraps response, so response is { success, message, data: { user, student, loginCredentials } }
+        return response?.data?.student || null;
     } catch (error) {
         return rejectWithValue(error?.message || error?.response?.data?.message || 'Failed to create student');
     }
@@ -52,7 +54,8 @@ export const createStudent = createAsyncThunk('admin/createStudent', async (data
 export const updateStudent = createAsyncThunk('admin/updateStudent', async ({ id, data }, { rejectWithValue }) => {
     try {
         const response = await adminAPI.updateStudent(id, data);
-        return response?.data?.data || null;
+        // API interceptor unwraps response, so response is { success, data: student }
+        return response?.data || null;
     } catch (error) {
         return rejectWithValue(error?.message || error?.response?.data?.message || 'Failed to update student');
     }
@@ -112,10 +115,12 @@ export const bulkImportAdmissions = createAsyncThunk('admin/bulkImportAdmissions
     }
 });
 
-export const fetchClasses = createAsyncThunk('admin/fetchClasses', async (_, { rejectWithValue }) => {
+export const fetchClasses = createAsyncThunk('admin/fetchClasses', async (params = {}, { rejectWithValue }) => {
     try {
-        const response = await adminAPI.getClasses();
-        return response?.data?.data || [];
+        // Add default pagination if not provided
+        const queryParams = { limit: 50, ...params };
+        const response = await adminAPI.getClasses(queryParams);
+        return response?.data || [];
     } catch (error) {
         return rejectWithValue(error?.message || error?.response?.data?.message || 'Failed to fetch classes');
     }
@@ -124,7 +129,8 @@ export const fetchClasses = createAsyncThunk('admin/fetchClasses', async (_, { r
 export const createClass = createAsyncThunk('admin/createClass', async (data, { rejectWithValue }) => {
     try {
         const response = await adminAPI.createClass(data);
-        return response?.data?.data || null;
+        // API interceptor unwraps response, so response is { success, message, data: sclass }
+        return response?.data || null;
     } catch (error) {
         return rejectWithValue(error?.message || error?.response?.data?.message || 'Failed to create class');
     }
@@ -132,7 +138,9 @@ export const createClass = createAsyncThunk('admin/createClass', async (data, { 
 
 export const fetchAdmissions = createAsyncThunk('admin/fetchAdmissions', async (params = {}, { rejectWithValue }) => {
     try {
-        const response = await adminAPI.getAdmissions(params);
+        // Add default pagination if not provided
+        const queryParams = { limit: 50, ...params };
+        const response = await adminAPI.getAdmissions(queryParams);
         return response?.data || [];
     } catch (error) {
         return rejectWithValue(error?.message || error?.response?.data?.message || 'Failed to fetch admissions');
@@ -141,7 +149,9 @@ export const fetchAdmissions = createAsyncThunk('admin/fetchAdmissions', async (
 
 export const fetchSubjects = createAsyncThunk('admin/fetchSubjects', async (params = {}, { rejectWithValue }) => {
     try {
-        const response = await adminAPI.getSubjects(params);
+        // Add default pagination if not provided
+        const queryParams = { limit: 50, ...params };
+        const response = await adminAPI.getSubjects(queryParams);
         return response?.data || [];
     } catch (error) {
         return rejectWithValue(error?.message || error?.response?.data?.message || 'Failed to fetch subjects');
@@ -151,6 +161,7 @@ export const fetchSubjects = createAsyncThunk('admin/fetchSubjects', async (para
 export const createSubject = createAsyncThunk('admin/createSubject', async (data, { rejectWithValue }) => {
     try {
         const response = await adminAPI.createSubject(data);
+        // API interceptor unwraps response, so response is { success, message, data: subject }
         return response?.data || null;
     } catch (error) {
         return rejectWithValue(error?.message || error?.response?.data?.message || 'Failed to create subject');

@@ -129,11 +129,12 @@ app.use(cors(corsOptions));
 // the browser will block the real POST/PUT/DELETE.
 app.options('*', cors(corsOptions));
 
-// Rate Limiter
+// Rate Limiter (relaxed for development)
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: 1000, // Increased from 100 for development
   message: "Too many requests from this IP, please try again later.",
+  skip: (req) => process.env.NODE_ENV === 'development', // Disable in development
 });
 app.use("/api/", limiter);
 

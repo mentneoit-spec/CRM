@@ -14,6 +14,7 @@ import {
 import DashboardLayout from '../../components/DashboardLayout';
 import { fetchFees, fetchStudents } from '../../redux/slices/adminSlice';
 import { adminAPI } from '../../config/api';
+import StudentFeesDetailModal from './StudentFeesDetailModal';
 
 const AdminFees = () => {
     const dispatch = useDispatch();
@@ -33,6 +34,8 @@ const AdminFees = () => {
     // Dialog State
     const [openDialog, setOpenDialog] = useState(false);
     const [editingFee, setEditingFee] = useState(null);
+    const [selectedStudent, setSelectedStudent] = useState(null);
+    const [openStudentFeesDialog, setOpenStudentFeesDialog] = useState(false);
     const [formData, setFormData] = useState({
         studentId: '',
         feeType: '',
@@ -169,6 +172,11 @@ const AdminFees = () => {
         }
     };
 
+    const handleViewStudentFees = (fee) => {
+        setSelectedStudent(fee.student);
+        setOpenStudentFeesDialog(true);
+    };
+
     const handleImportCsv = async (file) => {
         resetMessages();
         if (!file) return;
@@ -275,8 +283,10 @@ const AdminFees = () => {
                                             <Chip label={fee.isActive ? 'ACTIVE' : 'INACTIVE'} size="small" color={fee.isActive ? 'success' : 'default'} />
                                         </TableCell>
                                         <TableCell align="center">
-                                            <Tooltip title="View Payments">
-                                                <IconButton color="primary" size="small"><VisibilityIcon fontSize="small" /></IconButton>
+                                            <Tooltip title="View Student Fees">
+                                                <IconButton color="primary" size="small" onClick={() => handleViewStudentFees(fee)}>
+                                                    <VisibilityIcon fontSize="small" />
+                                                </IconButton>
                                             </Tooltip>
                                             <Tooltip title="Edit Fee">
                                                 <IconButton color="primary" size="small" onClick={() => openEdit(fee)}>
@@ -414,6 +424,14 @@ const AdminFees = () => {
                     </Button>
                 </DialogActions>
             </Dialog>
+
+            {/* Student Fees Detail Modal */}
+            <StudentFeesDetailModal
+                open={openStudentFeesDialog}
+                student={selectedStudent}
+                onClose={() => setOpenStudentFeesDialog(false)}
+                onRefresh={() => dispatch(fetchFees())}
+            />
         </DashboardLayout>
     );
 };

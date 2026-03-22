@@ -31,6 +31,7 @@ import AdminStudents from './pages/admin/AdminStudents';
 import AdminClasses from './pages/admin/AdminClasses';
 import AdminAdmissions from './pages/admin/AdminAdmissions';
 import AdminFees from './pages/admin/AdminFees';
+import AdminReceipts from './pages/admin/AdminReceipts';
 import AdminSubjects from './pages/admin/AdminSubjects';
 import TeamManagement from './pages/admin/TeamManagement';
 import AdminTransport from './pages/admin/AdminTransport';
@@ -228,6 +229,10 @@ function App() {
           <Route
             path="/admin/fees"
             element={<ProtectedRoute allowedRoles={["Admin", "SuperAdmin"]} element={<AdminFees />} />}
+          />
+          <Route
+            path="/admin/receipts"
+            element={<ProtectedRoute allowedRoles={["Admin", "SuperAdmin"]} element={<AdminReceipts />} />}
           />
           <Route
             path="/admin/teams"

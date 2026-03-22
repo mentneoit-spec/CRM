@@ -11,6 +11,7 @@ import ClassOutlinedIcon from '@mui/icons-material/ClassOutlined';
 import SupervisorAccountOutlinedIcon from '@mui/icons-material/SupervisorAccountOutlined';
 import ReportIcon from '@mui/icons-material/Report';
 import AssignmentIcon from '@mui/icons-material/Assignment';
+import ReceiptIcon from '@mui/icons-material/Receipt';
 
 const SideBar = () => {
     const location = useLocation();
@@ -58,6 +59,36 @@ const SideBar = () => {
                         <ReportIcon color={location.pathname.startsWith("/Admin/complains") ? 'primary' : 'inherit'} />
                     </ListItemIcon>
                     <ListItemText primary="Complains" />
+                </ListItemButton>
+                <ListItemButton component={Link} to="/admin/fees">
+                    <ListItemIcon>
+                        <AssignmentIcon color={location.pathname.startsWith("/admin/fees") ? 'primary' : 'inherit'} />
+                    </ListItemIcon>
+                    <ListItemText primary="Fees" />
+                </ListItemButton>
+                <ListItemButton component={Link} to="/admin/receipts">
+                    <ListItemIcon>
+                        <ReceiptIcon color={location.pathname.startsWith("/admin/receipts") ? 'primary' : 'inherit'} />
+                    </ListItemIcon>
+                    <ListItemText primary="Receipts & Payments" />
+                </ListItemButton>
+                <ListItemButton component={Link} to="/admin/transport">
+                    <ListItemIcon>
+                        <AssignmentIcon color={location.pathname.startsWith("/admin/transport") ? 'primary' : 'inherit'} />
+                    </ListItemIcon>
+                    <ListItemText primary="Transport" />
+                </ListItemButton>
+                <ListItemButton component={Link} to="/admin/results">
+                    <ListItemIcon>
+                        <AssignmentIcon color={location.pathname.startsWith("/admin/results") ? 'primary' : 'inherit'} />
+                    </ListItemIcon>
+                    <ListItemText primary="Results" />
+                </ListItemButton>
+                <ListItemButton component={Link} to="/admin/reports">
+                    <ListItemIcon>
+                        <ReportIcon color={location.pathname.startsWith("/admin/reports") ? 'primary' : 'inherit'} />
+                    </ListItemIcon>
+                    <ListItemText primary="Reports" />
                 </ListItemButton>
             </React.Fragment>
             <Divider sx={{ my: 1 }} />

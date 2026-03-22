@@ -58,6 +58,17 @@ function StudentProfile() {
   const [groupDraft, setGroupDraft] = useState("");
   const [integratedCourseDraft, setIntegratedCourseDraft] = useState("");
   const [customIntegratedCourseDraft, setCustomIntegratedCourseDraft] = useState("");
+  const [rollNumDraft, setRollNumDraft] = useState("");
+  const [dateOfBirthDraft, setDateOfBirthDraft] = useState("");
+  const [genderDraft, setGenderDraft] = useState("");
+  const [classDraft, setClassDraft] = useState("");
+  const [sectionDraft, setSectionDraft] = useState("");
+  const [customClassName, setCustomClassName] = useState("");
+  const [customSectionName, setCustomSectionName] = useState("");
+  const [useCustomClass, setUseCustomClass] = useState(false);
+  const [useCustomSection, setUseCustomSection] = useState(false);
+  const [classes, setClasses] = useState([]);
+  const [sections, setSections] = useState([]);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
@@ -73,15 +84,42 @@ function StudentProfile() {
     const load = async () => {
       setLoading(true);
       try {
-        const res = await studentAPI.getProfile();
-        const profile = res?.data?.data ?? null;
+        const [profileRes, classesRes, sectionsRes] = await Promise.all([
+          studentAPI.getProfile(),
+          studentAPI.getClasses?.() || Promise.resolve({ data: { data: [] } }),
+          studentAPI.getSections?.() || Promise.resolve({ data: { data: [] } }),
+        ]);
+
         if (!isMounted) return;
+
+        const profile = profileRes?.data?.data ?? null;
         setStudent(profile);
         setNameDraft(profile?.name || "");
         setPhoneDraft(profile?.phone || "");
         setProfileImageDraft(profile?.profileImage || "");
         setBoardDraft(profile?.board || "");
         setGroupDraft(profile?.group || "");
+        setRollNumDraft(profile?.rollNum || "");
+        setGenderDraft(profile?.gender || "");
+        setClassDraft(profile?.sclassId || "");
+        setSectionDraft(profile?.sectionId || "");
+        setCustomClassName(profile?.customClassName || "");
+        setCustomSectionName(profile?.customSectionName || "");
+        setUseCustomClass(!!profile?.customClassName);
+        setUseCustomSection(!!profile?.customSectionName);
+        
+        // Format date for input field (YYYY-MM-DD)
+        if (profile?.dateOfBirth) {
+          const date = new Date(profile.dateOfBirth);
+          const formatted = date.toISOString().split('T')[0];
+          setDateOfBirthDraft(formatted);
+        }
+
+        // Set classes and sections
+        const classesData = classesRes?.data?.data ?? [];
+        const sectionsData = sectionsRes?.data?.data ?? [];
+        setClasses(classesData);
+        setSections(sectionsData);
 
         const existingCourse = profile?.integratedCourse || "";
         if (existingCourse && !ALL_KNOWN_COURSES.includes(existingCourse)) {
@@ -123,6 +161,13 @@ function StudentProfile() {
       board: boardDraft || undefined,
       group: groupDraft || undefined,
       integratedCourse: resolvedIntegratedCourse || undefined,
+      rollNum: rollNumDraft.trim() || undefined,
+      dateOfBirth: dateOfBirthDraft || undefined,
+      gender: genderDraft || undefined,
+      sclassId: useCustomClass ? undefined : (classDraft || undefined),
+      sectionId: useCustomSection ? undefined : (sectionDraft || undefined),
+      customClassName: useCustomClass ? customClassName.trim() : undefined,
+      customSectionName: useCustomSection ? customSectionName.trim() : undefined,
     };
 
     if (!payload.name) {
@@ -232,6 +277,108 @@ function StudentProfile() {
 
           <Input placeholder="Full name" value={nameDraft} onChange={(e) => setNameDraft(e.target.value)} />
           <Input placeholder="Phone" value={phoneDraft} onChange={(e) => setPhoneDraft(e.target.value)} />
+          <Input placeholder="Roll Number" value={rollNumDraft} onChange={(e) => setRollNumDraft(e.target.value)} />
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Date of Birth</label>
+            <Input
+              type="date"
+              value={dateOfBirthDraft}
+              onChange={(e) => setDateOfBirthDraft(e.target.value)}
+              disabled={uploading || saving || loading}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Gender</label>
+            <select
+              className="flex h-10 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-100"
+              value={genderDraft}
+              onChange={(e) => setGenderDraft(e.target.value)}
+              disabled={uploading || saving || loading}
+            >
+              <option value="">Select gender…</option>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Class</label>
+              <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+                <input
+                  type="checkbox"
+                  checked={useCustomClass}
+                  onChange={(e) => {
+                    setUseCustomClass(e.target.checked);
+                    if (!e.target.checked) setCustomClassName("");
+                  }}
+                  disabled={uploading || saving || loading}
+                />
+                Enter manually
+              </label>
+            </div>
+            {useCustomClass ? (
+              <Input
+                placeholder="Enter class name (e.g., 10A, Class 5)"
+                value={customClassName}
+                onChange={(e) => setCustomClassName(e.target.value)}
+                disabled={uploading || saving || loading}
+              />
+            ) : (
+              <select
+                className="flex h-10 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-100"
+                value={classDraft}
+                onChange={(e) => setClassDraft(e.target.value)}
+                disabled={uploading || saving || loading}
+              >
+                <option value="">Select class…</option>
+                {classes.map((cls) => (
+                  <option key={cls.id} value={cls.id}>{cls.sclassName}</option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Section</label>
+              <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+                <input
+                  type="checkbox"
+                  checked={useCustomSection}
+                  onChange={(e) => {
+                    setUseCustomSection(e.target.checked);
+                    if (!e.target.checked) setCustomSectionName("");
+                  }}
+                  disabled={uploading || saving || loading}
+                />
+                Enter manually
+              </label>
+            </div>
+            {useCustomSection ? (
+              <Input
+                placeholder="Enter section name (e.g., A, B, Section 1)"
+                value={customSectionName}
+                onChange={(e) => setCustomSectionName(e.target.value)}
+                disabled={uploading || saving || loading}
+              />
+            ) : (
+              <select
+                className="flex h-10 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-100"
+                value={sectionDraft}
+                onChange={(e) => setSectionDraft(e.target.value)}
+                disabled={uploading || saving || loading}
+              >
+                <option value="">Select section…</option>
+                {sections.map((sec) => (
+                  <option key={sec.id} value={sec.id}>{sec.sectionName}</option>
+                ))}
+              </select>
+            )}
+          </div>
 
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Board</label>

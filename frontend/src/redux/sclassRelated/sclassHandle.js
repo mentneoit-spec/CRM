@@ -16,11 +16,16 @@ export const getAllSclasses = (id, address) => async (dispatch) => {
     dispatch(getRequest());
 
     try {
-        const result = await axios.get(`${process.env.REACT_APP_BASE_URL}/${address}List/${id}`);
+        const token = localStorage.getItem('token');
+        const result = await axios.get(`${process.env.REACT_APP_BASE_URL}/admin/classes`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
         if (result.data.message) {
             dispatch(getFailedTwo(result.data.message));
         } else {
-            dispatch(getSuccess(result.data));
+            dispatch(getSuccess(result.data.data || result.data));
         }
     } catch (error) {
         dispatch(getError(error));

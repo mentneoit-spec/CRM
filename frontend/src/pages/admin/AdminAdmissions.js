@@ -40,7 +40,11 @@ const AdminAdmissions = () => {
 
     const handleApprove = (id) => {
         if (window.confirm("Approve this admission application and create a student profile?")) {
-            dispatch(approveAdmission(id));
+            dispatch(approveAdmission(id)).then((res) => {
+                if (!res.error) {
+                    dispatch(fetchAdmissions());
+                }
+            });
         }
     };
 
@@ -55,6 +59,7 @@ const AdminAdmissions = () => {
                 setOpenReject(false);
                 setRejectId(null);
                 setRejectReason('');
+                dispatch(fetchAdmissions());
             }
         });
     };

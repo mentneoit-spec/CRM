@@ -110,15 +110,24 @@ const createBusRoute = async (req, res) => {
 const getAllBusRoutes = async (req, res) => {
     try {
         const collegeId = req.collegeId;
-        const { page = 1, limit = 10 } = req.query;
+        const { page = 1, limit = 50 } = req.query;
 
         const skip = (page - 1) * limit;
 
         const routes = await prisma.busRoute.findMany({
             where: { collegeId },
-            include: {
+            select: {
+                id: true,
+                routeName: true,
+                startPoint: true,
+                endPoint: true,
+                distance: true,
+                estimatedTime: true,
+                stopsCount: true,
+                fee: true,
+                isActive: true,
+                createdAt: true,
                 Buses: { select: { id: true, busNumber: true, capacity: true, status: true } },
-                _count: { select: { Buses: true, Students: true } },
             },
             skip: parseInt(skip),
             take: parseInt(limit),
@@ -269,7 +278,7 @@ const createBus = async (req, res) => {
 const getAllBuses = async (req, res) => {
     try {
         const collegeId = req.collegeId;
-        const { routeId, page = 1, limit = 10 } = req.query;
+        const { routeId, page = 1, limit = 50 } = req.query;
 
         let filter = { collegeId };
         if (routeId) filter.routeId = routeId;
@@ -278,8 +287,16 @@ const getAllBuses = async (req, res) => {
 
         const buses = await prisma.bus.findMany({
             where: filter,
-            include: {
-                route: true,
+            select: {
+                id: true,
+                busNumber: true,
+                registrationNo: true,
+                capacity: true,
+                driverName: true,
+                driverPhone: true,
+                status: true,
+                createdAt: true,
+                route: { select: { id: true, routeName: true } },
             },
             skip: parseInt(skip),
             take: parseInt(limit),

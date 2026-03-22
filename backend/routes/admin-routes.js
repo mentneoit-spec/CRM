@@ -54,6 +54,7 @@ const {
     bulkImportFees,
     getTeacherSections,
     setTeacherSections,
+    downloadPaymentReceipt,
 } = require('../controllers/admin-controller');
 
 const {
@@ -198,5 +199,8 @@ router.post(
 );
 router.post('/admissions/:admissionId/approve', authorize('Admin'), authorizeCollege, approveAdmission);
 router.post('/admissions/:admissionId/reject', authorize('Admin'), authorizeCollege, rejectAdmission);
+
+// ==================== PAYMENTS & RECEIPTS ====================
+router.get('/payments/:paymentId/receipt', authorize('Admin'), authorizeCollege, downloadPaymentReceipt);
 
 module.exports = router;

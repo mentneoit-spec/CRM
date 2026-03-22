@@ -302,21 +302,25 @@ const createStudent = async (req, res) => {
             email,
             phone,
             password,
+            rollNum,
             sclassId,
             sectionId,
             parentName,
             parentPhone,
             board,
             group,
+            customClassName,
         } = req.body;
 
         const normalizedEmail = email ? String(email).trim().toLowerCase() : null;
-        const passwordInput = String(password || '').trim();
+        
+        // Use rollNum as password if not provided
+        const passwordInput = String(password || rollNum || '').trim();
 
         const integratedCourse = req.body.integratedCourse ?? req.body.integrated_course;
         const profileImage = req.body.profileImage ?? req.body.profile_image;
 
-        if (!name || !studentId || !passwordInput || !collegeId || !sclassId) {
+        if (!name || !studentId || !collegeId) {
             return res.status(400).json({ success: false, message: 'Required fields missing' });
         }
 
@@ -338,6 +342,13 @@ const createStudent = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Student ID already exists' });
         }
 
+        // Auto-generate email if not provided
+        let generatedEmail = normalizedEmail;
+        if (!generatedEmail) {
+            const emailBase = `${studentId.toLowerCase().replace(/\s+/g, '.')}@${college.name.toLowerCase().replace(/\s+/g, '')}.student`;
+            generatedEmail = emailBase;
+        }
+
         // Hash password
         const hashedPassword = await bcrypt.hash(passwordInput, 10);
 
@@ -345,7 +356,7 @@ const createStudent = async (req, res) => {
         const user = await prisma.user.create({
             data: {
                 name,
-                email: normalizedEmail,
+                email: generatedEmail,
                 password: hashedPassword,
                 phone,
                 role: 'Student',
@@ -359,9 +370,10 @@ const createStudent = async (req, res) => {
             data: {
                 name,
                 studentId,
-                email: normalizedEmail,
+                email: generatedEmail,
                 phone,
                 password: hashedPassword,
+                rollNum: rollNum ? parseInt(rollNum) : null,
                 parentName,
                 parentPhone,
                 profileImage,
@@ -369,8 +381,9 @@ const createStudent = async (req, res) => {
                 integratedCourse,
                 group,
                 collegeId,
-                sclassId,
+                sclassId: sclassId || null,
                 sectionId: sectionId || null,
+                customClassName: customClassName || null,
                 userId: user.id,
             },
         });
@@ -378,7 +391,15 @@ const createStudent = async (req, res) => {
         res.status(201).json({
             success: true,
             message: 'Student created successfully',
-            data: { user, student },
+            data: { 
+                user, 
+                student,
+                loginCredentials: {
+                    email: generatedEmail,
+                    password: passwordInput,
+                    note: 'Student can use these credentials to login'
+                }
+            },
         });
     } catch (error) {
         console.error('Create student error:', error);
@@ -406,16 +427,19 @@ const getAllStudents = async (req, res) => {
             where: filter,
             skip: parseInt(skip),
             take: parseInt(limit),
-            include: {
-                sclass: true,
-                section: true,
-                parent: true,
-                _count: {
-                    select: {
-                        ExamResults: true,
-                        Attendances: true,
-                    },
-                },
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                studentId: true,
+                rollNum: true,
+                phone: true,
+                isActive: true,
+                createdAt: true,
+                sclass: { select: { id: true, sclassName: true } },
+                section: { select: { id: true, sectionName: true } },
+                parent: { select: { id: true, name: true, email: true } },
+                fees: { select: { id: true, feeType: true, amount: true, dueDate: true } },
             },
             orderBy: { createdAt: 'desc' },
         });
@@ -442,7 +466,7 @@ const getAllStudents = async (req, res) => {
 const getAllTeachers = async (req, res) => {
     try {
         const collegeId = req.collegeId || req.query.collegeId;
-        const { page = 1, limit = 20 } = req.query;
+        const { page = 1, limit = 50 } = req.query;
 
         if (!collegeId) {
             return res.status(400).json({ success: false, message: 'College ID required' });
@@ -454,15 +478,18 @@ const getAllTeachers = async (req, res) => {
             where: { collegeId, isActive: true },
             skip: parseInt(skip),
             take: parseInt(limit),
-            include: {
-                Subjects: true,
-                ClassTeacherOf: true,
-                _count: {
-                    select: {
-                        Subjects: true,
-                        Homeworks: true,
-                    },
-                },
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                phone: true,
+                qualification: true,
+                experience: true,
+                specialization: true,
+                isActive: true,
+                createdAt: true,
+                Subjects: { select: { id: true, subName: true } },
+                ClassTeacherOf: { select: { id: true, sclassName: true } },
             },
             orderBy: { createdAt: 'desc' },
         });
@@ -539,15 +566,59 @@ const createTeamMember = async (req, res) => {
 const getTeamMembers = async (req, res) => {
     try {
         const collegeId = req.collegeId || req.query.collegeId;
+        const { page = 1, limit = 50 } = req.query;
+        
         if (!collegeId) {
             return res.status(400).json({ success: false, message: 'College ID required' });
         }
 
-        const admissions = await prisma.admissionTeam.findMany({ where: { collegeId }, orderBy: { createdAt: 'desc' }, include: { user: true } });
-        const accounts = await prisma.accountsTeam.findMany({ where: { collegeId }, orderBy: { createdAt: 'desc' }, include: { user: true } });
-        const transport = await prisma.transportTeam.findMany({ where: { collegeId }, orderBy: { createdAt: 'desc' }, include: { user: true } });
+        const skip = (page - 1) * limit;
 
-        res.status(200).json({ success: true, data: [...admissions.map(a => ({ ...a, role: 'AdmissionTeam' })), ...accounts.map(a => ({ ...a, role: 'AccountsTeam' })), ...transport.map(a => ({ ...a, role: 'TransportTeam' }))] });
+        const admissions = await prisma.admissionTeam.findMany({ 
+            where: { collegeId }, 
+            skip: parseInt(skip),
+            take: parseInt(limit),
+            select: { id: true, name: true, email: true, phone: true, createdAt: true, user: { select: { id: true } } },
+            orderBy: { createdAt: 'desc' } 
+        });
+        
+        const accounts = await prisma.accountsTeam.findMany({ 
+            where: { collegeId }, 
+            skip: parseInt(skip),
+            take: parseInt(limit),
+            select: { id: true, name: true, email: true, phone: true, createdAt: true, user: { select: { id: true } } },
+            orderBy: { createdAt: 'desc' } 
+        });
+        
+        const transport = await prisma.transportTeam.findMany({ 
+            where: { collegeId }, 
+            skip: parseInt(skip),
+            take: parseInt(limit),
+            select: { id: true, name: true, email: true, phone: true, createdAt: true, user: { select: { id: true } } },
+            orderBy: { createdAt: 'desc' } 
+        });
+
+        const total = await Promise.all([
+            prisma.admissionTeam.count({ where: { collegeId } }),
+            prisma.accountsTeam.count({ where: { collegeId } }),
+            prisma.transportTeam.count({ where: { collegeId } })
+        ]).then(counts => counts.reduce((a, b) => a + b, 0));
+
+        const data = [
+            ...admissions.map(a => ({ ...a, role: 'AdmissionTeam' })), 
+            ...accounts.map(a => ({ ...a, role: 'AccountsTeam' })), 
+            ...transport.map(a => ({ ...a, role: 'TransportTeam' }))
+        ];
+
+        res.status(200).json({ 
+            success: true, 
+            data,
+            pagination: {
+                total,
+                page: parseInt(page),
+                limit: parseInt(limit),
+            }
+        });
     } catch (error) {
         console.error('Get team members error:', error);
         res.status(500).json({ success: false, message: 'Error fetching team members' });
@@ -592,32 +663,40 @@ const createClass = async (req, res) => {
 const getAllClasses = async (req, res) => {
     try {
         const collegeId = req.collegeId || req.query.collegeId;
+        const { page = 1, limit = 50 } = req.query;
 
         if (!collegeId) {
             return res.status(400).json({ success: false, message: 'College ID required' });
         }
 
+        const skip = (page - 1) * limit;
+
         const classes = await prisma.sclass.findMany({
             where: { collegeId },
-            include: {
-                classTeacher: true,
-                Subjects: true,
-                Students: true,
-                Sections: true,
-                _count: {
-                    select: {
-                        Students: true,
-                        Subjects: true,
-                        Sections: true,
-                    },
-                },
+            skip: parseInt(skip),
+            take: parseInt(limit),
+            select: {
+                id: true,
+                sclassName: true,
+                createdAt: true,
+                classTeacher: { select: { id: true, name: true } },
+                Subjects: { select: { id: true, subName: true } },
+                Students: { select: { id: true, name: true } },
+                Sections: { select: { id: true, sectionName: true } },
             },
             orderBy: { createdAt: 'desc' },
         });
 
+        const total = await prisma.sclass.count({ where: { collegeId } });
+
         res.status(200).json({
             success: true,
             data: classes,
+            pagination: {
+                total,
+                page: parseInt(page),
+                limit: parseInt(limit),
+            },
         });
     } catch (error) {
         console.error('Get classes error:', error);
@@ -696,20 +775,42 @@ const createSubject = async (req, res) => {
 const getSubjects = async (req, res) => {
     try {
         const collegeId = req.collegeId || req.query.collegeId;
+        const { page = 1, limit = 50 } = req.query;
 
         if (!collegeId) {
             return res.status(400).json({ success: false, message: 'College ID required' });
         }
 
+        const skip = (page - 1) * limit;
+
         const subjects = await prisma.subject.findMany({
             where: { collegeId },
-            include: { sclass: true },
+            skip: parseInt(skip),
+            take: parseInt(limit),
+            select: {
+                id: true,
+                subName: true,
+                subCode: true,
+                description: true,
+                maxMarks: true,
+                passingMarks: true,
+                createdAt: true,
+                sclass: { select: { id: true, sclassName: true } },
+                teacher: { select: { id: true, name: true } },
+            },
             orderBy: { createdAt: 'desc' },
         });
+
+        const total = await prisma.subject.count({ where: { collegeId } });
 
         res.status(200).json({
             success: true,
             data: subjects,
+            pagination: {
+                total,
+                page: parseInt(page),
+                limit: parseInt(limit),
+            },
         });
     } catch (error) {
         console.error('Get subjects error:', error);
@@ -829,37 +930,57 @@ const getDashboard = async (req, res) => {
             return res.status(400).json({ success: false, message: 'College ID required' });
         }
 
-        const college = await prisma.college.findUnique({
-            where: { id: collegeId },
-        });
-
-        const studentCount = await prisma.student.count({
-            where: { collegeId, isDeleted: false },
-        });
-
-        const teacherCount = await prisma.teacher.count({
-            where: { collegeId, isActive: true },
-        });
-
-        const classCount = await prisma.sclass.count({
-            where: { collegeId },
-        });
-
-        const revenueData = await prisma.payment.aggregate({
-            where: { collegeId, status: 'completed' },
-            _sum: { amount: true },
-        });
-
-        const admissionPending = await prisma.admission.count({
-            where: { collegeId, status: 'pending' },
-        });
-
-        const recentPayments = await prisma.payment.findMany({
-            where: { collegeId, status: 'completed' },
-            take: 5,
-            include: { student: true },
-            orderBy: { createdAt: 'desc' },
-        });
+        // Run all queries in parallel for better performance
+        const [
+            college,
+            studentCount,
+            teacherCount,
+            classCount,
+            revenueData,
+            admissionPending,
+            recentPayments,
+            admissionsByStatusRaw,
+            classesWithCounts,
+        ] = await Promise.all([
+            prisma.college.findUnique({ where: { id: collegeId } }),
+            prisma.student.count({ where: { collegeId, isDeleted: false } }),
+            prisma.teacher.count({ where: { collegeId, isActive: true } }),
+            prisma.sclass.count({ where: { collegeId } }),
+            prisma.payment.aggregate({
+                where: { collegeId, status: 'completed' },
+                _sum: { amount: true },
+            }),
+            prisma.admission.count({ where: { collegeId, status: 'pending' } }),
+            prisma.payment.findMany({
+                where: { collegeId, status: 'completed' },
+                take: 5,
+                select: {
+                    id: true,
+                    amount: true,
+                    createdAt: true,
+                    student: { select: { id: true, name: true, studentId: true } },
+                },
+                orderBy: { createdAt: 'desc' },
+            }),
+            prisma.admission.groupBy({
+                by: ['status'],
+                where: { collegeId },
+                _count: { _all: true },
+            }),
+            prisma.sclass.findMany({
+                where: { collegeId },
+                select: {
+                    id: true,
+                    sclassName: true,
+                    _count: {
+                        select: {
+                            Students: { where: { isDeleted: false } },
+                        },
+                    },
+                },
+                orderBy: { createdAt: 'asc' },
+            }),
+        ]);
 
         // --- Chart aggregates (avoid frontend mock data) ---
         const now = new Date();
@@ -898,12 +1019,6 @@ const getDashboard = async (req, res) => {
             monthBuckets[idx].revenue += amount;
         }
 
-        const admissionsByStatusRaw = await prisma.admission.groupBy({
-            by: ['status'],
-            where: { collegeId },
-            _count: { _all: true },
-        });
-
         const admissionsByStatusMap = new Map(
             admissionsByStatusRaw.map((r) => [String(r.status || '').toLowerCase(), r._count._all])
         );
@@ -912,22 +1027,6 @@ const getDashboard = async (req, res) => {
             { status: 'Pending', value: admissionsByStatusMap.get('pending') || 0 },
             { status: 'Rejected', value: admissionsByStatusMap.get('rejected') || 0 },
         ];
-
-        const classesWithCounts = await prisma.sclass.findMany({
-            where: { collegeId },
-            select: {
-                id: true,
-                sclassName: true,
-                _count: {
-                    select: {
-                        Students: {
-                            where: { isDeleted: false },
-                        },
-                    },
-                },
-            },
-            orderBy: { createdAt: 'asc' },
-        });
 
         const studentsByClass = classesWithCounts.map((c) => ({
             classId: c.id,
@@ -963,15 +1062,45 @@ const getDashboard = async (req, res) => {
 const getFees = async (req, res) => {
     try {
         const collegeId = req.collegeId || req.query.collegeId;
+        const { page = 1, limit = 50 } = req.query;
+        
         if (!collegeId) {
             return res.status(400).json({ success: false, message: 'College ID required' });
         }
+
+        const skip = (page - 1) * limit;
+
         const fees = await prisma.fee.findMany({
             where: { collegeId },
-            include: { student: { select: { name: true, sclass: { select: { sclassName: true } } } } },
+            select: {
+                id: true,
+                feeType: true,
+                feeCategory: true,
+                amount: true,
+                dueDate: true,
+                frequency: true,
+                isActive: true,
+                createdAt: true,
+                studentId: true,
+                student: { select: { id: true, name: true, sclass: { select: { sclassName: true } } } },
+            },
+            skip: parseInt(skip),
+            take: parseInt(limit),
             orderBy: { createdAt: 'desc' }
         });
-        res.status(200).json({ success: true, data: fees });
+
+        const total = await prisma.fee.count({ where: { collegeId } });
+
+        res.status(200).json({ 
+            success: true, 
+            data: fees,
+            pagination: {
+                total,
+                page: parseInt(page),
+                limit: parseInt(limit),
+                pages: Math.ceil(total / limit),
+            }
+        });
     } catch (error) {
         console.error('Get fees error:', error);
         res.status(500).json({ success: false, message: 'Error fetching fees' });
@@ -1601,10 +1730,10 @@ const bulkImportStudents = async (req, res) => {
         let created = 0;
         let updated = 0;
         let skipped = 0;
-        let defaultPasswordUsed = 0;
         const errors = [];
+        const createdStudents = []; // Track created students with login credentials
 
-        const fallbackPassword = String(process.env.DEFAULT_STUDENT_PASSWORD || '').trim() || 'Student@123';
+        const college = await prisma.college.findUnique({ where: { id: collegeId } });
 
         const allowedBoards = new Set(['STATE', 'CBSE', 'IGCSE', 'IB']);
 
@@ -1630,10 +1759,10 @@ const bulkImportStudents = async (req, res) => {
                 const contactRaw = pickCsvValue(raw, ['contact', 'contact_info', 'contact_details']);
                 const emailRaw = pickCsvValue(raw, ['email', 'student_email', 'mail', 'e_mail']);
                 const phoneRaw = pickCsvValue(raw, ['phone', 'mobile', 'contact_number', 'contact_phone', 'mobile_number']);
+                const rollNumRaw = pickCsvValue(raw, ['roll_number', 'roll_num', 'rollnumber', 'rollnum', 'roll']);
 
                 const email = emailRaw || (looksLikeEmail(contactRaw) ? contactRaw : '');
                 const phone = phoneRaw || (!looksLikeEmail(contactRaw) ? contactRaw : '');
-                const password = pickCsvValue(raw, ['password', 'temp_password', 'temporary_password']);
                 const className = pickCsvValue(raw, ['class', 'class_name', 'sclass', 'sclass_name']);
                 const sectionName = pickCsvValue(raw, ['section', 'section_name']);
                 const parentName = pickCsvValue(raw, ['parent_name', 'guardian_name']);
@@ -1672,8 +1801,18 @@ const bulkImportStudents = async (req, res) => {
                         },
                     });
                     if (!sclass) {
-                        errors.push({ row: rowNumber, studentId, message: `Class not found: ${className}` });
-                        continue;
+                        // Auto-create missing class
+                        try {
+                            sclass = await prisma.sclass.create({
+                                data: {
+                                    sclassName: classNameTrimmed,
+                                    collegeId,
+                                },
+                            });
+                        } catch (createError) {
+                            errors.push({ row: rowNumber, studentId, message: `Failed to create class: ${className}` });
+                            continue;
+                        }
                     }
                 }
 
@@ -1694,8 +1833,19 @@ const bulkImportStudents = async (req, res) => {
                         },
                     });
                     if (!section) {
-                        errors.push({ row: rowNumber, studentId, message: `Section not found: ${sectionName} (Class: ${className})` });
-                        continue;
+                        // Auto-create missing section
+                        try {
+                            section = await prisma.section.create({
+                                data: {
+                                    sectionName: String(sectionName).trim(),
+                                    sclassId: sclass.id,
+                                    collegeId,
+                                },
+                            });
+                        } catch (createError) {
+                            errors.push({ row: rowNumber, studentId, message: `Failed to create section: ${sectionName} (Class: ${className})` });
+                            continue;
+                        }
                     }
                 }
 
@@ -1717,6 +1867,7 @@ const bulkImportStudents = async (req, res) => {
                     if (group) updateData.group = group;
                     if (sclass) updateData.sclassId = sclass.id;
                     if (section) updateData.sectionId = section.id;
+                    if (rollNumRaw) updateData.rollNum = parseInt(rollNumRaw);
 
                     await prisma.student.update({ where: { id: existingStudent.id }, data: updateData });
 
@@ -1728,33 +1879,32 @@ const bulkImportStudents = async (req, res) => {
                         await prisma.user.update({ where: { id: existingStudent.userId }, data: userUpdate });
                     }
 
-                    if (password) {
-                        const hashed = await bcrypt.hash(password, 10);
-                        await prisma.student.update({ where: { id: existingStudent.id }, data: { password: hashed } });
-                        if (existingStudent.userId) {
-                            await prisma.user.update({ where: { id: existingStudent.userId }, data: { password: hashed } });
-                        }
-                    }
-
                     updated++;
                     continue;
                 }
-
-                const effectivePassword = password || fallbackPassword;
-                if (!password) defaultPasswordUsed++;
 
                 if (!sclass) {
                     errors.push({ row: rowNumber, studentId, message: 'Missing required: Class' });
                     continue;
                 }
 
-                const hashedPassword = await bcrypt.hash(effectivePassword, 10);
+                // Use rollNum as password, fallback to studentId
+                const passwordForStudent = rollNumRaw || studentId;
+                
+                // Auto-generate email if not provided
+                let generatedEmail = email;
+                if (!generatedEmail && college) {
+                    const emailBase = `${studentId.toLowerCase().replace(/\s+/g, '.')}@${college.name.toLowerCase().replace(/\s+/g, '')}.student`;
+                    generatedEmail = emailBase;
+                }
+
+                const hashedPassword = await bcrypt.hash(String(passwordForStudent), 10);
 
                 await prisma.$transaction(async (tx) => {
                     const user = await tx.user.create({
                         data: {
                             name: normalizedName,
-                            email: email || null,
+                            email: generatedEmail || null,
                             phone: phone || null,
                             password: hashedPassword,
                             profileImage: profileImage || null,
@@ -1768,9 +1918,10 @@ const bulkImportStudents = async (req, res) => {
                         data: {
                             name: normalizedName,
                             studentId,
-                            email: email || null,
+                            email: generatedEmail || null,
                             phone: phone || null,
                             password: hashedPassword,
+                            rollNum: rollNumRaw ? parseInt(rollNumRaw) : null,
                             parentName: parentName || null,
                             parentPhone: parentPhone || null,
                             profileImage: profileImage || null,
@@ -1784,6 +1935,15 @@ const bulkImportStudents = async (req, res) => {
                             isActive: true,
                         },
                     });
+                });
+
+                // Track created student with login credentials
+                createdStudents.push({
+                    studentId,
+                    name: normalizedName,
+                    email: generatedEmail,
+                    password: String(passwordForStudent),
+                    rollNum: rollNumRaw || null,
                 });
 
                 created++;
@@ -1805,10 +1965,10 @@ const bulkImportStudents = async (req, res) => {
                 created,
                 updated,
                 skipped,
-                defaultPasswordUsed,
-                defaultPasswordHint: defaultPasswordUsed > 0 ? 'Students created without a CSV password were assigned a temporary default password. Ask them to change it after first login.' : null,
                 errorCount: errors.length,
                 errors,
+                createdStudents, // Include login credentials for created students
+                note: 'Students created without email were auto-generated with format: studentid@collegename.student. Password is the roll number or student ID.'
             },
         });
     } catch (error) {
@@ -2945,6 +3105,48 @@ const updateComplaint = async (req, res) => {
     }
 };
 
+// Download payment receipt (admin can download any receipt)
+const downloadPaymentReceipt = async (req, res) => {
+    try {
+        const { paymentId } = req.params;
+        const collegeId = req.collegeId;
+
+        // Verify payment exists and belongs to this college
+        const payment = await prisma.payment.findUnique({
+            where: { id: paymentId },
+            include: { student: true }
+        });
+
+        if (!payment || payment.collegeId !== collegeId) {
+            return res.status(404).json({ success: false, message: 'Payment not found' });
+        }
+
+        if (payment.status !== 'completed') {
+            return res.status(400).json({ success: false, message: 'Receipt only available for completed payments' });
+        }
+
+        // Generate receipt on demand
+        const { generatePaymentReceipt } = require('../utils/payment-receipt');
+        const receiptData = await generatePaymentReceipt({
+            paymentId: payment.id,
+            studentName: payment.student?.name || 'Student',
+            studentId: payment.student?.studentId || 'N/A',
+            collegeName: payment.student?.college?.name || 'School',
+            amount: payment.amount,
+            feeType: payment.notes,
+            paymentDate: payment.paymentDate,
+            transactionId: payment.razorpayPaymentId,
+            paymentMethod: payment.paymentMethod,
+        });
+
+        // Send file
+        res.download(receiptData.filepath, `receipt_${paymentId}.pdf`);
+    } catch (error) {
+        console.error('Download receipt error:', error);
+        res.status(500).json({ success: false, message: 'Error downloading receipt' });
+    }
+};
+
 module.exports = {
     getCollegeSettings,
     updateCollegeSettings,
@@ -2996,4 +3198,5 @@ module.exports = {
     updateComplaint,
     getTeacherSections,
     setTeacherSections,
+    downloadPaymentReceipt,
 };

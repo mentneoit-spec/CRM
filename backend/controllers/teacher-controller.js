@@ -1139,6 +1139,11 @@ const importExamMarksCsvForTeacher = async (req, res) => {
                 .on('error', reject);
         });
 
+        if (rows.length > 0) {
+            console.log('CSV Headers (normalized):', Object.keys(rows[0]));
+            console.log('First row data:', rows[0]);
+        }
+
         const scope = await buildTeacherSectionScope(collegeId, teacher.id);
         const assignedSections = scope.sectionIdsForClass(subject.sclassId);
         const restrictToSections = assignedSections.length > 0;
@@ -1173,6 +1178,9 @@ const importExamMarksCsvForTeacher = async (req, res) => {
             const remarks = pickCsvValue(raw, ['remarks', 'remark', 'comment']);
 
             if (!studentKey || !marksRaw) {
+                const reason = !studentKey ? 'Missing student identifier' : 'Missing marks value';
+                console.log(`Row ${rowNumber} skipped: ${reason}. Available columns: ${Object.keys(raw).join(', ')}`);
+                errors.push({ row: rowNumber, message: reason, rawData: Object.keys(raw) });
                 skipped++;
                 continue;
             }

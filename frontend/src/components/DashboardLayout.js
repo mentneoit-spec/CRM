@@ -35,6 +35,7 @@ import {
   Event,
   DirectionsBus,
   Announcement,
+  Receipt,
 } from '@mui/icons-material';
 import { useSelector } from 'react-redux';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -60,7 +61,7 @@ const DashboardLayout = ({ children, role = 'student' }) => {
     if (value.startsWith('/uploads') && typeof window !== 'undefined') {
       const hostname = window.location?.hostname;
       if (hostname === 'localhost' || hostname === '127.0.0.1') {
-        return `http://localhost:5000${value}`;
+        return `http://localhost:5001${value}`;
       }
     }
 
@@ -177,6 +178,7 @@ const DashboardLayout = ({ children, role = 'student' }) => {
       { text: 'Subjects', icon: <Assignment />, path: '/admin/subjects' },
       { text: 'Admissions', icon: <Person />, path: '/admin/admissions' },
       { text: 'Fees', icon: <Payment />, path: '/admin/fees' },
+      { text: 'Receipts & Payments', icon: <Receipt />, path: '/admin/receipts' },
       { text: 'Transport', icon: <DirectionsBus />, path: '/admin/transport' },
       { text: 'Results', icon: <Assessment />, path: '/admin/results' },
       { text: 'Reports', icon: <Assessment />, path: '/admin/reports' },

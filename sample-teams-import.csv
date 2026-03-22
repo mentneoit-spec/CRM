@@ -1,0 +1,11 @@
+Name,Email,Phone,Role,Department,Designation
+Ramesh Kumar,ramesh.accounts@school.edu,9876543280,AccountsTeam,Finance,Senior Accountant
+Priya Sharma,priya.accounts@school.edu,9876543281,AccountsTeam,Finance,Junior Accountant
+Vikram Patel,vikram.transport@school.edu,9876543282,TransportTeam,Transport,Transport Manager
+Anjali Singh,anjali.transport@school.edu,9876543283,TransportTeam,Transport,Transport Coordinator
+Deepa Verma,deepa.admin@school.edu,9876543284,Admin,Administration,Office Manager
+Suresh Nair,suresh.admin@school.edu,9876543285,Admin,Administration,Administrative Assistant
+Kavya Malhotra,kavya.hr@school.edu,9876543286,HR,Human Resources,HR Manager
+Ramesh Desai,ramesh.hr@school.edu,9876543287,HR,Human Resources,HR Executive
+Sunita Gupta,sunita.it@school.edu,9876543288,IT,Information Technology,IT Manager
+Anil Sharma,anil.it@school.edu,9876543289,IT,Information Technology,IT Support

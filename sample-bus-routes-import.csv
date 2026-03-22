@@ -1,0 +1,11 @@
+Route Name,Route Code,Starting Point,Ending Point,Distance (km),Stops,Capacity,Driver Name,Driver Phone,Conductor Name,Conductor Phone,Fee
+Route A - North,RT001,City Center,North Residential Area,15,8,50,Ramesh Kumar,9876543260,Suresh Singh,9876543261,1500
+Route B - South,RT002,City Center,South Residential Area,18,10,50,Vikram Patel,9876543262,Ajay Kumar,9876543263,1500
+Route C - East,RT003,City Center,East Residential Area,12,6,50,Anil Sharma,9876543264,Ravi Desai,9876543265,1500
+Route D - West,RT004,City Center,West Residential Area,20,12,50,Pradeep Singh,9876543266,Mohan Nair,9876543267,1500
+Route E - Airport,RT005,City Center,Airport Road,25,15,50,Sanjay Verma,9876543268,Rajesh Chopra,9876543269,2000
+Route F - Industrial,RT006,City Center,Industrial Area,22,11,50,Deepak Gupta,9876543270,Ashok Kumar,9876543271,1500
+Route G - University,RT007,City Center,University Campus,18,9,50,Nikhil Joshi,9876543272,Arjun Singh,9876543273,1500
+Route H - Hospital,RT008,City Center,Hospital Complex,10,5,50,Karan Malhotra,9876543274,Varun Chopra,9876543275,1000
+Route I - Market,RT009,City Center,Market District,8,4,50,Rohan Verma,9876543276,Akhil Nair,9876543277,1000
+Route J - Suburbs,RT010,City Center,Suburban Area,30,18,50,Sunil Patel,9876543278,Harish Desai,9876543279,2000

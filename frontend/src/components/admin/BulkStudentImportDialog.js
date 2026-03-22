@@ -12,6 +12,13 @@ import {
     MenuItem,
     Select,
     Typography,
+    Table,
+    TableBody,
+    TableCell,
+    TableContainer,
+    TableHead,
+    TableRow,
+    Paper,
 } from '@mui/material';
 import { useDispatch, useSelector } from 'react-redux';
 import { bulkImportStudents, fetchStudents, clearAdminStatus } from '../../redux/slices/adminSlice';
@@ -54,9 +61,10 @@ const BulkStudentImportDialog = ({ open, onClose }) => {
     const summary = result?.data;
     const hasErrors = Boolean(summary && summary.errorCount > 0);
     const didWork = Boolean(summary && (summary.created > 0 || summary.updated > 0 || summary.skipped > 0));
+    const createdStudents = summary?.createdStudents || [];
 
     return (
-        <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
+        <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
             <DialogTitle sx={{ fontWeight: 'bold' }}>Bulk Import Students (CSV)</DialogTitle>
             <DialogContent dividers>
                 {error && <Alert severity="error" sx={{ mb: 2 }}>{String(error)}</Alert>}
@@ -93,33 +101,73 @@ const BulkStudentImportDialog = ({ open, onClose }) => {
                 {summary && (
                     <Box sx={{ mt: 1 }}>
                         <Alert severity={hasErrors ? 'warning' : 'success'} sx={{ mb: 2 }}>
-                            {hasErrors ? 'Import completed with errors' : 'Import completed'}
+                            {hasErrors ? 'Import completed with errors' : 'Import completed successfully'}
                         </Alert>
-                        <Typography variant="body2">Rows: {summary.totalRows}</Typography>
-                        <Typography variant="body2">Created: {summary.created} | Updated: {summary.updated} | Skipped: {summary.skipped}</Typography>
-                        {typeof summary.defaultPasswordUsed === 'number' && summary.defaultPasswordUsed > 0 && (
-                            <Typography variant="body2" color="text.secondary">
-                                Default password used for {summary.defaultPasswordUsed} new students.
-                            </Typography>
+                        <Typography variant="body2"><strong>Rows:</strong> {summary.totalRows}</Typography>
+                        <Typography variant="body2"><strong>Created:</strong> {summary.created} | <strong>Updated:</strong> {summary.updated} | <strong>Skipped:</strong> {summary.skipped}</Typography>
+                        <Typography variant="body2" sx={{ mb: 2 }}><strong>Errors:</strong> {summary.errorCount}</Typography>
+                        
+                        {summary.note && (
+                            <Alert severity="info" sx={{ mb: 2 }}>
+                                {summary.note}
+                            </Alert>
                         )}
-                        <Typography variant="body2" sx={{ mb: 1 }}>Errors: {summary.errorCount}</Typography>
+
                         {!didWork && hasErrors && (
-                            <Typography variant="body2" color="error" sx={{ mb: 1 }}>
+                            <Typography variant="body2" color="error" sx={{ mb: 2 }}>
                                 No students were imported. Fix the CSV errors and try again.
                             </Typography>
                         )}
+
+                        {/* Display created students with login credentials */}
+                        {createdStudents.length > 0 && (
+                            <Box sx={{ mb: 2 }}>
+                                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>
+                                    📋 Login Credentials for Created Students
+                                </Typography>
+                                <TableContainer component={Paper} sx={{ maxHeight: 300 }}>
+                                    <Table size="small">
+                                        <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
+                                            <TableRow>
+                                                <TableCell><strong>Student ID</strong></TableCell>
+                                                <TableCell><strong>Name</strong></TableCell>
+                                                <TableCell><strong>Email</strong></TableCell>
+                                                <TableCell><strong>Password</strong></TableCell>
+                                            </TableRow>
+                                        </TableHead>
+                                        <TableBody>
+                                            {createdStudents.map((student, idx) => (
+                                                <TableRow key={idx}>
+                                                    <TableCell>{student.studentId}</TableCell>
+                                                    <TableCell>{student.name}</TableCell>
+                                                    <TableCell sx={{ fontSize: '0.85rem' }}>{student.email}</TableCell>
+                                                    <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>{student.password}</TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </TableContainer>
+                            </Box>
+                        )}
+
+                        {/* Display errors */}
                         {Array.isArray(summary.errors) && summary.errors.length > 0 && (
-                            <Box sx={{ maxHeight: 180, overflow: 'auto', border: '1px solid #eee', borderRadius: 1, p: 1 }}>
-                                {summary.errors.slice(0, 10).map((errItem, idx) => (
-                                    <Typography key={idx} variant="caption" display="block" color="text.secondary">
-                                        Row {errItem.row}: {errItem.message}
-                                    </Typography>
-                                ))}
-                                {summary.errors.length > 10 && (
-                                    <Typography variant="caption" color="text.secondary">
-                                        Showing first 10 errors.
-                                    </Typography>
-                                )}
+                            <Box>
+                                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>
+                                    ⚠️ Errors ({summary.errors.length})
+                                </Typography>
+                                <Box sx={{ maxHeight: 180, overflow: 'auto', border: '1px solid #eee', borderRadius: 1, p: 1 }}>
+                                    {summary.errors.slice(0, 10).map((errItem, idx) => (
+                                        <Typography key={idx} variant="caption" display="block" color="text.secondary">
+                                            Row {errItem.row}: {errItem.message}
+                                        </Typography>
+                                    ))}
+                                    {summary.errors.length > 10 && (
+                                        <Typography variant="caption" color="text.secondary">
+                                            Showing first 10 errors.
+                                        </Typography>
+                                    )}
+                                </Box>
                             </Box>
                         )}
                     </Box>

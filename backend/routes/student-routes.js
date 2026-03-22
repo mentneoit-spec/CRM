@@ -7,6 +7,9 @@ const {
     getMyExams,
     getMyFees,
     getMyPaymentHistory,
+    createMyPayment,
+    verifyMyPayment,
+    downloadPaymentReceipt,
     getMyHomework,
     getMyTimetable,
     getMyNotices,
@@ -39,6 +42,9 @@ router.get('/results', authorize('Student'), authorizeCollege, getMyMarks);
 // ==================== FEES ====================
 router.get('/fees', authorize('Student'), authorizeCollege, getMyFees);
 router.get('/payments', authorize('Student'), authorizeCollege, getMyPaymentHistory);
+router.post('/payments', authorize('Student'), authorizeCollege, createMyPayment);
+router.post('/payments/verify', authorize('Student'), authorizeCollege, verifyMyPayment);
+router.get('/payments/:paymentId/receipt', authorize('Student'), authorizeCollege, downloadPaymentReceipt);
 
 // ==================== HOMEWORK ====================
 router.get('/homework', authorize('Student'), authorizeCollege, getMyHomework);

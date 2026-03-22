@@ -61,7 +61,9 @@ const AdminTeachers = () => {
         try {
             const res = await adminAPI.getTeacherSections(teacher.id);
             const ids = res?.data?.data?.sectionIds ?? [];
-            setAssignedSectionIds(Array.isArray(ids) ? ids : []);
+            // Filter to only include valid section IDs that exist in allSectionOptions
+            const validIds = Array.isArray(ids) ? ids.filter(id => allSectionOptions.some(opt => opt.sectionId === id)) : [];
+            setAssignedSectionIds(validIds);
         } catch (e) {
             setAssignError(e?.response?.data?.message || 'Failed to load assigned sections');
         } finally {
@@ -104,6 +106,7 @@ const AdminTeachers = () => {
             if (!res.error) {
                 setOpenAddDialog(false);
                 setNewTeacher({ name: '', email: '', phone: '', password: '', qualification: '', experience: '', specialization: '' });
+                dispatch(fetchTeachers());
             }
         });
     };

@@ -1,0 +1,21 @@
+Subject Name,Subject Code,Class,Sessions,Max Marks,Passing Marks,Teacher Name
+Mathematics,MATH10,10A,40,100,40,Rajesh Kumar
+Physics,PHY10,10A,40,100,40,Priya Sharma
+Chemistry,CHEM10,10A,40,100,40,Deepa Verma
+English,ENG10,10A,40,100,40,Amit Patel
+Biology,BIO10,10A,40,100,40,Ramesh Chopra
+Mathematics,MATH10B,10B,40,100,40,Rajesh Kumar
+Physics,PHY10B,10B,40,100,40,Priya Sharma
+Chemistry,CHEM10B,10B,40,100,40,Deepa Verma
+English,ENG10B,10B,40,100,40,Amit Patel
+Economics,ECO10B,10B,40,100,40,Anjali Singh
+Mathematics,MATH12,12A,45,100,40,Rajesh Kumar
+Physics,PHY12,12A,45,100,40,Priya Sharma
+Chemistry,CHEM12,12A,45,100,40,Deepa Verma
+Computer Science,CS12,12A,45,100,40,Suresh Nair
+History,HIST12,12A,45,100,40,Vikram Desai
+Mathematics,MATH12B,12B,45,100,40,Rajesh Kumar
+Physics,PHY12B,12B,45,100,40,Priya Sharma
+Chemistry,CHEM12B,12B,45,100,40,Deepa Verma
+Geography,GEO12B,12B,45,100,40,Kavya Malhotra
+Biology,BIO12B,12B,45,100,40,Ramesh Chopra

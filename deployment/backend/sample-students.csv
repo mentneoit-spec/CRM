@@ -1,0 +1,9 @@
+student_id,name,roll_number,email,phone,class,section,parent_name,parent_phone,board
+STU001,Arjun Kumar,1,arjun@example.com,9876543210,10A,A,Mr. Vikram Kumar,9222222222,CBSE
+STU002,Priya Sharma,2,,9876543211,10A,A,Mrs. Anjali Sharma,9222222223,CBSE
+STU003,Rahul Patel,3,,9876543212,10A,B,Mr. Rajesh Patel,9222222224,CBSE
+STU004,Neha Gupta,1,,9876543213,12A,A,Mrs. Neha Gupta,9222222225,CBSE
+STU005,Vikram Singh,5,,9876543214,10A,A,Mr. Rajesh Singh,9222222226,CBSE
+STU006,Anjali Verma,6,,9876543215,10A,B,Mrs. Priya Verma,9222222227,CBSE
+STU007,Rohan Desai,7,,9876543216,12A,A,Mr. Arun Desai,9222222228,CBSE
+STU008,Sneha Nair,8,,9876543217,10A,A,Mrs. Kavya Nair,9222222229,CBSE

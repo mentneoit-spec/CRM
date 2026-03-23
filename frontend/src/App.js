@@ -1,4 +1,3 @@
-import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, CssBaseline } from '@mui/material';
 import theme from './theme/theme';
@@ -29,15 +28,20 @@ import AdminDashboardModern from './pages/admin/AdminDashboardModern';
 import AdminTeachers from './pages/admin/AdminTeachers';
 import AdminStudents from './pages/admin/AdminStudents';
 import AdminClasses from './pages/admin/AdminClasses';
-import AdminAdmissions from './pages/admin/AdminAdmissions';
 import AdminFees from './pages/admin/AdminFees';
 import AdminReceipts from './pages/admin/AdminReceipts';
+import AdminAnalytics from './pages/admin/AdminAnalytics';
 import AdminSubjects from './pages/admin/AdminSubjects';
 import TeamManagement from './pages/admin/TeamManagement';
 import AdminTransport from './pages/admin/AdminTransport';
 import AdminReports from './pages/admin/AdminReports';
 import AdminSettings from './pages/admin/AdminSettings';
 import AdminResults from './pages/admin/AdminResults';
+import AdminMarksUploadEnhanced from './pages/admin/AdminMarksUploadEnhanced';
+import AdminResultsCSVUpload from './pages/admin/AdminResultsCSVUpload';
+import AdmissionsTeamDashboard from './pages/admin/AdmissionsTeamDashboard';
+import AdmissionTeamManagement from './pages/admin/AdmissionTeamManagement';
+import TeacherMarksUpload from './pages/teacher/TeacherMarksUpload';
 import StudentDashboardModern from './pages/student/StudentDashboardModern';
 import StudentHomework from './pages/student/pages/HomeworkPage';
 import StudentAttendance from './pages/student/pages/AttendancePage';
@@ -219,10 +223,6 @@ function App() {
             element={<ProtectedRoute allowedRoles={["Admin", "SuperAdmin"]} element={<AdminClasses />} />}
           />
           <Route
-            path="/admin/admissions"
-            element={<ProtectedRoute allowedRoles={["Admin", "SuperAdmin"]} element={<AdminAdmissions />} />}
-          />
-          <Route
             path="/admin/subjects"
             element={<ProtectedRoute allowedRoles={["Admin", "SuperAdmin"]} element={<AdminSubjects />} />}
           />
@@ -233,6 +233,10 @@ function App() {
           <Route
             path="/admin/receipts"
             element={<ProtectedRoute allowedRoles={["Admin", "SuperAdmin"]} element={<AdminReceipts />} />}
+          />
+          <Route
+            path="/admin/analytics"
+            element={<ProtectedRoute allowedRoles={["Admin", "SuperAdmin"]} element={<AdminAnalytics />} />}
           />
           <Route
             path="/admin/teams"
@@ -249,6 +253,22 @@ function App() {
           <Route
             path="/admin/results"
             element={<ProtectedRoute allowedRoles={["Admin", "SuperAdmin"]} element={<AdminResults />} />}
+          />
+          <Route
+            path="/admin/marks-upload"
+            element={<ProtectedRoute allowedRoles={["Admin", "SuperAdmin"]} element={<AdminMarksUploadEnhanced />} />}
+          />
+          <Route
+            path="/admin/results-csv-upload"
+            element={<ProtectedRoute allowedRoles={["Admin", "SuperAdmin"]} element={<AdminResultsCSVUpload />} />}
+          />
+          <Route
+            path="/admin/admissions"
+            element={<ProtectedRoute allowedRoles={["Admin", "SuperAdmin"]} element={<AdmissionsTeamDashboard />} />}
+          />
+          <Route
+            path="/admin/admission-team"
+            element={<ProtectedRoute allowedRoles={["Admin", "SuperAdmin"]} element={<AdmissionTeamManagement />} />}
           />
           <Route
             path="/admin/settings"
@@ -286,6 +306,10 @@ function App() {
           <Route
             path="/teacher/marks"
             element={<ProtectedRoute allowedRoles={["Teacher"]} element={<TeacherMarksModern />} />}
+          />
+          <Route
+            path="/teacher/marks-upload"
+            element={<ProtectedRoute allowedRoles={["Teacher"]} element={<TeacherMarksUpload />} />}
           />
           <Route
             path="/teacher/reports"

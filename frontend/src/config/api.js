@@ -133,6 +133,7 @@ export const superAdminAPI = {
 
 export const adminAPI = {
   getDashboard: () => api.get('/admin/dashboard'),
+  getAnalytics: () => api.get('/admin/analytics'),
   getProfile: () => api.get('/admin/profile'),
   updateProfile: (data) => api.put('/admin/profile', data),
   getCollege: () => api.get('/admin/college'),

@@ -5,6 +5,7 @@ const { uploadMemory } = require('../utils/file-upload-service');
 const { validateCreateFee, validateUpdateFee } = require('../middleware/validation');
 const {
     getDashboard,
+    getAnalytics,
     getAdminProfile,
     updateAdminProfile,
     getCollegeSettings,
@@ -55,6 +56,13 @@ const {
     getTeacherSections,
     setTeacherSections,
     downloadPaymentReceipt,
+    getResults,
+    uploadMarksAdmin,
+    uploadMarksCsv,
+    getAdmissionTeamMembers,
+    createAdmissionTeamMember,
+    updateAdmissionTeamMember,
+    deleteAdmissionTeamMember,
 } = require('../controllers/admin-controller');
 
 const {
@@ -66,6 +74,7 @@ const {
 
 // ==================== DASHBOARD ====================
 router.get('/dashboard', authorize('Admin'), authorizeCollege, getDashboard);
+router.get('/analytics', authorize('Admin'), authorizeCollege, getAnalytics);
 
 // ==================== PROFILE ====================
 router.get('/profile', authorize('Admin'), authorizeCollege, getAdminProfile);
@@ -184,6 +193,17 @@ router.post(
     importExamMarksCsv
 );
 
+// Results
+router.get('/results', authorize('Admin'), authorizeCollege, getResults);
+router.post('/marks/upload', authorize('Admin'), authorizeCollege, uploadMarksAdmin);
+router.post(
+    '/marks/csv-upload',
+    authorize('Admin'),
+    authorizeCollege,
+    uploadMemory('file', 1, 'spreadsheet'),
+    uploadMarksCsv
+);
+
 // ==================== COMPLAINTS ====================
 router.get('/complaints', authorize('Admin'), authorizeCollege, getComplaints);
 router.put('/complaints/:id', authorize('Admin'), authorizeCollege, updateComplaint);
@@ -202,5 +222,11 @@ router.post('/admissions/:admissionId/reject', authorize('Admin'), authorizeColl
 
 // ==================== PAYMENTS & RECEIPTS ====================
 router.get('/payments/:paymentId/receipt', authorize('Admin'), authorizeCollege, downloadPaymentReceipt);
+
+// ==================== ADMISSION TEAM MANAGEMENT ====================
+router.get('/admission-team', authorize('Admin'), authorizeCollege, getAdmissionTeamMembers);
+router.post('/admission-team', authorize('Admin'), authorizeCollege, createAdmissionTeamMember);
+router.put('/admission-team/:id', authorize('Admin'), authorizeCollege, updateAdmissionTeamMember);
+router.delete('/admission-team/:id', authorize('Admin'), authorizeCollege, deleteAdmissionTeamMember);
 
 module.exports = router;

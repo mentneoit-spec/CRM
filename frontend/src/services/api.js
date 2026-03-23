@@ -190,6 +190,7 @@ export const teacherAPI = {
   deleteHomework: (id) => api.delete(`/teacher/homework/${id}`),
   addMarks: (data) => api.post('/teacher/marks', data),
   getMarks: (params) => api.get('/teacher/marks', params ? { params } : undefined),
+  uploadMarks: (data) => api.post('/teacher/marks/upload', data),
   getReports: () => api.get('/teacher/reports'),
   getExams: () => api.get('/teacher/exams'),
   createExam: (data) => api.post('/teacher/exams', data),
@@ -283,6 +284,34 @@ export const adminAPI = {
   // Complaints
   getComplaints: () => api.get('/admin/complaints'),
   updateComplaint: (id, data) => api.put(`/admin/complaints/${id}`, data),
+  
+  // Marks & Results
+  uploadMarks: (data) => api.post('/admin/marks/upload', data),
+  uploadMarksCsv: (formData) => api.post('/admin/marks/csv-upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 120000,
+  }),
+  uploadResultsCSV: (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post('/admin/results/csv-upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 120000,
+    });
+  },
+  getResults: (params) => api.get('/admin/results', params ? { params } : undefined),
+  getExams: () => api.get('/admin/exams'),
+  createExam: (data) => api.post('/admin/exams', data),
+  getAdmissions: () => api.get('/admin/admissions'),
+  approveAdmission: (id, data) => api.post(`/admin/admissions/${id}/approve`, data),
+  rejectAdmission: (id, data) => api.post(`/admin/admissions/${id}/reject`, data),
+  getStudentsByClass: (classId) => api.get(`/admin/classes/${classId}/students`),
+  
+  // Admission Team Management
+  getAdmissionTeamMembers: () => api.get('/admin/admission-team'),
+  createAdmissionTeamMember: (data) => api.post('/admin/admission-team', data),
+  updateAdmissionTeamMember: (id, data) => api.put(`/admin/admission-team/${id}`, data),
+  deleteAdmissionTeamMember: (id) => api.delete(`/admin/admission-team/${id}`),
 };
 
 export default api;

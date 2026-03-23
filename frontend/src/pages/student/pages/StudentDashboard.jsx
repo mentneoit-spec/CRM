@@ -8,6 +8,7 @@ import AttendanceCard from "../components/AttendanceCard";
 import HomeworkCard from "../components/HomeworkCard";
 import MarksCard from "../components/MarksCard";
 import FeesCard from "../components/FeesCard";
+import AttendanceCalendar from "../../../components/AttendanceCalendar";
 import { studentAPI } from "../../../services/api";
 import { CheckCircle, Download } from "lucide-react";
 
@@ -20,6 +21,9 @@ function StudentDashboard() {
   const [todayHomework, setTodayHomework] = useState(null);
   const [nextExam, setNextExam] = useState(null);
   const [recentPayments, setRecentPayments] = useState([]);
+  const [attendanceHistory, setAttendanceHistory] = useState([]);
+  const [calendarMonth, setCalendarMonth] = useState(new Date().getMonth());
+  const [calendarYear, setCalendarYear] = useState(new Date().getFullYear());
 
   const handleQuickAction = (key) => {
     const routes = {
@@ -44,21 +48,12 @@ function StudentDashboard() {
         const month = now.getMonth() + 1;
         const year = now.getFullYear();
 
-        const [profileRes, dashboardRes, attendanceRes, homeworkRes, examsRes] = await Promise.all([
+        // Load critical data first (profile, dashboard, attendance)
+        const [profileRes, dashboardRes, attendanceRes] = await Promise.all([
           studentAPI.getProfile(),
           studentAPI.getDashboard(),
           studentAPI.getAttendance({ month, year }),
-          studentAPI.getHomework(),
-          studentAPI.getExams(),
         ]);
-
-        // Fetch payment history separately
-        let paymentHistoryRes;
-        try {
-          paymentHistoryRes = await studentAPI.getPaymentHistory({ limit: 5 });
-        } catch (e) {
-          paymentHistoryRes = null;
-        }
 
         if (!isMounted) return;
 
@@ -66,10 +61,6 @@ function StudentDashboard() {
         const dashboardData = dashboardRes?.data?.data ?? null;
         setProfile(profileData);
         setDashboard(dashboardData);
-
-        // Set recent payments
-        const payments = paymentHistoryRes?.data?.data?.payments ?? [];
-        setRecentPayments(payments.slice(0, 5));
 
         const attendanceList = attendanceRes?.data?.data?.attendance ?? [];
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
@@ -79,28 +70,44 @@ function StudentDashboard() {
           return normalized === today;
         });
         setTodayAttendanceStatus(todayRecord?.status ? String(todayRecord.status).toUpperCase() : "--");
+        setAttendanceHistory(attendanceList);
 
-        const homeworkList = homeworkRes?.data?.data?.homework ?? [];
-        const todaysHomework = homeworkList.filter((h) => {
-          const due = new Date(h.dueDate);
-          return due.getFullYear() === now.getFullYear() && due.getMonth() === now.getMonth() && due.getDate() === now.getDate();
+        // Load secondary data in background (homework, exams, payments)
+        Promise.all([
+          studentAPI.getHomework().catch(() => ({ data: { data: { homework: [] } } })),
+          studentAPI.getExams().catch(() => ({ data: { data: [] } })),
+          studentAPI.getPaymentHistory({ limit: 5 }).catch(() => ({ data: { data: { payments: [] } } })),
+        ]).then(([homeworkRes, examsRes, paymentHistoryRes]) => {
+          if (!isMounted) return;
+
+          const homeworkList = homeworkRes?.data?.data?.homework ?? [];
+          const todaysHomework = homeworkList.filter((h) => {
+            const due = new Date(h.dueDate);
+            return due.getFullYear() === now.getFullYear() && due.getMonth() === now.getMonth() && due.getDate() === now.getDate();
+          });
+          setTodayHomework(todaysHomework.length ? todaysHomework[0] : null);
+
+          const exams = examsRes?.data?.data ?? [];
+          const upcoming = exams
+            .filter((e) => e?.examDate)
+            .map((e) => ({ ...e, _date: new Date(e.examDate) }))
+            .filter((e) => !Number.isNaN(e._date.getTime()) && e._date.getTime() >= now.getTime())
+            .sort((a, b) => a._date.getTime() - b._date.getTime());
+          setNextExam(upcoming.length ? upcoming[0] : null);
+
+          const payments = paymentHistoryRes?.data?.data?.payments ?? [];
+          setRecentPayments(payments.slice(0, 5));
+        }).catch(() => {
+          if (!isMounted) return;
+          setTodayHomework(null);
+          setNextExam(null);
+          setRecentPayments([]);
         });
-        setTodayHomework(todaysHomework.length ? todaysHomework[0] : null);
-
-        const exams = examsRes?.data?.data ?? [];
-        const upcoming = exams
-          .filter((e) => e?.examDate)
-          .map((e) => ({ ...e, _date: new Date(e.examDate) }))
-          .filter((e) => !Number.isNaN(e._date.getTime()) && e._date.getTime() >= now.getTime())
-          .sort((a, b) => a._date.getTime() - b._date.getTime());
-        setNextExam(upcoming.length ? upcoming[0] : null);
       } catch (e) {
         if (!isMounted) return;
         setProfile(null);
         setDashboard(null);
         setTodayAttendanceStatus("--");
-        setTodayHomework(null);
-        setNextExam(null);
       } finally {
         if (isMounted) setIsLoading(false);
       }
@@ -235,6 +242,17 @@ function StudentDashboard() {
             <MarksCard label={nextExamText.label} dateText={nextExamText.dateText} />
             <FeesCard totalDue={typeof feesDue === "number" ? feesDue : null} />
           </div>
+
+          {/* Attendance Calendar */}
+          <AttendanceCalendar 
+            attendanceData={attendanceHistory}
+            month={calendarMonth}
+            year={calendarYear}
+            onMonthChange={(month, year) => {
+              setCalendarMonth(month);
+              setCalendarYear(year);
+            }}
+          />
 
           {/* Recent Payments Section */}
           {recentPayments.length > 0 && (

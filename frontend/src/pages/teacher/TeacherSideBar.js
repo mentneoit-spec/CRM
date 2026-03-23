@@ -64,6 +64,12 @@ const TeacherSideBar = () => {
                     </ListItemIcon>
                     <ListItemText primary="Exams" />
                 </ListItemButton>
+                <ListItemButton component={Link} to="/teacher/marks-upload">
+                    <ListItemIcon>
+                        <GradingIcon color={location.pathname.startsWith("/teacher/marks-upload") ? 'primary' : 'inherit'} />
+                    </ListItemIcon>
+                    <ListItemText primary="Upload Marks" />
+                </ListItemButton>
                 <ListItemButton component={Link} to="/Teacher/reports">
                     <ListItemIcon>
                         <AssessmentIcon color={location.pathname.startsWith("/Teacher/reports") ? 'primary' : 'inherit'} />

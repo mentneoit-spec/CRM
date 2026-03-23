@@ -171,6 +171,7 @@ const DashboardLayout = ({ children, role = 'student' }) => {
     ],
     admin: [
       { text: 'Dashboard', icon: <Dashboard />, path: '/admin/dashboard' },
+      { text: 'Analytics', icon: <Assessment />, path: '/admin/analytics' },
       { text: 'Students', icon: <People />, path: '/admin/students' },
       { text: 'Teachers', icon: <People />, path: '/admin/teachers' },
       { text: 'Teams', icon: <People />, path: '/admin/teams' },

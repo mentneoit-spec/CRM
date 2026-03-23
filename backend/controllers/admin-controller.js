@@ -439,7 +439,7 @@ const getAllStudents = async (req, res) => {
                 sclass: { select: { id: true, sclassName: true } },
                 section: { select: { id: true, sectionName: true } },
                 parent: { select: { id: true, name: true, email: true } },
-                fees: { select: { id: true, feeType: true, amount: true, dueDate: true } },
+                Fees: { select: { id: true, feeType: true, amount: true, dueDate: true } },
             },
             orderBy: { createdAt: 'desc' },
         });
@@ -3146,6 +3146,577 @@ const downloadPaymentReceipt = async (req, res) => {
         res.status(500).json({ success: false, message: 'Error downloading receipt' });
     }
 };
+getAnalytics = async (req, res) => {
+    try {
+        const collegeId = req.collegeId || req.query.collegeId;
+
+        if (!collegeId) {
+            return res.status(400).json({ success: false, message: 'College ID required' });
+        }
+
+        console.log('Fetching analytics for collegeId:', collegeId);
+
+        // Fetch all analytics data in parallel
+        const [
+            totalStudents,
+            totalTeachers,
+            totalClasses,
+            totalSubjects,
+            totalAdmissions,
+            totalFees,
+            totalPayments,
+            completedPayments,
+            pendingPayments,
+            studentsByClass,
+            admissionsByStatus,
+            feesByType,
+            paymentsByMonth,
+            attendanceStats,
+            examStats,
+            resultStats,
+        ] = await Promise.all([
+            // Student stats
+            prisma.student.count({ where: { collegeId, isDeleted: false } }),
+            prisma.teacher.count({ where: { collegeId, isActive: true } }),
+            prisma.sclass.count({ where: { collegeId } }),
+            prisma.subject.count({ where: { collegeId } }),
+
+            // Admission stats
+            prisma.admission.count({ where: { collegeId } }),
+
+            // Fee stats
+            prisma.fee.count({ where: { collegeId } }),
+            prisma.payment.count({ where: { collegeId } }),
+            prisma.payment.count({ where: { collegeId, status: 'completed' } }),
+            prisma.payment.count({ where: { collegeId, status: 'pending' } }),
+
+            // Students by class
+            prisma.sclass.findMany({
+                where: { collegeId },
+                select: {
+                    sclassName: true,
+                    _count: { select: { Students: { where: { isDeleted: false } } } },
+                },
+            }),
+
+            // Admissions by status
+            prisma.admission.groupBy({
+                by: ['status'],
+                where: { collegeId },
+                _count: { _all: true },
+            }),
+
+            // Fees by type
+            prisma.fee.groupBy({
+                by: ['feeType'],
+                where: { collegeId },
+                _count: { _all: true },
+                _sum: { amount: true },
+            }),
+
+            // Payments by month (last 6 months)
+            prisma.payment.findMany({
+                where: {
+                    collegeId,
+                    status: 'completed',
+                    createdAt: { gte: new Date(new Date().setMonth(new Date().getMonth() - 6)) },
+                },
+                select: { amount: true, createdAt: true },
+            }),
+
+            // Attendance stats
+            prisma.attendance.aggregate({
+                where: { collegeId },
+                _count: { _all: true },
+            }),
+
+            // Exam stats
+            prisma.exam.count({ where: { collegeId } }),
+
+            // Result stats
+            prisma.examResult.aggregate({
+                where: { collegeId },
+                _count: { _all: true },
+                _avg: { marksObtained: true },
+            }),
+        ]);
+
+        // Process students by class
+        const classData = studentsByClass.map(c => ({
+            name: c.sclassName,
+            students: c._count.Students,
+        }));
+
+        // Process admissions by status
+        const admissionData = admissionsByStatus.map(a => ({
+            status: a.status || 'Unknown',
+            count: a._count._all,
+        }));
+
+        // Process fees by type
+        const feeData = feesByType.map(f => ({
+            type: f.feeType,
+            count: f._count._all,
+            total: f._sum.amount || 0,
+        }));
+
+        // Process payments by month
+        const monthMap = new Map();
+        const now = new Date();
+        for (let i = 5; i >= 0; i--) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const key = d.toLocaleString('en-US', { month: 'short', year: '2-digit' });
+            monthMap.set(key, 0);
+        }
+
+        paymentsByMonth.forEach(p => {
+            const d = new Date(p.createdAt);
+            const key = d.toLocaleString('en-US', { month: 'short', year: '2-digit' });
+            if (monthMap.has(key)) {
+                monthMap.set(key, (monthMap.get(key) || 0) + (p.amount || 0));
+            }
+        });
+
+        const revenueData = Array.from(monthMap.entries()).map(([month, revenue]) => ({
+            month,
+            revenue,
+        }));
+
+        // Calculate average marks
+        const avgMarks = resultStats._avg.marksObtained || 0;
+
+        res.status(200).json({
+            success: true,
+            data: {
+                summary: {
+                    totalStudents,
+                    totalTeachers,
+                    totalClasses,
+                    totalSubjects,
+                    totalAdmissions,
+                    totalFees,
+                    totalPayments,
+                    completedPayments,
+                    pendingPayments,
+                    totalAttendance: attendanceStats._count._all,
+                    totalExams: examStats,
+                    totalResults: resultStats._count._all,
+                    averageMarks: Math.round(avgMarks * 100) / 100,
+                },
+                charts: {
+                    studentsByClass: classData,
+                    admissionsByStatus: admissionData,
+                    feesByType: feeData,
+                    revenueByMonth: revenueData,
+                },
+            },
+        });
+    } catch (error) {
+        console.error('Get analytics error:', error);
+        console.error('Error stack:', error.stack);
+        res.status(500).json({ success: false, message: 'Error fetching analytics', error: error.message });
+    }
+}
+
+// ==================== RESULTS ====================
+
+// Get all exam results with filtering
+const getResults = async (req, res) => {
+    try {
+        const collegeId = req.collegeId;
+        const { classId, subjectId, examId, studentId, page = 1, limit = 50 } = req.query;
+
+        const filter = { collegeId };
+        if (classId) filter.exam = { sclassId: classId };
+        if (subjectId) filter.subjectId = subjectId;
+        if (examId) filter.examId = examId;
+        if (studentId) filter.studentId = studentId;
+
+        const results = await prisma.examResult.findMany({
+            where: filter,
+            include: {
+                student: { select: { id: true, name: true, studentId: true, email: true } },
+                subject: { select: { id: true, subName: true, subCode: true } },
+                exam: { select: { id: true, examName: true, examDate: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+            skip: (parseInt(page) - 1) * parseInt(limit),
+            take: parseInt(limit),
+        });
+
+        const total = await prisma.examResult.count({ where: filter });
+
+        res.status(200).json({
+            success: true,
+            data: results,
+            pagination: {
+                total,
+                page: parseInt(page),
+                limit: parseInt(limit),
+                pages: Math.ceil(total / parseInt(limit)),
+            },
+        });
+    } catch (error) {
+        console.error('Get results error:', error);
+        res.status(500).json({ success: false, message: 'Error fetching results' });
+    }
+};
+
+// Upload marks for multiple students
+const uploadMarksAdmin = async (req, res) => {
+    try {
+        const collegeId = req.collegeId;
+        const { examId, subjectId, marks } = req.body;
+
+        if (!examId || !subjectId || !marks || !Array.isArray(marks)) {
+            return res.status(400).json({ success: false, message: 'Invalid input' });
+        }
+
+        const exam = await prisma.exam.findUnique({ where: { id: examId } });
+        if (!exam || exam.collegeId !== collegeId) {
+            return res.status(404).json({ success: false, message: 'Exam not found' });
+        }
+
+        const subject = await prisma.subject.findUnique({ where: { id: subjectId } });
+        if (!subject || subject.collegeId !== collegeId) {
+            return res.status(404).json({ success: false, message: 'Subject not found' });
+        }
+
+        let created = 0;
+        let updated = 0;
+
+        for (const markData of marks) {
+            if (!markData?.studentId) continue;
+
+            const marksObtained = parseFloat(markData.marksObtained);
+            if (!Number.isFinite(marksObtained)) continue;
+
+            const percentage = (marksObtained / (subject.maxMarks || 100)) * 100;
+            let grade = 'F';
+            if (percentage >= 90) grade = 'A+';
+            else if (percentage >= 80) grade = 'A';
+            else if (percentage >= 70) grade = 'B';
+            else if (percentage >= 60) grade = 'C';
+            else if (percentage >= 50) grade = 'D';
+
+            const existing = await prisma.examResult.findFirst({
+                where: {
+                    studentId: markData.studentId,
+                    subjectId,
+                    examId,
+                },
+            });
+
+            if (existing) {
+                await prisma.examResult.update({
+                    where: { id: existing.id },
+                    data: {
+                        marksObtained,
+                        percentage: Number(percentage.toFixed(2)),
+                        grade,
+                    },
+                });
+                updated++;
+            } else {
+                await prisma.examResult.create({
+                    data: {
+                        studentId: markData.studentId,
+                        subjectId,
+                        examId,
+                        collegeId,
+                        marksObtained,
+                        percentage: Number(percentage.toFixed(2)),
+                        grade,
+                    },
+                });
+                created++;
+            }
+        }
+
+        res.status(201).json({
+            success: true,
+            message: `Marks uploaded: ${created} created, ${updated} updated`,
+            data: { created, updated },
+        });
+    } catch (error) {
+        console.error('Upload marks error:', error);
+        res.status(500).json({ success: false, message: 'Error uploading marks' });
+    }
+};
+
+// Upload marks from CSV
+const uploadMarksCsv = async (req, res) => {
+    try {
+        const collegeId = req.collegeId;
+        const { classId, subjectId, examId } = req.body;
+        const file = Array.isArray(req.files) ? req.files[0] : null;
+
+        if (!file || !classId || !subjectId || !examId) {
+            return res.status(400).json({ success: false, message: 'Missing required fields' });
+        }
+
+        const exam = await prisma.exam.findUnique({ where: { id: examId } });
+        if (!exam || exam.collegeId !== collegeId) {
+            return res.status(404).json({ success: false, message: 'Exam not found' });
+        }
+
+        const subject = await prisma.subject.findUnique({ where: { id: subjectId } });
+        if (!subject || subject.collegeId !== collegeId) {
+            return res.status(404).json({ success: false, message: 'Subject not found' });
+        }
+
+        const klass = await prisma.sclass.findFirst({ where: { id: classId, collegeId } });
+        if (!klass) {
+            return res.status(404).json({ success: false, message: 'Class not found' });
+        }
+
+        // Parse CSV
+        const csv = file.buffer.toString('utf-8');
+        const lines = csv.split('\n').filter(line => line.trim());
+        const headers = lines[0].toLowerCase().split(',').map(h => h.trim());
+
+        const studentIdIdx = headers.findIndex(h => ['student_id', 'studentid', 'id'].includes(h));
+        const marksIdx = headers.findIndex(h => ['marks', 'marks_obtained', 'score'].includes(h));
+
+        if (studentIdIdx === -1 || marksIdx === -1) {
+            return res.status(400).json({ success: false, message: 'Invalid CSV format' });
+        }
+
+        let created = 0;
+        let updated = 0;
+        const errors = [];
+
+        for (let i = 1; i < lines.length; i++) {
+            const values = lines[i].split(',').map(v => v.trim());
+            const studentId = values[studentIdIdx];
+            const marksStr = values[marksIdx];
+
+            if (!studentId || !marksStr) continue;
+
+            const marksObtained = parseFloat(marksStr);
+            if (!Number.isFinite(marksObtained) || marksObtained < 0 || marksObtained > 100) {
+                errors.push({ row: i + 1, message: `Invalid marks: ${marksStr}` });
+                continue;
+            }
+
+            const student = await prisma.student.findFirst({
+                where: { studentId, sclassId: classId, collegeId },
+            });
+
+            if (!student) {
+                errors.push({ row: i + 1, message: `Student not found: ${studentId}` });
+                continue;
+            }
+
+            const percentage = (marksObtained / (subject.maxMarks || 100)) * 100;
+            let grade = 'F';
+            if (percentage >= 90) grade = 'A+';
+            else if (percentage >= 80) grade = 'A';
+            else if (percentage >= 70) grade = 'B';
+            else if (percentage >= 60) grade = 'C';
+            else if (percentage >= 50) grade = 'D';
+
+            const existing = await prisma.examResult.findFirst({
+                where: { studentId: student.id, subjectId, examId },
+            });
+
+            if (existing) {
+                await prisma.examResult.update({
+                    where: { id: existing.id },
+                    data: {
+                        marksObtained,
+                        percentage: Number(percentage.toFixed(2)),
+                        grade,
+                    },
+                });
+                updated++;
+            } else {
+                await prisma.examResult.create({
+                    data: {
+                        studentId: student.id,
+                        subjectId,
+                        examId,
+                        collegeId,
+                        marksObtained,
+                        percentage: Number(percentage.toFixed(2)),
+                        grade,
+                    },
+                });
+                created++;
+            }
+        }
+
+        res.status(201).json({
+            success: true,
+            message: `CSV processed: ${created} created, ${updated} updated${errors.length > 0 ? `, ${errors.length} errors` : ''}`,
+            data: { created, updated, errors },
+        });
+    } catch (error) {
+        console.error('Upload marks CSV error:', error);
+        res.status(500).json({ success: false, message: 'Error uploading CSV' });
+    }
+};
+
+// ==================== ADMISSION TEAM MANAGEMENT ====================
+
+const getAdmissionTeamMembers = async (req, res) => {
+    try {
+        const collegeId = req.collegeId;
+        const members = await prisma.admissionTeam.findMany({
+            where: { collegeId },
+            include: {
+                user: {
+                    select: { id: true, email: true, isActive: true },
+                },
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+
+        res.status(200).json({ success: true, data: members });
+    } catch (error) {
+        console.error('Get admission team members error:', error);
+        res.status(500).json({ success: false, message: 'Error fetching team members' });
+    }
+};
+
+const createAdmissionTeamMember = async (req, res) => {
+    try {
+        const collegeId = req.collegeId;
+        const { name, email, phone, password } = req.body;
+
+        if (!name || !email || !phone || !password) {
+            return res.status(400).json({ success: false, message: 'All fields are required' });
+        }
+
+        // Check if email already exists
+        const existingUser = await prisma.user.findUnique({
+            where: { email },
+        });
+        if (existingUser) {
+            return res.status(400).json({ success: false, message: 'Email already exists' });
+        }
+
+        // Hash password
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        // Create user
+        const user = await prisma.user.create({
+            data: {
+                name,
+                email,
+                phone,
+                password: hashedPassword,
+                role: 'AdmissionTeam',
+                collegeId,
+                isActive: true,
+            },
+        });
+
+        // Create admission team member
+        const member = await prisma.admissionTeam.create({
+            data: {
+                name,
+                email,
+                phone,
+                collegeId,
+                userId: user.id,
+                isActive: true,
+            },
+            include: {
+                user: {
+                    select: { id: true, email: true, isActive: true },
+                },
+            },
+        });
+
+        res.status(201).json({
+            success: true,
+            message: 'Admission team member created successfully',
+            data: member,
+        });
+    } catch (error) {
+        console.error('Create admission team member error:', error);
+        res.status(500).json({ success: false, message: 'Error creating team member' });
+    }
+};
+
+const updateAdmissionTeamMember = async (req, res) => {
+    try {
+        const collegeId = req.collegeId;
+        const { id } = req.params;
+        const { name, email, phone, password } = req.body;
+
+        // Check if member exists
+        const member = await prisma.admissionTeam.findUnique({
+            where: { id },
+            include: { user: true },
+        });
+
+        if (!member || member.collegeId !== collegeId) {
+            return res.status(404).json({ success: false, message: 'Team member not found' });
+        }
+
+        // Update user
+        const updateData = { name, email, phone };
+        if (password) {
+            updateData.password = await bcrypt.hash(password, 10);
+        }
+
+        await prisma.user.update({
+            where: { id: member.userId },
+            data: updateData,
+        });
+
+        // Update admission team member
+        const updated = await prisma.admissionTeam.update({
+            where: { id },
+            data: { name, email, phone },
+            include: {
+                user: {
+                    select: { id: true, email: true, isActive: true },
+                },
+            },
+        });
+
+        res.status(200).json({
+            success: true,
+            message: 'Team member updated successfully',
+            data: updated,
+        });
+    } catch (error) {
+        console.error('Update admission team member error:', error);
+        res.status(500).json({ success: false, message: 'Error updating team member' });
+    }
+};
+
+const deleteAdmissionTeamMember = async (req, res) => {
+    try {
+        const collegeId = req.collegeId;
+        const { id } = req.params;
+
+        // Check if member exists
+        const member = await prisma.admissionTeam.findUnique({
+            where: { id },
+        });
+
+        if (!member || member.collegeId !== collegeId) {
+            return res.status(404).json({ success: false, message: 'Team member not found' });
+        }
+
+        // Delete user (cascade will delete admission team member)
+        await prisma.user.delete({
+            where: { id: member.userId },
+        });
+
+        res.status(200).json({
+            success: true,
+            message: 'Team member deleted successfully',
+        });
+    } catch (error) {
+        console.error('Delete admission team member error:', error);
+        res.status(500).json({ success: false, message: 'Error deleting team member' });
+    }
+};
 
 module.exports = {
     getCollegeSettings,
@@ -3199,4 +3770,12 @@ module.exports = {
     getTeacherSections,
     setTeacherSections,
     downloadPaymentReceipt,
+    getAnalytics,
+    getResults,
+    uploadMarksAdmin,
+    uploadMarksCsv,
+    getAdmissionTeamMembers,
+    createAdmissionTeamMember,
+    updateAdmissionTeamMember,
+    deleteAdmissionTeamMember,
 };

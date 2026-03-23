@@ -57,6 +57,7 @@ const AdminReceipts = () => {
             // Fetch payments with pagination (first 100)
             try {
                 const paymentsRes = await accountsAPI.getPayments({ limit: 100 });
+                // The API interceptor returns response.data, which is { success: true, data: payments, pagination: {...} }
                 const allPayments = paymentsRes?.data || [];
                 
                 // Payments already include student data from backend
@@ -120,7 +121,7 @@ const AdminReceipts = () => {
         
         students.forEach(student => {
             const studentPayments = paymentsByStudent.get(student.id) || [];
-            const studentFees = student.fees || [];
+            const studentFees = student.Fees || [];
             
             const totalFees = studentFees.reduce((sum, f) => sum + (f.amount || 0), 0);
             const totalPaid = studentPayments.reduce((sum, p) => sum + (p.amount || 0), 0);

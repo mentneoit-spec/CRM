@@ -20,6 +20,7 @@ import {
 } from '@mui/material';
 import { useLocation, useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../components/DashboardLayout';
+import TeacherAttendanceCalendar from '../../components/TeacherAttendanceCalendar';
 import { teacherAPI } from '../../services/api';
 
 const normalizeDateKey = (d) => {
@@ -37,13 +38,14 @@ const TeacherAttendance = () => {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [classes, setClasses] = useState([]);
-    const [subjects, setSubjects] = useState([]);
     const [classId, setClassId] = useState(initialClassId);
-    const [subjectId, setSubjectId] = useState('');
     const [students, setStudents] = useState([]);
     const [statusByStudent, setStatusByStudent] = useState({});
     const [message, setMessage] = useState(null);
     const [error, setError] = useState(null);
+    const [allAttendanceData, setAllAttendanceData] = useState([]);
+    const [calendarMonth, setCalendarMonth] = useState(new Date().getMonth());
+    const [calendarYear, setCalendarYear] = useState(new Date().getFullYear());
 
     const [dateKey, setDateKey] = useState(() => {
         const now = new Date();
@@ -52,11 +54,11 @@ const TeacherAttendance = () => {
 
     const subjectsForClass = useMemo(() => {
         if (!classId) return [];
-        return (Array.isArray(subjects) ? subjects : []).filter((s) => s?.sclassId === classId);
-    }, [subjects, classId]);
+        return [];
+    }, [classId]);
 
-    const loadAttendanceForDate = async (selectedClassId, selectedSubjectId, selectedDateKey, currentStudents) => {
-        if (!selectedClassId || !selectedSubjectId) {
+    const loadAttendanceForDate = async (selectedClassId, selectedDateKey, currentStudents) => {
+        if (!selectedClassId) {
             const next = {};
             for (const s of currentStudents) next[s.id] = 'present';
             setStatusByStudent(next);
@@ -64,25 +66,32 @@ const TeacherAttendance = () => {
         }
 
         const [year, month] = selectedDateKey.split('-').map((v) => Number(v));
-        const attendanceRes = await teacherAPI.getAttendance(selectedClassId, {
-            subjectId: selectedSubjectId,
-            month,
-            year,
-        });
-        const records = attendanceRes?.data?.data?.attendance ?? [];
+        try {
+            const attendanceRes = await teacherAPI.getAttendance(selectedClassId, {
+                month,
+                year,
+            });
+            const records = attendanceRes?.data?.data?.attendance ?? [];
+            setAllAttendanceData(records);
 
-        const map = {};
-        for (const r of records) {
-            if (!r?.studentId || !r?.date) continue;
-            if (normalizeDateKey(r.date) !== selectedDateKey) continue;
-            map[r.studentId] = r.status;
-        }
+            const map = {};
+            for (const r of records) {
+                if (!r?.studentId || !r?.date) continue;
+                if (normalizeDateKey(r.date) !== selectedDateKey) continue;
+                map[r.studentId] = r.status;
+            }
 
-        const next = {};
-        for (const s of currentStudents) {
-            next[s.id] = map[s.id] || 'present';
+            const next = {};
+            for (const s of currentStudents) {
+                next[s.id] = map[s.id] || 'present';
+            }
+            setStatusByStudent(next);
+        } catch (e) {
+            console.error('Error loading attendance:', e);
+            const next = {};
+            for (const s of currentStudents) next[s.id] = 'present';
+            setStatusByStudent(next);
         }
-        setStatusByStudent(next);
     };
 
     useEffect(() => {
@@ -94,44 +103,35 @@ const TeacherAttendance = () => {
             setMessage(null);
 
             try {
-                const [dashboardRes, classesRes] = await Promise.all([
-                    teacherAPI.getDashboard(),
-                    teacherAPI.getClasses(),
-                ]);
-
-                const teacherSubjects = dashboardRes?.data?.data?.teacher?.Subjects ?? [];
+                const classesRes = await teacherAPI.getClasses();
                 const classesData = classesRes?.data?.data ?? [];
                 const safeClasses = Array.isArray(classesData) ? classesData : [];
 
                 if (!mounted) return;
-                setSubjects(Array.isArray(teacherSubjects) ? teacherSubjects : []);
                 setClasses(safeClasses);
 
                 const nextClassId = classId || safeClasses?.[0]?.id || '';
                 setClassId(nextClassId);
+                
                 if (!nextClassId) {
                     setStudents([]);
-                    setSubjectId('');
                     setStatusByStudent({});
+                    setLoading(false);
                     return;
                 }
-
-                const nextSubjects = (Array.isArray(teacherSubjects) ? teacherSubjects : []).filter((s) => s?.sclassId === nextClassId);
-                const nextSubjectId = subjectId || nextSubjects?.[0]?.id || '';
-                setSubjectId(nextSubjectId);
 
                 const studentsRes = await teacherAPI.getStudents(nextClassId);
                 const studentsData = studentsRes?.data?.data ?? [];
                 const safeStudents = Array.isArray(studentsData) ? studentsData : [];
+                
                 if (!mounted) return;
                 setStudents(safeStudents);
 
-                await loadAttendanceForDate(nextClassId, nextSubjectId, dateKey, safeStudents);
+                await loadAttendanceForDate(nextClassId, dateKey, safeStudents);
             } catch (e) {
                 if (!mounted) return;
                 setError(e?.response?.data?.message || e?.message || 'Failed to load attendance data');
                 setClasses([]);
-                setSubjects([]);
                 setStudents([]);
                 setStatusByStudent({});
             } finally {
@@ -153,34 +153,16 @@ const TeacherAttendance = () => {
         setError(null);
         setMessage(null);
         try {
-            const nextSubjects = (Array.isArray(subjects) ? subjects : []).filter((s) => s?.sclassId === nextClassId);
-            const nextSubjectId = nextSubjects?.[0]?.id || '';
-            setSubjectId(nextSubjectId);
-
             const studentsRes = await teacherAPI.getStudents(nextClassId);
             const studentsData = studentsRes?.data?.data ?? [];
             const safeStudents = Array.isArray(studentsData) ? studentsData : [];
             setStudents(safeStudents);
 
-            await loadAttendanceForDate(nextClassId, nextSubjectId, dateKey, safeStudents);
+            await loadAttendanceForDate(nextClassId, dateKey, safeStudents);
         } catch (e) {
             setError(e?.response?.data?.message || e?.message || 'Failed to load class data');
             setStudents([]);
             setStatusByStudent({});
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleChangeSubject = async (nextSubjectId) => {
-        setSubjectId(nextSubjectId);
-        setLoading(true);
-        setError(null);
-        setMessage(null);
-        try {
-            await loadAttendanceForDate(classId, nextSubjectId, dateKey, students);
-        } catch (e) {
-            setError(e?.response?.data?.message || e?.message || 'Failed to load attendance');
         } finally {
             setLoading(false);
         }
@@ -192,7 +174,7 @@ const TeacherAttendance = () => {
         setError(null);
         setMessage(null);
         try {
-            await loadAttendanceForDate(classId, subjectId, nextDateKey, students);
+            await loadAttendanceForDate(classId, nextDateKey, students);
         } catch (e) {
             setError(e?.response?.data?.message || e?.message || 'Failed to load attendance');
         } finally {
@@ -201,8 +183,8 @@ const TeacherAttendance = () => {
     };
 
     const handleSave = async () => {
-        if (!classId || !subjectId) {
-            setError('Please select class and subject');
+        if (!classId) {
+            setError('Please select a class');
             return;
         }
         setSaving(true);
@@ -216,7 +198,6 @@ const TeacherAttendance = () => {
 
             const res = await teacherAPI.markAttendance({
                 classId,
-                subjectId,
                 date: new Date(`${dateKey}T00:00:00`).toISOString(),
                 attendance,
             });
@@ -243,15 +224,6 @@ const TeacherAttendance = () => {
                         <Select value={classId} label="Class" onChange={(e) => handleChangeClass(e.target.value)}>
                             {classes.map((c) => (
                                 <MenuItem key={c.id} value={c.id}>{c?.sclassName || 'Class'}</MenuItem>
-                            ))}
-                        </Select>
-                    </FormControl>
-
-                    <FormControl size="small" sx={{ minWidth: 240 }} disabled={loading || !classId || subjectsForClass.length === 0}>
-                        <InputLabel>Subject</InputLabel>
-                        <Select value={subjectId} label="Subject" onChange={(e) => handleChangeSubject(e.target.value)}>
-                            {subjectsForClass.map((s) => (
-                                <MenuItem key={s.id} value={s.id}>{s?.subName || 'Subject'}</MenuItem>
                             ))}
                         </Select>
                     </FormControl>
@@ -308,6 +280,17 @@ const TeacherAttendance = () => {
                         </TableBody>
                     </Table>
                 </TableContainer>
+
+                {/* Attendance Calendar */}
+                <TeacherAttendanceCalendar 
+                    attendanceData={allAttendanceData}
+                    month={calendarMonth}
+                    year={calendarYear}
+                    onMonthChange={(month, year) => {
+                        setCalendarMonth(month);
+                        setCalendarYear(year);
+                    }}
+                />
             </Box>
         </DashboardLayout>
     );

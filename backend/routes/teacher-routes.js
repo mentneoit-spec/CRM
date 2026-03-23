@@ -55,6 +55,7 @@ router.get('/attendance-report', authorize('Teacher'), authorizeCollege, getAtte
 
 // ==================== MARKS ====================
 router.post('/marks', authorize('Teacher'), authorizeCollege, uploadMarks);
+router.post('/marks/upload', authorize('Teacher'), authorizeCollege, uploadMarks);
 router.get('/marks', authorize('Teacher'), authorizeCollege, getMarksReport);
 router.get('/marks-report', authorize('Teacher'), authorizeCollege, getMarksReport);
 

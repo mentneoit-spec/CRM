@@ -12,6 +12,9 @@ import SupervisorAccountOutlinedIcon from '@mui/icons-material/SupervisorAccount
 import ReportIcon from '@mui/icons-material/Report';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import ReceiptIcon from '@mui/icons-material/Receipt';
+import BarChartIcon from '@mui/icons-material/BarChart';
+import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+import GroupIcon from '@mui/icons-material/Group';
 
 const SideBar = () => {
     const location = useLocation();
@@ -83,6 +86,30 @@ const SideBar = () => {
                         <AssignmentIcon color={location.pathname.startsWith("/admin/results") ? 'primary' : 'inherit'} />
                     </ListItemIcon>
                     <ListItemText primary="Results" />
+                </ListItemButton>
+                <ListItemButton component={Link} to="/admin/admissions">
+                    <ListItemIcon>
+                        <PersonOutlineIcon color={location.pathname.startsWith("/admin/admissions") ? 'primary' : 'inherit'} />
+                    </ListItemIcon>
+                    <ListItemText primary="Admissions" />
+                </ListItemButton>
+                <ListItemButton component={Link} to="/admin/admission-team">
+                    <ListItemIcon>
+                        <GroupIcon color={location.pathname.startsWith("/admin/admission-team") ? 'primary' : 'inherit'} />
+                    </ListItemIcon>
+                    <ListItemText primary="Admission Team" />
+                </ListItemButton>
+                <ListItemButton component={Link} to="/admin/marks-upload">
+                    <ListItemIcon>
+                        <CloudUploadIcon color={location.pathname.startsWith("/admin/marks-upload") ? 'primary' : 'inherit'} />
+                    </ListItemIcon>
+                    <ListItemText primary="Upload Marks" />
+                </ListItemButton>
+                <ListItemButton component={Link} to="/admin/analytics">
+                    <ListItemIcon>
+                        <BarChartIcon color={location.pathname.startsWith("/admin/analytics") ? 'primary' : 'inherit'} />
+                    </ListItemIcon>
+                    <ListItemText primary="Analytics" />
                 </ListItemButton>
                 <ListItemButton component={Link} to="/admin/reports">
                     <ListItemIcon>

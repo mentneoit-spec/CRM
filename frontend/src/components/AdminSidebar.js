@@ -20,7 +20,8 @@ import {
   Book as BookIcon,
   EventNote as EventNoteIcon,
   CheckCircle as CheckCircleIcon,
-  Groups as GroupsIcon
+  Groups as GroupsIcon,
+  CloudUpload
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 
@@ -40,7 +41,8 @@ const menuStructure = [
       { label: 'Classes & Sections', path: '/admin/classes', icon: ClassIcon },
       { label: 'Subjects', path: '/admin/subjects', icon: BookIcon },
       { label: 'Teachers', path: '/admin/teachers', icon: SchoolIcon },
-      { label: 'Students', path: '/admin/students', icon: PeopleIcon }
+      { label: 'Students', path: '/admin/students', icon: PeopleIcon },
+      { label: 'Import Students CSV', path: '/admin/import-students', icon: CloudUpload }
     ]
   },
   {
@@ -50,7 +52,8 @@ const menuStructure = [
       { label: 'Attendance', path: '/admin/attendance', icon: CheckCircleIcon },
       { label: 'Homework', path: '/admin/homework', icon: BookIcon },
       { label: 'Exams', path: '/admin/exams', icon: EventNoteIcon },
-      { label: 'Results', path: '/admin/results', icon: ChartIcon }
+      { label: 'Results', path: '/admin/results', icon: ChartIcon },
+      { label: 'Send Marks Email', path: '/admin/send-marks-email', icon: NotificationsIcon }
     ]
   },
   {

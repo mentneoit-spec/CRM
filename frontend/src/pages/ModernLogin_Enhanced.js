@@ -613,7 +613,7 @@ const ModernLoginEnhanced = () => {
               setShowCollegeIdField(false);
               setFormData((prev) => ({ ...prev, twoFAToken: '' }));
             }}
-            fullWidth
+            variant="fullWidth"
             sx={{
               mb: 3,
               minHeight: '48px',

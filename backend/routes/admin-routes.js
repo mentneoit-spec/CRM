@@ -63,6 +63,7 @@ const {
     createAdmissionTeamMember,
     updateAdmissionTeamMember,
     deleteAdmissionTeamMember,
+    sendMarksEmail,
 } = require('../controllers/admin-controller');
 
 const {
@@ -228,5 +229,8 @@ router.get('/admission-team', authorize('Admin'), authorizeCollege, getAdmission
 router.post('/admission-team', authorize('Admin'), authorizeCollege, createAdmissionTeamMember);
 router.put('/admission-team/:id', authorize('Admin'), authorizeCollege, updateAdmissionTeamMember);
 router.delete('/admission-team/:id', authorize('Admin'), authorizeCollege, deleteAdmissionTeamMember);
+
+// ==================== MARKS EMAIL NOTIFICATION ====================
+router.post('/marks/send-email', authorize('Admin'), authorizeCollege, sendMarksEmail);
 
 module.exports = router;

@@ -4,6 +4,7 @@ const { generateToken } = require('../utils/jwt');
 const crypto = require('crypto');
 const { Readable } = require('stream');
 const csvParser = require('csv-parser');
+const nodemailer = require('nodemailer');
 
 // ==================== COLLEGE SETTINGS / BRANDING ====================
 
@@ -3588,12 +3589,15 @@ const createAdmissionTeamMember = async (req, res) => {
             return res.status(400).json({ success: false, message: 'All fields are required' });
         }
 
-        // Check if email already exists
-        const existingUser = await prisma.user.findUnique({
-            where: { email },
+        // Check if email already exists in this college
+        const existingUser = await prisma.user.findFirst({
+            where: { 
+                email,
+                collegeId
+            },
         });
         if (existingUser) {
-            return res.status(400).json({ success: false, message: 'Email already exists' });
+            return res.status(400).json({ success: false, message: 'Email already exists in this college' });
         }
 
         // Hash password
@@ -3718,6 +3722,276 @@ const deleteAdmissionTeamMember = async (req, res) => {
     }
 };
 
+// ==================== MARKS EMAIL NOTIFICATION ====================
+
+// Send marks via email to student
+const sendMarksEmail = async (req, res) => {
+    try {
+        const collegeId = req.collegeId || req.query.collegeId;
+        const { studentId, subjectId, examId, marks, totalMarks = 100, remarks } = req.body;
+
+        // Validation
+        if (!studentId || !subjectId || marks === undefined) {
+            return res.status(400).json({
+                success: false,
+                message: 'Please provide studentId, subjectId, and marks'
+            });
+        }
+
+        if (marks < 0 || marks > totalMarks) {
+            return res.status(400).json({
+                success: false,
+                message: `Marks must be between 0 and ${totalMarks}`
+            });
+        }
+
+        // Find student with email
+        const student = await prisma.student.findFirst({
+            where: { id: studentId, collegeId, isDeleted: false },
+            include: {
+                sclass: { select: { sclassName: true } },
+                college: { select: { name: true } }
+            }
+        });
+
+        if (!student) {
+            return res.status(404).json({
+                success: false,
+                message: 'Student not found'
+            });
+        }
+
+        if (!student.email) {
+            return res.status(400).json({
+                success: false,
+                message: 'Student email not found'
+            });
+        }
+
+        // Find subject
+        const subject = await prisma.subject.findFirst({
+            where: { id: subjectId, collegeId }
+        });
+
+        if (!subject) {
+            return res.status(404).json({
+                success: false,
+                message: 'Subject not found'
+            });
+        }
+
+        // Find or create exam result
+        let examResult;
+        if (examId) {
+            const exam = await prisma.exam.findFirst({
+                where: { id: examId, collegeId }
+            });
+
+            if (!exam) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Exam not found'
+                });
+            }
+
+            // Check if result already exists
+            const existing = await prisma.examResult.findFirst({
+                where: { studentId, subjectId, examId }
+            });
+
+            const percentage = ((marks / totalMarks) * 100).toFixed(2);
+            const grade = calculateGrade(percentage);
+
+            if (existing) {
+                examResult = await prisma.examResult.update({
+                    where: { id: existing.id },
+                    data: {
+                        marksObtained: marks,
+                        percentage: parseFloat(percentage),
+                        grade,
+                        remarks
+                    }
+                });
+            } else {
+                examResult = await prisma.examResult.create({
+                    data: {
+                        studentId,
+                        subjectId,
+                        examId,
+                        collegeId,
+                        marksObtained: marks,
+                        percentage: parseFloat(percentage),
+                        grade,
+                        remarks
+                    }
+                });
+            }
+        }
+
+        // Send email
+        try {
+            const percentage = ((marks / totalMarks) * 100).toFixed(2);
+            const grade = calculateGrade(percentage);
+
+            await sendMarksNotificationEmail(
+                student.email,
+                student.name,
+                subject.subName,
+                marks,
+                totalMarks,
+                percentage,
+                grade,
+                student.college.name,
+                student.sclass?.sclassName || 'N/A'
+            );
+
+            res.status(200).json({
+                success: true,
+                message: 'Marks saved and email sent successfully',
+                data: {
+                    student: {
+                        id: student.id,
+                        name: student.name,
+                        email: student.email
+                    },
+                    marks: {
+                        subject: subject.subName,
+                        marks,
+                        totalMarks,
+                        percentage,
+                        grade
+                    },
+                    examResult
+                }
+            });
+        } catch (emailError) {
+            console.error('Email sending failed:', emailError);
+            res.status(500).json({
+                success: false,
+                message: 'Marks saved but email sending failed',
+                error: emailError.message
+            });
+        }
+    } catch (error) {
+        console.error('Send marks email error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error sending marks email',
+            error: error.message
+        });
+    }
+};
+
+// Calculate grade based on percentage
+const calculateGrade = (percentage) => {
+    const percent = parseFloat(percentage);
+    if (percent >= 90) return 'A+';
+    if (percent >= 80) return 'A';
+    if (percent >= 70) return 'B+';
+    if (percent >= 60) return 'B';
+    if (percent >= 50) return 'C';
+    if (percent >= 40) return 'D';
+    return 'F';
+};
+
+// Email sending function
+const sendMarksNotificationEmail = async (
+    studentEmail,
+    studentName,
+    subjectName,
+    marks,
+    totalMarks,
+    percentage,
+    grade,
+    collegeName,
+    className
+) => {
+    // Check if email is configured
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
+        throw new Error('Email configuration not found. Please set EMAIL_USER and EMAIL_PASSWORD in .env file');
+    }
+
+    const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAIL_PASSWORD
+        }
+    });
+
+    const mailOptions = {
+        from: `"${collegeName}" <${process.env.EMAIL_USER}>`,
+        to: studentEmail,
+        subject: `Exam Results - ${subjectName}`,
+        html: `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                    .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+                    .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+                    .marks-box { background: white; padding: 20px; margin: 20px 0; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+                    .marks-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; }
+                    .marks-row:last-child { border-bottom: none; }
+                    .label { font-weight: bold; color: #555; }
+                    .value { color: #667eea; font-weight: bold; }
+                    .grade { font-size: 48px; color: #667eea; text-align: center; margin: 20px 0; }
+                    .footer { text-align: center; margin-top: 20px; color: #888; font-size: 12px; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>📊 Exam Results</h1>
+                        <p>${collegeName}</p>
+                    </div>
+                    <div class="content">
+                        <p>Dear <strong>${studentName}</strong>,</p>
+                        <p>Your exam results for <strong>${subjectName}</strong> have been published.</p>
+                        
+                        <div class="marks-box">
+                            <div class="marks-row">
+                                <span class="label">Class:</span>
+                                <span class="value">${className}</span>
+                            </div>
+                            <div class="marks-row">
+                                <span class="label">Subject:</span>
+                                <span class="value">${subjectName}</span>
+                            </div>
+                            <div class="marks-row">
+                                <span class="label">Marks Obtained:</span>
+                                <span class="value">${marks} / ${totalMarks}</span>
+                            </div>
+                            <div class="marks-row">
+                                <span class="label">Percentage:</span>
+                                <span class="value">${percentage}%</span>
+                            </div>
+                        </div>
+
+                        <div class="grade">Grade: ${grade}</div>
+
+                        <p style="text-align: center; color: #666;">
+                            ${percentage >= 40 ? '🎉 Congratulations! Keep up the good work!' : '💪 Keep working hard. You can do better!'}
+                        </p>
+
+                        <div class="footer">
+                            <p>This is an automated email. Please do not reply.</p>
+                            <p>&copy; ${new Date().getFullYear()} ${collegeName}</p>
+                        </div>
+                    </div>
+                </div>
+            </body>
+            </html>
+        `
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log('✓ Email sent:', info.messageId);
+    return { success: true, messageId: info.messageId };
+};
+
 module.exports = {
     getCollegeSettings,
     updateCollegeSettings,
@@ -3778,4 +4052,5 @@ module.exports = {
     createAdmissionTeamMember,
     updateAdmissionTeamMember,
     deleteAdmissionTeamMember,
+    sendMarksEmail,
 };

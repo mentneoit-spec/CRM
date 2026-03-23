@@ -7,14 +7,16 @@ import {
 } from '@mui/material';
 import {
   People, School, Payment, TrendingUp, PersonAdd, Assessment, Notifications, CheckCircle, Warning,
-  AttachMoney, PieChart as PieChartIcon
+  AttachMoney, PieChart as PieChartIcon, Email, CloudUpload
 } from '@mui/icons-material';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import DashboardLayout from '../../components/DashboardLayout';
 import { fetchAdminDashboard } from '../../redux/slices/dashboardSlice';
+import { useNavigate } from 'react-router-dom';
 
 const AdminDashboardModern = () => {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const { data, loading, error } = useSelector((state) => state.dashboard);
 
   useEffect(() => {
@@ -207,6 +209,126 @@ const AdminDashboardModern = () => {
               </Card>
             </Grid>
           </Grid>
+
+          {/* Quick Actions Section */}
+          <Paper sx={{ p: 3, mb: 4, borderRadius: 3, boxShadow: '0 10px 30px rgba(0, 0, 0, 0.1)' }}>
+            <Typography variant="h6" sx={{ fontWeight: 700, mb: 3, display: 'flex', alignItems: 'center' }}>
+              <Assessment sx={{ mr: 1, color: '#667eea' }} />
+              Quick Actions
+            </Typography>
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={6} md={3}>
+                <Button
+                  fullWidth
+                  variant="contained"
+                  size="large"
+                  startIcon={<Email />}
+                  onClick={() => navigate('/admin/send-marks-email')}
+                  sx={{
+                    py: 2,
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    boxShadow: '0 5px 15px rgba(102, 126, 234, 0.3)',
+                    '&:hover': {
+                      background: 'linear-gradient(135deg, #764ba2 0%, #667eea 100%)',
+                      boxShadow: '0 8px 20px rgba(102, 126, 234, 0.4)',
+                      transform: 'translateY(-2px)',
+                    },
+                    transition: 'all 0.3s ease'
+                  }}
+                >
+                  Send Marks Email
+                </Button>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <Button
+                  fullWidth
+                  variant="contained"
+                  size="large"
+                  startIcon={<CloudUpload />}
+                  onClick={() => navigate('/admin/import-students')}
+                  sx={{
+                    py: 2,
+                    background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+                    boxShadow: '0 5px 15px rgba(245, 87, 108, 0.3)',
+                    '&:hover': {
+                      background: 'linear-gradient(135deg, #f5576c 0%, #f093fb 100%)',
+                      boxShadow: '0 8px 20px rgba(245, 87, 108, 0.4)',
+                      transform: 'translateY(-2px)',
+                    },
+                    transition: 'all 0.3s ease'
+                  }}
+                >
+                  Import Students CSV
+                </Button>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  size="large"
+                  startIcon={<PersonAdd />}
+                  onClick={() => navigate('/admin/admissions')}
+                  sx={{
+                    py: 2,
+                    borderColor: '#4facfe',
+                    color: '#4facfe',
+                    '&:hover': {
+                      borderColor: '#4facfe',
+                      background: 'rgba(79, 172, 254, 0.1)',
+                      transform: 'translateY(-2px)',
+                    },
+                    transition: 'all 0.3s ease'
+                  }}
+                >
+                  Manage Admissions
+                </Button>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  size="large"
+                  startIcon={<People />}
+                  onClick={() => navigate('/admin/students')}
+                  sx={{
+                    py: 2,
+                    borderColor: '#f5576c',
+                    color: '#f5576c',
+                    '&:hover': {
+                      borderColor: '#f5576c',
+                      background: 'rgba(245, 87, 108, 0.1)',
+                      transform: 'translateY(-2px)',
+                    },
+                    transition: 'all 0.3s ease'
+                  }}
+                >
+                  View Students
+                </Button>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  size="large"
+                  startIcon={<AttachMoney />}
+                  onClick={() => navigate('/admin/fees')}
+                  sx={{
+                    py: 2,
+                    borderColor: '#43e97b',
+                    color: '#43e97b',
+                    '&:hover': {
+                      borderColor: '#43e97b',
+                      background: 'rgba(67, 233, 123, 0.1)',
+                      transform: 'translateY(-2px)',
+                    },
+                    transition: 'all 0.3s ease'
+                  }}
+                >
+                  Manage Fees
+                </Button>
+              </Grid>
+            </Grid>
+          </Paper>
 
           {/* Charts Section */}
           <Grid container spacing={3} sx={{ mb: 4 }}>

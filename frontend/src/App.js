@@ -39,6 +39,8 @@ import AdminSettings from './pages/admin/AdminSettings';
 import AdminResults from './pages/admin/AdminResults';
 import AdminMarksUploadEnhanced from './pages/admin/AdminMarksUploadEnhanced';
 import AdminResultsCSVUpload from './pages/admin/AdminResultsCSVUpload';
+import SendMarksEmail from './pages/admin/SendMarksEmail';
+import ImportStudentsCSV from './pages/admin/ImportStudentsCSV';
 import AdmissionsTeamDashboard from './pages/admin/AdmissionsTeamDashboard';
 import AdmissionTeamManagement from './pages/admin/AdmissionTeamManagement';
 import TeacherMarksUpload from './pages/teacher/TeacherMarksUpload';
@@ -261,6 +263,14 @@ function App() {
           <Route
             path="/admin/results-csv-upload"
             element={<ProtectedRoute allowedRoles={["Admin", "SuperAdmin"]} element={<AdminResultsCSVUpload />} />}
+          />
+          <Route
+            path="/admin/send-marks-email"
+            element={<ProtectedRoute allowedRoles={["Admin", "SuperAdmin"]} element={<SendMarksEmail />} />}
+          />
+          <Route
+            path="/admin/import-students"
+            element={<ProtectedRoute allowedRoles={["Admin", "SuperAdmin"]} element={<ImportStudentsCSV />} />}
           />
           <Route
             path="/admin/admissions"

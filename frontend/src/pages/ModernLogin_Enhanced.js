@@ -6,24 +6,16 @@ import {
   Typography,
   TextField,
   Button,
-  Divider,
   IconButton,
   InputAdornment,
   Tabs,
   Tab,
   Stack,
-  Chip,
   Alert,
   CircularProgress,
-  Card,
-  CardContent,
   Link,
   FormControlLabel,
   Checkbox,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
 } from '@mui/material';
 import {
   Visibility,
@@ -35,10 +27,148 @@ import {
   CheckCircle,
   Send,
   Lock,
-  Info,
 } from '@mui/icons-material';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { authAPI } from '../config/api';
+import { styled, keyframes } from '@mui/material/styles';
+
+// Keyframe animations
+const subtleGlow = keyframes`
+  0%, 100% { box-shadow: 0 20px 60px rgba(34, 197, 94, 0.08), inset 0 0 60px rgba(255, 255, 255, 0.5); }
+  50% { box-shadow: 0 30px 80px rgba(34, 197, 94, 0.12), inset 0 0 80px rgba(255, 255, 255, 0.7); }
+`;
+
+const floatingShape = keyframes`
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  25% { transform: translate(30px, -30px) rotate(90deg); }
+  50% { transform: translate(0, -60px) rotate(180deg); }
+  75% { transform: translate(-30px, -30px) rotate(270deg); }
+`;
+
+const glowPulse = keyframes`
+  0%, 100% { opacity: 0.3, filter: blur(40px); }
+  50% { opacity: 0.6; filter: blur(60px); }
+`;
+
+const subtleFloat = keyframes`
+  0%, 100% { transform: translateY(0) translateX(0); }
+  33% { transform: translateY(-20px) translateX(10px); }
+  66% { transform: translateY(-10px) translateX(-15px); }
+`;
+
+// Modern TextField Component with Green Theme
+const ModernTextField = styled(TextField)(({ theme }) => ({
+  '& .MuiFormLabel-root': {
+    fontSize: '0.9rem',
+    fontWeight: 700,
+    color: '#1f2937',
+    marginBottom: '4px',
+    transform: 'translate(14px, -9px) scale(0.75)',
+    transformOrigin: 'left top',
+    
+    '&.Mui-focused': {
+      color: '#10b981',
+    },
+  },
+  
+  '& .MuiOutlinedInput-root': {
+    borderRadius: '14px',
+    backgroundColor: '#ffffff',
+    border: '2px solid #e5e7eb',
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+    fontSize: '0.95rem',
+    
+    '&:hover': {
+      backgroundColor: '#ffffff',
+      borderColor: '#10b981',
+      boxShadow: '0 4px 12px rgba(16, 185, 129, 0.1)',
+    },
+    
+    '&.Mui-focused': {
+      borderColor: '#10b981',
+      backgroundColor: '#ffffff',
+      boxShadow: '0 0 0 3px rgba(16, 185, 129, 0.1), 0 4px 16px rgba(16, 185, 129, 0.15)',
+    },
+    
+    '& fieldset': {
+      border: 'none',
+    },
+  },
+  
+  '& .MuiOutlinedInput-input': {
+    padding: '16px 16px',
+    fontSize: '0.95rem',
+    fontWeight: 500,
+    color: '#1f2937',
+    
+    '&::placeholder': {
+      color: 'rgba(0, 0, 0, 0.4)',
+      opacity: 1,
+    },
+  },
+  
+  '& .MuiInputBase-input:disabled': {
+    backgroundColor: '#f3f4f6',
+    color: 'rgba(0, 0, 0, 0.6)',
+  },
+}));
+
+// Premium Green Button
+const GreenButton = styled(Button)(({ theme }) => ({
+  borderRadius: '10px',
+  padding: '13px 28px',
+  fontSize: '0.95rem',
+  fontWeight: 600,
+  textTransform: 'none',
+  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+  position: 'relative',
+  overflow: 'hidden',
+  
+  '&.MuiButton-contained': {
+    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+    color: 'white',
+    boxShadow: '0 8px 24px rgba(16, 185, 129, 0.25)',
+    
+    '&:hover': {
+      transform: 'translateY(-2px)',
+      boxShadow: '0 12px 32px rgba(16, 185, 129, 0.35)',
+      background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+    },
+    
+    '&:active': {
+      transform: 'translateY(0)',
+    },
+  },
+  
+  '&.MuiButton-outlined': {
+    borderRadius: '10px',
+    border: '1.5px solid rgba(34, 197, 94, 0.4)',
+    color: '#1f2937',
+    fontWeight: 600,
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    backdropFilter: 'blur(5px)',
+    
+    '&:hover': {
+      backgroundColor: 'rgba(34, 197, 94, 0.12)',
+      borderColor: '#22c55e',
+      boxShadow: '0 8px 20px rgba(34, 197, 94, 0.2)',
+      transform: 'translateY(-1px)',
+    },
+  },
+}));
+
+// Decorative Right Section Component
+const DecorationCircle = styled(Box)(({ Top, Left, size, opacity }) => ({
+  position: 'absolute',
+  top: Top,
+  left: Left,
+  width: size,
+  height: size,
+  borderRadius: '50%',
+  background: 'rgba(255, 255, 255, ' + opacity + ')',
+  filter: 'blur(2px)',
+}));
 
 const ModernLoginEnhanced = () => {
   const navigate = useNavigate();
@@ -50,7 +180,6 @@ const ModernLoginEnhanced = () => {
   const [success, setSuccess] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
-  const [openTests, setOpenTests] = useState(false);
   const [resolvedCollegeId, setResolvedCollegeId] = useState(() => localStorage.getItem('collegeId') || '');
   const [superAdmin2FARequired, setSuperAdmin2FARequired] = useState(false);
   const [showCollegeIdField, setShowCollegeIdField] = useState(false);
@@ -155,14 +284,6 @@ const ModernLoginEnhanced = () => {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.hash]);
-
-  const testCredentials = {
-    Student: { email: 'student@school.com', password: 'Student@123' },
-    Teacher: { email: 'teacher@school.com', password: 'Teacher@123' },
-    Admin: { email: 'admin@school.com', password: 'Admin@123' },
-    Parent: { email: 'parent@school.com', password: 'Parent@123' },
-    SuperAdmin: { email: 'superadmin@school.com', password: 'SuperAdmin@123' },
-  };
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -353,115 +474,135 @@ const ModernLoginEnhanced = () => {
     }
   };
 
-  const fillTestCredentials = (role) => {
-    const creds = testCredentials[role];
-    setFormData({ ...formData, ...creds, role, twoFAToken: '' });
-    setSuperAdmin2FARequired(false);
-    setOpenTests(false);
-  };
-
   return (
     <Box
       sx={{
-        minHeight: '100vh',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        display: 'flex',
-        alignItems: 'center',
-        py: 4,
+        width: '100%',
+        height: '100vh',
+        display: 'grid',
+        gridTemplateColumns: { xs: '1fr', md: '40% 60%' },
+        position: 'relative',
+        overflow: 'hidden',
+        backgroundColor: '#ffffff',
       }}
     >
-      <Container maxWidth="sm">
-        {/* Header */}
-        <Box sx={{ textAlign: 'center', mb: 4 }}>
-          <IconButton
-            onClick={() => navigate('/')}
-            sx={{
-              position: 'absolute',
-              top: 20,
-              left: 20,
-              bgcolor: 'rgba(255,255,255,0.2)',
-              color: 'white',
-              '&:hover': { bgcolor: 'rgba(255,255,255,0.3)' },
-            }}
-          >
-            <ArrowBack />
-          </IconButton>
-          <School sx={{ fontSize: 60, color: 'white', mb: 2 }} />
-          <Typography variant="h4" sx={{ color: 'white', fontWeight: 700 }}>
-            Welcome Back
-          </Typography>
-          <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.9)', mt: 1 }}>
-            Sign in to your dashboard
-          </Typography>
-        </Box>
-
-        <Paper
-          elevation={10}
+      {/* LEFT SIDE - LOGIN FORM */}
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          px: 4,
+          py: 3,
+          position: 'relative',
+          zIndex: 5,
+          backgroundColor: '#fafbfc',
+        }}
+      >
+        {/* Back Button */}
+        <IconButton
+          onClick={() => navigate('/')}
           sx={{
-            p: 4,
-            borderRadius: 4,
-            backdropFilter: 'blur(10px)',
+            position: 'absolute',
+            top: 20,
+            left: 20,
+            color: '#10b981',
+            bgcolor: 'rgba(16, 185, 129, 0.1)',
+            
+            '&:hover': {
+              bgcolor: 'rgba(16, 185, 129, 0.15)',
+            },
           }}
         >
-          {/* Error Alert */}
+          <ArrowBack fontSize="small" />
+        </IconButton>
+
+        {/* Form Card */}
+        <Box
+          sx={{
+            width: '100%',
+            maxWidth: '420px',
+          }}
+        >
+          {/* Logo */}
+          <Box sx={{ textAlign: 'center', mb: 3 }}>
+            <Box
+              sx={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 56,
+                height: 56,
+                borderRadius: '14px',
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                boxShadow: '0 8px 24px rgba(16, 185, 129, 0.3)',
+              }}
+            >
+              <School sx={{ fontSize: 32, color: 'white' }} />
+            </Box>
+          </Box>
+
+          {/* Welcome Text */}
+          <Box sx={{ textAlign: 'center', mb: 4 }}>
+            <Typography
+              variant="h4"
+              sx={{
+                fontWeight: 800,
+                color: '#0f172a',
+                mb: 1,
+                letterSpacing: -0.7,
+              }}
+            >
+              Welcome Back
+            </Typography>
+            <Typography
+              variant="body2"
+              sx={{
+                color: '#64748b',
+                fontSize: '0.95rem',
+              }}
+            >
+              Sign in to your education account
+            </Typography>
+          </Box>
+
+          {/* Alerts */}
           {error && (
             <Alert
               severity="error"
               onClose={() => setError('')}
-              sx={{ mb: 3 }}
+              sx={{
+                mb: 2,
+                borderRadius: '10px',
+                fontSize: '0.85rem',
+                backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                color: '#dc2626',
+                border: '1px solid rgba(239, 68, 68, 0.15)',
+              }}
             >
               {error}
             </Alert>
           )}
 
-          {/* Success Alert */}
           {success && (
             <Alert
               severity="success"
               onClose={() => setSuccess('')}
-              sx={{ mb: 3 }}
+              sx={{
+                mb: 2,
+                borderRadius: '10px',
+                fontSize: '0.85rem',
+                backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                color: '#047857',
+                border: '1px solid rgba(16, 185, 129, 0.15)',
+              }}
             >
               {success}
             </Alert>
           )}
 
-          {/* Role Selection */}
-          <Box sx={{ mb: 4 }}>
-            <Typography variant="subtitle2" sx={{ mb: 2, color: 'text.secondary', fontWeight: 600 }}>
-              Select Your Role
-            </Typography>
-            <Stack direction="row" spacing={1} flexWrap="wrap" gap={1}>
-              {['Student', 'Teacher', 'Parent', 'Admin', 'SuperAdmin'].map((role) => (
-                <Chip
-                  key={role}
-                  label={role === 'SuperAdmin' ? 'Super Admin' : role}
-                  onClick={() => {
-                    setFormData({ ...formData, role, twoFAToken: '' });
-                    setOtpSent(false);
-                    setSuperAdmin2FARequired(false);
-                    setShowCollegeIdField(false);
-                  }}
-                  color={formData.role === role ? 'primary' : 'default'}
-                  variant={formData.role === role ? 'filled' : 'outlined'}
-                  sx={{ 
-                    cursor: 'pointer',
-                    fontWeight: formData.role === role ? 700 : 500,
-                  }}
-                />
-              ))}
-            </Stack>
-          </Box>
-
-          {/* Info Banner */}
-          <Alert 
-            icon={<Info sx={{ fontSize: 20 }} />}
-            severity="info"
-            sx={{ mb: 3 }}
-          >
-            For testing: Use test credentials. Click "Test Credentials" button below.
-          </Alert>
-
-          {/* Login Method Tabs */}
+          {/* Tabs */}
           <Tabs
             value={tabValue}
             onChange={(e, newValue) => {
@@ -475,50 +616,64 @@ const ModernLoginEnhanced = () => {
             fullWidth
             sx={{
               mb: 3,
+              minHeight: '48px',
               '& .MuiTabs-indicator': {
-                backgroundColor: 'primary.main',
+                backgroundColor: '#10b981',
+                height: '3px',
+              },
+              '& .MuiButtonBase-root': {
+                textTransform: 'none',
+                fontSize: '0.9rem',
+                fontWeight: 600,
+                color: '#94a3b8',
+                minHeight: '48px',
+                
+                '&.Mui-selected': {
+                  color: '#10b981',
+                },
               },
             }}
           >
-            <Tab label="📧 Email & Password" icon={<Email />} iconPosition="start" />
-            <Tab label="📧 Email & OTP" icon={<Email />} iconPosition="start" />
+            <Tab label="Email & Password" />
+            <Tab label="Email & OTP" />
           </Tabs>
 
           <form onSubmit={handleLogin}>
-            {/* Email/Password Tab */}
+            {/* EMAIL/PASSWORD TAB */}
             {tabValue === 0 && (
               <Stack spacing={2}>
                 {requiresCollege && !activeCollegeId && showCollegeIdField && (
-                  <TextField
+                  <ModernTextField
                     fullWidth
                     label="College ID"
                     value={resolvedCollegeId}
                     onChange={handleCollegeIdChange}
-                    placeholder="Paste collegeId here"
-                    variant="outlined"
+                    placeholder="Enter college ID"
+                    size="small"
                     disabled={loading}
                   />
                 )}
-                <TextField
+
+                <ModernTextField
                   fullWidth
-                  label="Email Address"
+                  label="Email"
                   name="email"
                   type="email"
                   value={formData.email}
                   onChange={handleChange}
-                  placeholder="admin@school.com"
-                  variant="outlined"
+                  placeholder="you@example.com"
+                  size="small"
                   disabled={loading}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
-                        <Email sx={{ color: 'text.secondary', mr: 1 }} />
+                        <Email sx={{ color: '#10b981', fontSize: 18, mr: 0.8 }} />
                       </InputAdornment>
                     ),
                   }}
                 />
 
-                <TextField
+                <ModernTextField
                   fullWidth
                   label="Password"
                   name="password"
@@ -526,12 +681,12 @@ const ModernLoginEnhanced = () => {
                   value={formData.password}
                   onChange={handleChange}
                   placeholder="••••••••"
-                  variant="outlined"
+                  size="small"
                   disabled={loading}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
-                        <Lock sx={{ color: 'text.secondary', mr: 1 }} />
+                        <Lock sx={{ color: '#10b981', fontSize: 18, mr: 0.8 }} />
                       </InputAdornment>
                     ),
                     endAdornment: (
@@ -539,274 +694,369 @@ const ModernLoginEnhanced = () => {
                         <IconButton
                           onClick={() => setShowPassword(!showPassword)}
                           edge="end"
+                          size="small"
                           disabled={loading}
+                          sx={{
+                            color: '#10b981',
+                          }}
                         >
-                          {showPassword ? <VisibilityOff /> : <Visibility />}
+                          {showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
                         </IconButton>
                       </InputAdornment>
                     ),
                   }}
                 />
 
-                {(formData.role === 'SuperAdmin' && (superAdmin2FARequired || formData.twoFAToken)) && (
-                  <TextField
+                {formData.role === 'SuperAdmin' && (superAdmin2FARequired || formData.twoFAToken) && (
+                  <ModernTextField
                     fullWidth
                     label="2FA Code"
                     name="twoFAToken"
                     value={formData.twoFAToken}
                     onChange={handleChange}
                     placeholder="123456"
-                    variant="outlined"
+                    size="small"
                     disabled={loading}
-                    inputProps={{ inputMode: 'numeric', pattern: '[0-9]*' }}
-                    helperText="Enter the 6-digit code from your authenticator app"
+                    inputProps={{ inputMode: 'numeric', pattern: '[0-9]*', maxLength: 6 }}
                   />
                 )}
 
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1 }}>
                   <FormControlLabel
                     control={
                       <Checkbox
                         checked={rememberMe}
                         onChange={(e) => setRememberMe(e.target.checked)}
                         disabled={loading}
+                        size="small"
+                        sx={{
+                          color: '#cbd5e1',
+                          '&.Mui-checked': { color: '#10b981' },
+                        }}
                       />
                     }
-                    label="Remember me"
+                    label={<Typography sx={{ fontSize: '0.85rem', color: '#64748b' }}>Remember me</Typography>}
                   />
                   <Link
                     href="/forgot-password"
-                    underline="hover"
-                    sx={{ cursor: 'pointer', color: 'primary.main' }}
+                    sx={{
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      color: '#10b981',
+                      textDecoration: 'none',
+                      
+                      '&:hover': {
+                        textDecoration: 'underline',
+                      },
+                    }}
                   >
-                    Forgot Password?
+                    Forgot password?
                   </Link>
                 </Box>
 
-                <Button
+                <GreenButton
                   fullWidth
                   variant="contained"
-                  size="large"
                   type="submit"
                   disabled={loading}
                   sx={{
-                    py: 1.5,
-                    fontSize: '1rem',
-                    fontWeight: 600,
-                    background: 'linear-gradient(45deg, #667eea 0%, #764ba2 100%)',
+                    mt: 2,
+                    py: 1.3,
+                    fontSize: '0.95rem',
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    color: 'white',
+                    boxShadow: '0 8px 24px rgba(16, 185, 129, 0.25)',
                   }}
                 >
-                  {loading ? <CircularProgress size={24} /> : 'Sign In'}
+                  {loading ? <CircularProgress size={20} color="inherit" /> : 'Sign In'}
+                </GreenButton>
+
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  startIcon={<Google fontSize="small" />}
+                  disabled={loading}
+                  onClick={handleGoogleLogin}
+                  sx={{
+                    py: 1.3,
+                    borderRadius: '10px',
+                    border: '1.5px solid #e2e8f0',
+                    color: '#1f2937',
+                    fontWeight: 600,
+                    fontSize: '0.95rem',
+                    transition: 'all 0.3s ease',
+                    backgroundColor: 'rgba(255, 255, 255, 0.6)',
+                    
+                    '&:hover': {
+                      backgroundColor: '#f8fafc',
+                      borderColor: '#cbd5e1',
+                    },
+                  }}
+                >
+                  Continue with Google
                 </Button>
               </Stack>
             )}
 
-            {/* OTP Tab */}
+            {/* EMAIL & OTP TAB */}
             {tabValue === 1 && (
               <Stack spacing={2}>
                 {requiresCollege && !activeCollegeId && (
-                  <TextField
+                  <ModernTextField
                     fullWidth
                     label="College ID"
                     value={resolvedCollegeId}
                     onChange={handleCollegeIdChange}
-                    placeholder="Paste collegeId here"
-                    variant="outlined"
+                    placeholder="Enter college ID"
+                    size="small"
                     disabled={loading}
                   />
                 )}
-                <TextField
+
+                <ModernTextField
                   fullWidth
-                  label="Email Address"
+                  label="Email"
                   name="email"
                   type="email"
                   value={formData.email}
                   onChange={handleChange}
-                  placeholder="name@example.com"
-                  variant="outlined"
+                  placeholder="you@example.com"
+                  size="small"
                   disabled={loading || otpSent}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
-                        <Email sx={{ color: 'text.secondary', mr: 1 }} />
+                        <Email sx={{ color: '#10b981', fontSize: 18, mr: 0.8 }} />
                       </InputAdornment>
                     ),
                   }}
                 />
 
                 {!otpSent && (
-                  <Button
+                  <GreenButton
                     fullWidth
                     variant="outlined"
-                    size="large"
                     onClick={handleRequestOTP}
                     disabled={loading || !formData.email}
-                    startIcon={<Send />}
-                    sx={{ py: 1.5, fontSize: '1rem', fontWeight: 600 }}
+                    startIcon={<Send fontSize="small" />}
+                    sx={{
+                      py: 1.3,
+                      fontSize: '0.95rem',
+                    }}
                   >
-                    {loading ? <CircularProgress size={24} /> : 'Request OTP'}
-                  </Button>
+                    {loading ? <CircularProgress size={20} /> : 'Send OTP'}
+                  </GreenButton>
                 )}
 
                 {otpSent && (
                   <>
-                    <Alert severity="success" icon={<CheckCircle />}>
-                      OTP sent successfully! Check your email.
+                    <Alert
+                      icon={<CheckCircle fontSize="small" />}
+                      sx={{
+                        borderRadius: '10px',
+                        fontSize: '0.85rem',
+                        backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                        color: '#047857',
+                        border: '1px solid rgba(16, 185, 129, 0.15)',
+                      }}
+                    >
+                      OTP sent to your email
                     </Alert>
 
-                    <TextField
+                    <ModernTextField
                       fullWidth
-                      label="Enter OTP"
+                      label="OTP Code"
                       name="otp"
                       type="text"
                       value={formData.otp}
                       onChange={handleChange}
-                      placeholder="123456"
-                      variant="outlined"
+                      placeholder="000000"
+                      size="small"
                       disabled={loading}
                       inputProps={{ maxLength: 6 }}
                     />
 
-                    <Button
+                    <GreenButton
                       fullWidth
                       variant="contained"
-                      size="large"
                       type="submit"
                       disabled={loading || !formData.otp}
                       sx={{
-                        py: 1.5,
-                        fontSize: '1rem',
-                        fontWeight: 600,
-                        background: 'linear-gradient(45deg, #667eea 0%, #764ba2 100%)',
+                        py: 1.3,
+                        fontSize: '0.95rem',
+                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                        color: 'white',
+                        boxShadow: '0 8px 24px rgba(16, 185, 129, 0.25)',
                       }}
                     >
-                      {loading ? <CircularProgress size={24} /> : 'Verify & Sign In'}
-                    </Button>
+                      {loading ? <CircularProgress size={20} color="inherit" /> : 'Verify & Sign In'}
+                    </GreenButton>
 
-                    <Button
+                    <GreenButton
                       fullWidth
-                      variant="text"
+                      variant="outlined"
                       onClick={() => {
                         setOtpSent(false);
                         setFormData({ ...formData, otp: '' });
                       }}
                       disabled={loading}
+                      sx={{
+                        py: 1.3,
+                        fontSize: '0.95rem',
+                      }}
                     >
                       Resend OTP
-                    </Button>
+                    </GreenButton>
                   </>
                 )}
               </Stack>
             )}
           </form>
+        </Box>
+      </Box>
 
-          {/* Divider */}
-          <Divider sx={{ my: 3 }} />
+      {/* RIGHT SIDE - PREMIUM GRADIENT BACKGROUND */}
+      <Box
+        sx={{
+          position: 'relative',
+          overflow: 'hidden',
+          background: 'linear-gradient(135deg, #e0f7f4 0%, #b3f4db 25%, #86f0d4 50%, #5aedd0 75%, #10b981 100%)',
+          display: { xs: 'none', md: 'flex' },
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1,
+        }}
+      >
+        {/* Animated Blob 1 */}
+        <Box
+          sx={{
+            position: 'absolute',
+            top: '15%',
+            right: '10%',
+            width: '400px',
+            height: '400px',
+            borderRadius: '40% 60% 70% 30% / 40% 50% 60% 50%',
+            background: 'radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.1))',
+            filter: 'blur(40px)',
+            animation: `${floatingShape} 20s ease-in-out infinite`,
+            zIndex: 0,
+          }}
+        />
 
-          {/* Additional Options */}
-          <Stack spacing={2}>
-            {/* Google Login */}
-            <Button
-              fullWidth
-              variant="outlined"
-              size="large"
-              startIcon={<Google />}
-              disabled={loading}
-              sx={{
-                py: 1.5,
-                fontSize: '1rem',
-                fontWeight: 600,
-                borderColor: '#D3D3D3',
-              }}
-              onClick={handleGoogleLogin}
-            >
-              Continue with Google
-            </Button>
+        {/* Animated Blob 2 */}
+        <Box
+          sx={{
+            position: 'absolute',
+            bottom: '10%',
+            left: '5%',
+            width: '350px',
+            height: '350px',
+            borderRadius: '50% 40% 30% 70% / 60% 50% 40% 30%',
+            background: 'radial-gradient(circle at 70% 70%, rgba(16, 185, 129, 0.3), rgba(16, 185, 129, 0.05))',
+            filter: 'blur(50px)',
+            animation: `${subtleFloat} 18s ease-in-out infinite`,
+            animationDelay: '1s',
+            zIndex: 0,
+          }}
+        />
 
-            {/* Test Credentials */}
-            <Button
-              fullWidth
-              variant="outlined"
-              size="large"
-              disabled={loading}
-              onClick={() => setOpenTests(true)}
-              sx={{
-                py: 1.5,
-                fontSize: '1rem',
-                fontWeight: 600,
-                borderColor: '#D3D3D3',
-              }}
-            >
-              🧪 Use Test Credentials
-            </Button>
-          </Stack>
+        {/* Glow Effect */}
+        <Box
+          sx={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            width: '600px',
+            height: '600px',
+            borderRadius: '50%',
+            transform: 'translate(-50%, -50%)',
+            background: 'radial-gradient(circle, rgba(16, 185, 129, 0.15) 0%, transparent 70%)',
+            filter: 'blur(80px)',
+            animation: `${glowPulse} 6s ease-in-out infinite`,
+            zIndex: 0,
+          }}
+        />
 
-          {/* Footer Links */}
-          <Box sx={{ mt: 4, textAlign: 'center' }}>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-              Don't have an account?{' '}
-              <Link
-                href="/signup"
-                underline="hover"
-                sx={{ color: 'primary.main', fontWeight: 600, cursor: 'pointer' }}
-              >
-                Create Account
-              </Link>
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Apply for admission?{' '}
-              <Link
-                href="/admission"
-                underline="hover"
-                sx={{ color: 'primary.main', fontWeight: 600, cursor: 'pointer' }}
-              >
-                Click here
-              </Link>
-            </Typography>
-          </Box>
-        </Paper>
+        {/* Curved Divider - Left */}
+        <Box
+          sx={{
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            height: '100%',
+            width: '100px',
+            background: 'linear-gradient(90deg, rgba(250, 251, 252, 0.6) 0%, transparent 100%)',
+            zIndex: 2,
+          }}
+        />
 
-        {/* Test Credentials Dialog */}
-        <Dialog
-          open={openTests}
-          onClose={() => setOpenTests(false)}
-          maxWidth="sm"
-          fullWidth
+        {/* Animation / Illustration Card */}
+        <Box
+          sx={{
+            position: 'relative',
+            zIndex: 3,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '100%',
+            height: '100%',
+          }}
         >
-          <DialogTitle>Test Credentials</DialogTitle>
-          <DialogContent>
-            <Stack spacing={2} sx={{ mt: 2 }}>
-              {Object.entries(testCredentials).map(([role, creds]) => (
-                <Card key={role} variant="outlined">
-                  <CardContent sx={{ pb: 2 }}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-                      {role}
-                    </Typography>
-                    <Typography variant="caption" display="block">
-                      Email: {creds.email}
-                    </Typography>
-                    <Typography variant="caption" display="block">
-                      Password: {creds.password}
-                    </Typography>
-                    <Button
-                      size="small"
-                      variant="contained"
-                      fullWidth
-                      sx={{ mt: 1 }}
-                      onClick={() => fillTestCredentials(role)}
-                    >
-                      Use These Credentials
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))}
-            </Stack>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setOpenTests(false)}>Close</Button>
-          </DialogActions>
-        </Dialog>
-      </Container>
+          <iframe
+            src="https://lottie.host/embed/ea6d80a9-aefe-4389-b3e0-567893f02b21/vGY7W5y6do.lottie"
+            style={{
+              width: '100%',
+              height: '100%',
+              maxWidth: '450px',
+              maxHeight: '450px',
+              border: 'none',
+            }}
+            title="Login Animation"
+          />
+        </Box>
+
+        {/* Test Lottie Animation - Lower Right */}
+        <Box
+          sx={{
+            position: 'absolute',
+            bottom: '20px',
+            right: '20px',
+            zIndex: 4,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 1,
+          }}
+        >
+          {/* Lottie Animation Element */}
+          <Box
+            component="div"
+            dangerouslySetInnerHTML={{
+              __html: '<dotlottie-wc src="https://lottie.host/3c9d5b19-9f88-48f1-9195-8db82ff6f121/QLx38Pl7LC.lottie" style="width: 150px; height: 150px;" autoplay loop></dotlottie-wc>'
+            }}
+          />
+          
+          {/* Test Message */}
+          <Typography
+            variant="body2"
+            sx={{
+              color: '#1f2937',
+              fontWeight: 600,
+              fontSize: '0.85rem',
+              textAlign: 'center',
+              backgroundColor: 'rgba(255, 255, 255, 0.9)',
+              px: 2,
+              py: 1,
+              borderRadius: '8px',
+              backdropFilter: 'blur(10px)',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Are you logged in?
+          </Typography>
+        </Box>
+      </Box>
     </Box>
   );
 };

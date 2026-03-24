@@ -207,7 +207,7 @@ curl -X POST http://localhost:5000/api/admin/marks/send-email \
 ### "Email configuration not found" error?
 
 Make sure `EMAIL_USER` and `EMAIL_PASSWORD` are set in `backend/.env`
-
+![alt text](image.png)
 ### "Student not found" error?
 
 Verify the studentId exists and belongs to your college:

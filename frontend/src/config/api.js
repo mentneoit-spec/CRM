@@ -5,7 +5,7 @@ const getDefaultApiBaseUrl = () => {
     if (typeof window !== 'undefined' && window.location) {
       const hostname = window.location.hostname;
       if (hostname === 'localhost' || hostname === '127.0.0.1') {
-        return 'http://localhost:5001/api';
+        return 'http://localhost:5000/api';
       }
       return '/api';
     }

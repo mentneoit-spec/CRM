@@ -1,0 +1,157 @@
+═══════════════════════════════════════════════════════════════
+  GRAVITY CRM - QUICK DEPLOYMENT COMMANDS
+═══════════════════════════════════════════════════════════════
+
+📋 PREREQUISITES
+─────────────────────────────────────────────────────────────
+✓ AWS EC2 instance (Ubuntu 22.04)
+✓ SSH key file (gravity-crm-key.pem)
+✓ EC2 IP address
+✓ Security Group: Ports 22, 80, 443 open
+
+═══════════════════════════════════════════════════════════════
+  STEP 1: UPLOAD TO EC2
+═══════════════════════════════════════════════════════════════
+
+# From your local machine (in project directory)
+scp -i gravity-crm-key.pem -r deployment ubuntu@YOUR_EC2_IP:~/
+
+# Example:
+scp -i gravity-crm-key.pem -r deployment ubuntu@54.123.45.67:~/
+
+═══════════════════════════════════════════════════════════════
+  STEP 2: SSH INTO EC2
+═══════════════════════════════════════════════════════════════
+
+ssh -i gravity-crm-key.pem ubuntu@YOUR_EC2_IP
+
+# Example:
+ssh -i gravity-crm-key.pem ubuntu@54.123.45.67
+
+═══════════════════════════════════════════════════════════════
+  STEP 3: CREATE .ENV FILE
+═══════════════════════════════════════════════════════════════
+
+cd ~/deployment/backend
+nano .env
+
+# Paste this (UPDATE YOUR_EC2_IP and YOUR_GMAIL_APP_PASSWORD):
+─────────────────────────────────────────────────────────────
+DATABASE_URL=postgresql://neondb_owner:npg_HelXW2BJo9Kj@ep-steep-flower-ad8g8g9h-pooler.c-2.us-east-1.aws.neon.tech/Crm?sslmode=require
+PORT=5000
+NODE_ENV=production
+JWT_SECRET=gravity-crm-super-secret-jwt-key-2026-production-min-32-chars
+ALLOWED_ORIGINS=http://YOUR_EC2_IP,http://localhost:3002
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USER=svljyothikanookala@gmail.com
+EMAIL_PASSWORD=YOUR_GMAIL_APP_PASSWORD
+REDIS_ENABLED=false
+─────────────────────────────────────────────────────────────
+
+# Save: Ctrl+X, then Y, then Enter
+
+═══════════════════════════════════════════════════════════════
+  STEP 4: RUN DEPLOYMENT SCRIPT
+═══════════════════════════════════════════════════════════════
+
+cd ~/deployment
+chmod +x deploy.sh
+./deploy.sh
+
+# Wait 5-10 minutes for completion
+
+═══════════════════════════════════════════════════════════════
+  STEP 5: VERIFY DEPLOYMENT
+═══════════════════════════════════════════════════════════════
+
+# Check backend
+pm2 status
+pm2 logs gravity-crm
+
+# Check Nginx
+sudo systemctl status nginx
+
+# Test API
+curl http://localhost:5000/api/health
+
+═══════════════════════════════════════════════════════════════
+  STEP 6: ACCESS APPLICATION
+═══════════════════════════════════════════════════════════════
+
+Open browser: http://YOUR_EC2_IP
+
+Login:
+  Email: admin@example.com
+  Password: admin123
+
+═══════════════════════════════════════════════════════════════
+  REDEPLOYMENT (After Code Changes)
+═══════════════════════════════════════════════════════════════
+
+# Local machine
+cd frontend
+npm run build
+git add .
+git commit -m "Update"
+git push origin main
+
+# EC2 server
+ssh -i gravity-crm-key.pem ubuntu@YOUR_EC2_IP
+cd ~/deployment
+git pull origin main
+sudo cp -r frontend/* /var/www/html/
+cd backend
+npm install
+pm2 restart gravity-crm
+
+═══════════════════════════════════════════════════════════════
+  USEFUL COMMANDS
+═══════════════════════════════════════════════════════════════
+
+# Backend
+pm2 status                    # Check status
+pm2 logs gravity-crm          # View logs
+pm2 restart gravity-crm       # Restart
+pm2 stop gravity-crm          # Stop
+
+# Nginx
+sudo systemctl restart nginx  # Restart
+sudo nginx -t                 # Test config
+sudo tail -f /var/log/nginx/error.log  # View logs
+
+# Database
+cd ~/deployment/backend
+npx prisma migrate deploy     # Run migrations
+npx prisma studio             # View data
+
+═══════════════════════════════════════════════════════════════
+  TROUBLESHOOTING
+═══════════════════════════════════════════════════════════════
+
+Backend won't start:
+  pm2 logs gravity-crm
+  cat ~/deployment/backend/.env
+
+Frontend blank page:
+  sudo tail -f /var/log/nginx/error.log
+  sudo cp -r ~/deployment/frontend/* /var/www/html/
+
+CORS errors:
+  nano ~/deployment/backend/.env
+  # Update ALLOWED_ORIGINS with your EC2 IP
+  pm2 restart gravity-crm
+
+═══════════════════════════════════════════════════════════════
+  OPTIONAL: SSL CERTIFICATE
+═══════════════════════════════════════════════════════════════
+
+sudo apt install certbot python3-certbot-nginx -y
+sudo certbot --nginx -d yourdomain.com
+
+═══════════════════════════════════════════════════════════════
+
+📚 Full Guide: AWS_DEPLOYMENT_COMMANDS.md
+🔗 GitHub: https://github.com/VenkatSatyaSaiABHISEK/gravity-crm
+
+═══════════════════════════════════════════════════════════════

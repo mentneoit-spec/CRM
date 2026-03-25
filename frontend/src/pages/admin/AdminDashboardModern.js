@@ -82,6 +82,19 @@ const AdminDashboardModern = () => {
     { subject: 'Hindi', percentage: 71, change: '-2%', color: '#fa709a', changeColor: '#ff6b6b' }
   ];
 
+  // FEE COLLECTION BY CLASS DATA
+  const feeCollectionByClass = [
+    { class: 'Class 10', collected: 91, due: 9, collectedAmount: '22.2L', dueAmount: '2.2L', totalAmount: '24.4L' },
+    { class: 'Class 9', collected: 78, due: 22, collectedAmount: '18.5L', dueAmount: '5.2L', totalAmount: '23.7L' },
+    { class: 'Class 8', collected: 83, due: 17, collectedAmount: '19.8L', dueAmount: '4.1L', totalAmount: '23.9L' },
+    { class: 'Class 7', collected: 69, due: 31, collectedAmount: '16.2L', dueAmount: '7.3L', totalAmount: '23.5L' }
+  ];
+
+  const totalDues = '28.4L';
+  const totalCollected = '22.2L';
+  const totalPending = '6.2L';
+  const overallCollectionPercentage = 78;
+
   if (loading && !data) {
     return (
       <DashboardLayout role="admin">
@@ -643,7 +656,7 @@ const AdminDashboardModern = () => {
           </Grid>
 
           {/* Subject Performance Section */}
-          <Paper sx={{ p: 3, mb: 4, borderRadius: 3, boxShadow: '0 10px 30px rgba(0, 0, 0, 0.1)', background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)' }}>
+          <Paper sx={{ p: 3, mb: 4, borderRadius: 3, boxShadow: '0 10px 30px rgba(0, 0, 0, 0.1)', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)' }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
                 <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)', mr: 2 }}>
@@ -735,6 +748,149 @@ const AdminDashboardModern = () => {
                 </Grid>
               ))}
             </Grid>
+          </Paper>
+
+          {/* Fee Collection by Class Section */}
+          <Paper sx={{ p: 3, mb: 4, borderRadius: 3, boxShadow: '0 10px 30px rgba(0, 0, 0, 0.1)' }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <Avatar sx={{ bgcolor: '#43e97b', mr: 2 }}>
+                  <Payment sx={{ color: 'white' }} />
+                </Avatar>
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                  💰 Fee Collection by Class
+                </Typography>
+              </Box>
+            </Box>
+
+            {/* Summary Cards */}
+            <Grid container spacing={2} sx={{ mb: 3 }}>
+              <Grid item xs={12} sm={4}>
+                <Card sx={{
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  color: 'white',
+                  borderRadius: 2,
+                  boxShadow: '0 5px 15px rgba(102, 126, 234, 0.3)'
+                }}>
+                  <CardContent sx={{ py: 2 }}>
+                    <Typography variant="body2" sx={{ opacity: 0.9, mb: 0.5 }}>Total Dues</Typography>
+                    <Typography variant="h4" sx={{ fontWeight: 800 }}>₹{totalDues}</Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <Card sx={{
+                  background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+                  color: 'white',
+                  borderRadius: 2,
+                  boxShadow: '0 5px 15px rgba(67, 233, 123, 0.3)'
+                }}>
+                  <CardContent sx={{ py: 2 }}>
+                    <Typography variant="body2" sx={{ opacity: 0.9, mb: 0.5 }}>Collected</Typography>
+                    <Typography variant="h4" sx={{ fontWeight: 800 }}>₹{totalCollected}</Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <Card sx={{
+                  background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+                  color: 'white',
+                  borderRadius: 2,
+                  boxShadow: '0 5px 15px rgba(245, 87, 108, 0.3)'
+                }}>
+                  <CardContent sx={{ py: 2 }}>
+                    <Typography variant="body2" sx={{ opacity: 0.9, mb: 0.5 }}>Pending</Typography>
+                    <Typography variant="h4" sx={{ fontWeight: 800 }}>₹{totalPending}</Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+
+            {/* Class-wise Progress Bars */}
+            <Box sx={{ mt: 3 }}>
+              {feeCollectionByClass.map((classData, index) => (
+                <Box key={index} sx={{ mb: 3 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                      <Typography variant="body1" sx={{ fontWeight: 700, minWidth: '80px' }}>
+                        {classData.class}
+                      </Typography>
+                      <Chip 
+                        label={`${classData.collected}% Collected`} 
+                        size="small" 
+                        sx={{ 
+                          bgcolor: '#e0f7e0', 
+                          color: '#43e97b', 
+                          fontWeight: 600 
+                        }} 
+                      />
+                    </Box>
+                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                      <Typography variant="body2" sx={{ color: '#43e97b', fontWeight: 600 }}>
+                        ₹{classData.collectedAmount}
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                        / ₹{classData.totalAmount}
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: '#f5576c', fontWeight: 600 }}>
+                        Due: ₹{classData.dueAmount}
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <Box sx={{ position: 'relative', height: 12, bgcolor: '#f0f0f0', borderRadius: 2, overflow: 'hidden' }}>
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        left: 0,
+                        top: 0,
+                        height: '100%',
+                        width: `${classData.collected}%`,
+                        background: 'linear-gradient(90deg, #43e97b 0%, #38f9d7 100%)',
+                        borderRadius: 2,
+                        transition: 'width 0.5s ease',
+                      }}
+                    />
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        right: 0,
+                        top: 0,
+                        height: '100%',
+                        width: `${classData.due}%`,
+                        background: 'linear-gradient(90deg, #fa709a 0%, #f5576c 100%)',
+                        borderRadius: 2,
+                        transition: 'width 0.5s ease',
+                      }}
+                    />
+                  </Box>
+                </Box>
+              ))}
+            </Box>
+
+            {/* Overall Collection Percentage */}
+            <Box sx={{ mt: 4, p: 3, bgcolor: '#f8f9fa', borderRadius: 2 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                  Overall Collection Rate
+                </Typography>
+                <Typography variant="h4" sx={{ fontWeight: 800, color: '#43e97b' }}>
+                  {overallCollectionPercentage}%
+                </Typography>
+              </Box>
+              <LinearProgress 
+                variant="determinate" 
+                value={overallCollectionPercentage} 
+                sx={{ 
+                  height: 16, 
+                  borderRadius: 3,
+                  bgcolor: '#e0e0e0',
+                  '& .MuiLinearProgress-bar': {
+                    background: 'linear-gradient(90deg, #43e97b 0%, #38f9d7 100%)',
+                    borderRadius: 3,
+                  }
+                }} 
+              />
+            </Box>
           </Paper>
 
           {/* Bottom Section - Lists */}

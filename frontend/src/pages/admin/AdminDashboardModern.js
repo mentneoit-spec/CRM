@@ -72,6 +72,16 @@ const AdminDashboardModern = () => {
     { name: 'Overdue', value: Math.floor((stats.revenue || 450000) * 0.1), fill: '#ff6b6b' }
   ];
 
+  // SUBJECT PERFORMANCE DATA
+  const subjectPerformanceData = [
+    { subject: 'Physics', percentage: 74, change: '+3%', color: '#667eea', changeColor: '#43e97b' },
+    { subject: 'Chemistry', percentage: 68, change: '-1%', color: '#f5576c', changeColor: '#ff6b6b' },
+    { subject: 'Maths', percentage: 81, change: '+5%', color: '#43e97b', changeColor: '#43e97b' },
+    { subject: 'English', percentage: 79, change: '+2%', color: '#feca57', changeColor: '#43e97b' },
+    { subject: 'Telugu', percentage: 86, change: '+1%', color: '#4facfe', changeColor: '#43e97b' },
+    { subject: 'Hindi', percentage: 71, change: '-2%', color: '#fa709a', changeColor: '#ff6b6b' }
+  ];
+
   if (loading && !data) {
     return (
       <DashboardLayout role="admin">
@@ -631,6 +641,101 @@ const AdminDashboardModern = () => {
               </Card>
             </Grid>
           </Grid>
+
+          {/* Subject Performance Section */}
+          <Paper sx={{ p: 3, mb: 4, borderRadius: 3, boxShadow: '0 10px 30px rgba(0, 0, 0, 0.1)', background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)' }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)', mr: 2 }}>
+                  <Assessment sx={{ color: 'white' }} />
+                </Avatar>
+                <Typography variant="h6" sx={{ fontWeight: 700, color: 'white' }}>
+                  📚 Subject Performance
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <Chip label="Class 10" size="small" sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white', fontWeight: 600 }} />
+                <Chip label="Class 9" size="small" sx={{ bgcolor: 'rgba(255,255,255,0.15)', color: 'white' }} />
+                <Chip label="All" size="small" sx={{ bgcolor: 'rgba(255,255,255,0.15)', color: 'white' }} />
+              </Box>
+            </Box>
+
+            <Grid container spacing={2}>
+              {subjectPerformanceData.map((subject, index) => (
+                <Grid item xs={12} sm={6} md={4} lg={2} key={index}>
+                  <Card sx={{
+                    background: 'rgba(255, 255, 255, 0.1)',
+                    backdropFilter: 'blur(10px)',
+                    borderRadius: 3,
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      transform: 'translateY(-5px)',
+                      boxShadow: '0 10px 30px rgba(0, 0, 0, 0.3)',
+                      background: 'rgba(255, 255, 255, 0.15)',
+                    }
+                  }}>
+                    <CardContent sx={{ textAlign: 'center', py: 3 }}>
+                      <Typography variant="body2" sx={{ color: 'white', mb: 2, fontWeight: 600, opacity: 0.9 }}>
+                        {subject.subject}
+                      </Typography>
+                      
+                      {/* Circular Progress */}
+                      <Box sx={{ position: 'relative', display: 'inline-flex', mb: 2 }}>
+                        <CircularProgress
+                          variant="determinate"
+                          value={100}
+                          size={100}
+                          thickness={4}
+                          sx={{ color: 'rgba(255, 255, 255, 0.1)' }}
+                        />
+                        <CircularProgress
+                          variant="determinate"
+                          value={subject.percentage}
+                          size={100}
+                          thickness={4}
+                          sx={{
+                            color: subject.color,
+                            position: 'absolute',
+                            left: 0,
+                            strokeLinecap: 'round',
+                          }}
+                        />
+                        <Box
+                          sx={{
+                            top: 0,
+                            left: 0,
+                            bottom: 0,
+                            right: 0,
+                            position: 'absolute',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <Typography variant="h5" sx={{ fontWeight: 800, color: 'white' }}>
+                            {subject.percentage}%
+                          </Typography>
+                        </Box>
+                      </Box>
+
+                      {/* Change Indicator */}
+                      <Chip
+                        label={subject.change}
+                        size="small"
+                        sx={{
+                          bgcolor: subject.change.startsWith('+') ? 'rgba(67, 233, 123, 0.2)' : 'rgba(255, 107, 107, 0.2)',
+                          color: subject.changeColor,
+                          fontWeight: 700,
+                          fontSize: '0.75rem'
+                        }}
+                      />
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
+          </Paper>
 
           {/* Bottom Section - Lists */}
           <Grid container spacing={3}>

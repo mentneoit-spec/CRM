@@ -1166,18 +1166,22 @@ const getDashboard = async (req, res) => {
         // Get all subjects for the college
         const subjects = await prisma.subject.findMany({
             where: { collegeId },
-            select: { id: true, subName: true },
+            select: { id: true, subName: true, maxMarks: true },
         });
 
         // Get all exam results with marks
         const examResults = await prisma.examResult.findMany({
             where: { 
                 exam: { collegeId },
+                isAbsent: false,
             },
             select: {
                 subjectId: true,
                 marksObtained: true,
-                totalMarks: true,
+                percentage: true,
+                subject: {
+                    select: { maxMarks: true }
+                }
             },
         });
 
@@ -1185,7 +1189,7 @@ const getDashboard = async (req, res) => {
         const subjectPerformanceMap = new Map();
         
         for (const result of examResults) {
-            if (!result.subjectId || !result.marksObtained || !result.totalMarks) continue;
+            if (!result.subjectId || result.marksObtained == null) continue;
             
             if (!subjectPerformanceMap.has(result.subjectId)) {
                 subjectPerformanceMap.set(result.subjectId, {
@@ -1196,7 +1200,8 @@ const getDashboard = async (req, res) => {
             }
             
             const data = subjectPerformanceMap.get(result.subjectId);
-            data.totalMarks += Number(result.totalMarks);
+            const maxMarks = result.subject?.maxMarks || 100;
+            data.totalMarks += maxMarks;
             data.obtainedMarks += Number(result.marksObtained);
             data.count += 1;
         }
@@ -1206,15 +1211,7 @@ const getDashboard = async (req, res) => {
             const perfData = subjectPerformanceMap.get(subject.id);
             
             if (!perfData || perfData.count === 0) {
-                return {
-                    subjectId: subject.id,
-                    subject: subject.subName,
-                    percentage: 0,
-                    change: '0%',
-                    color: '#999',
-                    changeColor: '#999',
-                    hasData: false,
-                };
+                return null; // Will be filtered out
             }
 
             const percentage = Math.round((perfData.obtainedMarks / perfData.totalMarks) * 100);
@@ -1236,7 +1233,7 @@ const getDashboard = async (req, res) => {
                 changeColor: '#43e97b',
                 hasData: true,
             };
-        }).filter(s => s.hasData); // Only show subjects with data
+        }).filter(s => s !== null); // Only show subjects with data
 
         res.status(200).json({
             success: true,

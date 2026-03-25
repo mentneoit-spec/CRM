@@ -238,6 +238,8 @@ export const adminAPI = {
   },
 
   // Payments & Receipts
+  createPayment: (data) => api.post('/admin/payments', data),
+  getPayments: (params) => api.get('/admin/payments', { params }),
   downloadPaymentReceipt: (paymentId) => api.get(`/admin/payments/${paymentId}/receipt`, { responseType: 'blob' }),
 };
 

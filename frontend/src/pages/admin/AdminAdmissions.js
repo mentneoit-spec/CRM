@@ -4,7 +4,7 @@ import {
     Box, Paper, Typography, Button, Table, TableBody, TableCell,
     TableContainer, TableHead, TableRow, TablePagination, TextField,
     InputAdornment, Chip, IconButton, Dialog, DialogTitle,
-    DialogContent, DialogActions, Grid, CircularProgress, Tooltip
+    DialogContent, DialogActions, Grid, CircularProgress, Tooltip, Alert, Snackbar
 } from '@mui/material';
 import {
     Search as SearchIcon, CheckCircle as CheckCircleIcon, Cancel as CancelIcon,
@@ -16,7 +16,7 @@ import BulkAdmissionImportDialog from '../../components/admin/BulkAdmissionImpor
 
 const AdminAdmissions = () => {
     const dispatch = useDispatch();
-    const { admissions, loading } = useSelector((state) => state.admin);
+    const { admissions, loading, error, success, message } = useSelector((state) => state.admin);
 
     // Table State
     const [page, setPage] = useState(0);
@@ -29,22 +29,36 @@ const AdminAdmissions = () => {
     const [rejectReason, setRejectReason] = useState('');
 
     const [openImportDialog, setOpenImportDialog] = useState(false);
+    
+    // Snackbar state
+    const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
     useEffect(() => {
         dispatch(fetchAdmissions());
     }, [dispatch]);
 
+    useEffect(() => {
+        if (success && message) {
+            setSnackbar({ open: true, message, severity: 'success' });
+        }
+        if (error) {
+            setSnackbar({ open: true, message: error, severity: 'error' });
+        }
+    }, [success, message, error]);
+
     const handleChangePage = (event, newPage) => setPage(newPage);
     const handleChangeRowsPerPage = (event) => { setRowsPerPage(parseInt(event.target.value, 10)); setPage(0); };
     const handleSearch = (event) => { setSearchTerm(event.target.value); setPage(0); };
 
-    const handleApprove = (id) => {
+    const handleApprove = async (id) => {
         if (window.confirm("Approve this admission application and create a student profile?")) {
-            dispatch(approveAdmission(id)).then((res) => {
-                if (!res.error) {
-                    dispatch(fetchAdmissions());
-                }
-            });
+            const result = await dispatch(approveAdmission(id));
+            if (!result.error) {
+                setSnackbar({ open: true, message: 'Admission approved successfully!', severity: 'success' });
+                dispatch(fetchAdmissions());
+            } else {
+                setSnackbar({ open: true, message: result.payload || 'Failed to approve admission', severity: 'error' });
+            }
         }
     };
 
@@ -53,15 +67,26 @@ const AdminAdmissions = () => {
         setOpenReject(true);
     };
 
-    const submitReject = () => {
-        dispatch(rejectAdmission({ id: rejectId, reason: rejectReason })).then((res) => {
-            if (!res.error) {
-                setOpenReject(false);
-                setRejectId(null);
-                setRejectReason('');
-                dispatch(fetchAdmissions());
-            }
-        });
+    const submitReject = async () => {
+        if (!rejectReason.trim()) {
+            setSnackbar({ open: true, message: 'Please provide a rejection reason', severity: 'warning' });
+            return;
+        }
+        
+        const result = await dispatch(rejectAdmission({ id: rejectId, reason: rejectReason }));
+        if (!result.error) {
+            setSnackbar({ open: true, message: 'Admission rejected successfully!', severity: 'success' });
+            setOpenReject(false);
+            setRejectId(null);
+            setRejectReason('');
+            dispatch(fetchAdmissions());
+        } else {
+            setSnackbar({ open: true, message: result.payload || 'Failed to reject admission', severity: 'error' });
+        }
+    };
+
+    const handleCloseSnackbar = () => {
+        setSnackbar({ ...snackbar, open: false });
     };
 
     const filteredAdmissions = admissions?.filter((app) => {
@@ -108,6 +133,9 @@ const AdminAdmissions = () => {
                         InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon color="action" /></InputAdornment> }}
                     />
                     {loading && <CircularProgress size={24} sx={{ ml: 2 }} />}
+                    <Typography variant="body2" color="text.secondary" sx={{ ml: 'auto' }}>
+                        Total: {filteredAdmissions.length} admissions
+                    </Typography>
                 </Box>
 
                 <TableContainer sx={{ maxHeight: 600 }}>
@@ -125,7 +153,9 @@ const AdminAdmissions = () => {
                         <TableBody>
                             {paginatedAdmissions.length === 0 && !loading ? (
                                 <TableRow>
-                                    <TableCell colSpan={6} align="center" sx={{ py: 3 }}>No admissions found.</TableCell>
+                                    <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
+                                        {searchTerm ? 'No admissions found matching your search.' : 'No admissions found. Import CSV to add admissions.'}
+                                    </TableCell>
                                 </TableRow>
                             ) : (
                                 paginatedAdmissions.map((app) => (
@@ -193,11 +223,23 @@ const AdminAdmissions = () => {
                 </DialogContent>
                 <DialogActions sx={{ p: 2 }}>
                     <Button onClick={() => setOpenReject(false)} color="inherit">Cancel</Button>
-                    <Button onClick={submitReject} variant="contained" color="error" disabled={!rejectReason || loading}>
+                    <Button onClick={submitReject} variant="contained" color="error" disabled={!rejectReason.trim() || loading}>
                         {loading ? 'Rejecting...' : 'Confirm Rejection'}
                     </Button>
                 </DialogActions>
             </Dialog>
+
+            {/* Snackbar for notifications */}
+            <Snackbar
+                open={snackbar.open}
+                autoHideDuration={6000}
+                onClose={handleCloseSnackbar}
+                anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+            >
+                <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
+                    {snackbar.message}
+                </Alert>
+            </Snackbar>
 
             <BulkAdmissionImportDialog open={openImportDialog} onClose={() => setOpenImportDialog(false)} />
         </DashboardLayout>

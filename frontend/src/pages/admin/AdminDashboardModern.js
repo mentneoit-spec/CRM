@@ -73,15 +73,10 @@ const AdminDashboardModern = () => {
     { name: 'Overdue', value: Math.floor((stats.revenue || 450000) * 0.1), fill: '#ff6b6b' }
   ];
 
-  // SUBJECT PERFORMANCE DATA
-  const subjectPerformanceData = [
-    { subject: 'Physics', percentage: 74, change: '+3%', color: '#667eea', changeColor: '#43e97b' },
-    { subject: 'Chemistry', percentage: 68, change: '-1%', color: '#f5576c', changeColor: '#ff6b6b' },
-    { subject: 'Maths', percentage: 81, change: '+5%', color: '#43e97b', changeColor: '#43e97b' },
-    { subject: 'English', percentage: 79, change: '+2%', color: '#feca57', changeColor: '#43e97b' },
-    { subject: 'Telugu', percentage: 86, change: '+1%', color: '#4facfe', changeColor: '#43e97b' },
-    { subject: 'Hindi', percentage: 71, change: '-2%', color: '#fa709a', changeColor: '#ff6b6b' }
-  ];
+  // SUBJECT PERFORMANCE DATA - Use real data from backend
+  const subjectPerformanceData = Array.isArray(data?.subjectPerformance) && data.subjectPerformance.length > 0
+    ? data.subjectPerformance
+    : [];
 
   // FEE COLLECTION BY CLASS DATA
   const feeCollectionByClass = [
@@ -404,11 +399,19 @@ const AdminDashboardModern = () => {
           <Grid container spacing={3} sx={{ mb: 4 }}>
             {/* Revenue Trend Chart */}
             <Grid item xs={12} md={8}>
-              <Card sx={{
-                borderRadius: 3,
-                boxShadow: '0 10px 30px rgba(0, 0, 0, 0.1)',
-                overflow: 'hidden'
-              }}>
+              <Card 
+                onClick={() => navigate('/admin/fees')}
+                sx={{
+                  borderRadius: 3,
+                  boxShadow: '0 10px 30px rgba(0, 0, 0, 0.1)',
+                  overflow: 'hidden',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease',
+                  '&:hover': {
+                    transform: 'translateY(-5px)',
+                    boxShadow: '0 15px 40px rgba(102, 126, 234, 0.3)',
+                  }
+                }}>
                 <CardContent>
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
                     <Avatar sx={{ bgcolor: '#667eea', mr: 2 }}>
@@ -447,11 +450,19 @@ const AdminDashboardModern = () => {
 
             {/* Admission Status Pie Chart */}
             <Grid item xs={12} md={4}>
-              <Card sx={{
-                borderRadius: 3,
-                boxShadow: '0 10px 30px rgba(0, 0, 0, 0.1)',
-                overflow: 'hidden'
-              }}>
+              <Card 
+                onClick={() => navigate('/admin/admissions')}
+                sx={{
+                  borderRadius: 3,
+                  boxShadow: '0 10px 30px rgba(0, 0, 0, 0.1)',
+                  overflow: 'hidden',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease',
+                  '&:hover': {
+                    transform: 'translateY(-5px)',
+                    boxShadow: '0 15px 40px rgba(245, 87, 108, 0.3)',
+                  }
+                }}>
                 <CardContent>
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
                     <Avatar sx={{ bgcolor: '#f5576c', mr: 2 }}>
@@ -502,7 +513,18 @@ const AdminDashboardModern = () => {
           <Grid container spacing={3} sx={{ mb: 4 }}>
             {/* Student Growth Over Time */}
             <Grid item xs={12} md={8}>
-              <Card sx={{ borderRadius: 3, boxShadow: '0 10px 30px rgba(0, 0, 0, 0.1)' }}>
+              <Card 
+                onClick={() => navigate('/admin/students')}
+                sx={{ 
+                  borderRadius: 3, 
+                  boxShadow: '0 10px 30px rgba(0, 0, 0, 0.1)',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease',
+                  '&:hover': {
+                    transform: 'translateY(-5px)',
+                    boxShadow: '0 15px 40px rgba(102, 126, 234, 0.3)',
+                  }
+                }}>
                 <CardContent>
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
                     <Avatar sx={{ bgcolor: '#667eea', mr: 2 }}>
@@ -544,7 +566,18 @@ const AdminDashboardModern = () => {
 
             {/* Teacher Analytics */}
             <Grid item xs={12} md={4}>
-              <Card sx={{ borderRadius: 3, boxShadow: '0 10px 30px rgba(0, 0, 0, 0.1)' }}>
+              <Card 
+                onClick={() => navigate('/admin/teachers')}
+                sx={{ 
+                  borderRadius: 3, 
+                  boxShadow: '0 10px 30px rgba(0, 0, 0, 0.1)',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease',
+                  '&:hover': {
+                    transform: 'translateY(-5px)',
+                    boxShadow: '0 15px 40px rgba(245, 87, 108, 0.3)',
+                  }
+                }}>
                 <CardContent>
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
                     <Avatar sx={{ bgcolor: '#f5576c', mr: 2 }}>
@@ -583,7 +616,18 @@ const AdminDashboardModern = () => {
           <Grid container spacing={3} sx={{ mb: 4 }}>
             {/* Subjects Per Class */}
             <Grid item xs={12} md={6}>
-              <Card sx={{ borderRadius: 3, boxShadow: '0 10px 30px rgba(0, 0, 0, 0.1)' }}>
+              <Card 
+                onClick={() => navigate('/admin/subjects')}
+                sx={{ 
+                  borderRadius: 3, 
+                  boxShadow: '0 10px 30px rgba(0, 0, 0, 0.1)',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease',
+                  '&:hover': {
+                    transform: 'translateY(-5px)',
+                    boxShadow: '0 15px 40px rgba(79, 172, 254, 0.3)',
+                  }
+                }}>
                 <CardContent>
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
                     <Avatar sx={{ bgcolor: '#4facfe', mr: 2 }}>
@@ -615,7 +659,18 @@ const AdminDashboardModern = () => {
 
             {/* Fees Collection Status */}
             <Grid item xs={12} md={6}>
-              <Card sx={{ borderRadius: 3, boxShadow: '0 10px 30px rgba(0, 0, 0, 0.1)' }}>
+              <Card 
+                onClick={() => navigate('/admin/fee-management')}
+                sx={{ 
+                  borderRadius: 3, 
+                  boxShadow: '0 10px 30px rgba(0, 0, 0, 0.1)',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease',
+                  '&:hover': {
+                    transform: 'translateY(-5px)',
+                    boxShadow: '0 15px 40px rgba(67, 233, 123, 0.3)',
+                  }
+                }}>
                 <CardContent>
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
                     <Avatar sx={{ bgcolor: '#43e97b', mr: 2 }}>
@@ -662,7 +717,22 @@ const AdminDashboardModern = () => {
           )}
 
           {/* Subject Performance Section */}
-          <Paper sx={{ p: 3, mb: 4, borderRadius: 3, boxShadow: '0 10px 30px rgba(0, 0, 0, 0.1)', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)' }}>
+          <Paper 
+            onClick={() => navigate('/admin/results')}
+            sx={{ 
+              p: 3, 
+              mb: 4, 
+              borderRadius: 3, 
+              boxShadow: '0 10px 30px rgba(0, 0, 0, 0.1)', 
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                transform: 'translateY(-5px)',
+                boxShadow: '0 15px 40px rgba(102, 126, 234, 0.4)',
+              }
+            }}
+          >
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
                 <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)', mr: 2 }}>
@@ -673,87 +743,103 @@ const AdminDashboardModern = () => {
                 </Typography>
               </Box>
               <Box sx={{ display: 'flex', gap: 1 }}>
-                <Chip label="Class 10" size="small" sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white', fontWeight: 600 }} />
-                <Chip label="Class 9" size="small" sx={{ bgcolor: 'rgba(255,255,255,0.15)', color: 'white' }} />
-                <Chip label="All" size="small" sx={{ bgcolor: 'rgba(255,255,255,0.15)', color: 'white' }} />
+                <Chip label="All Classes" size="small" sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white', fontWeight: 600 }} />
               </Box>
             </Box>
 
-            <Grid container spacing={2}>
-              {subjectPerformanceData.map((subject, index) => (
-                <Grid item xs={12} sm={6} md={4} lg={2} key={index}>
-                  <Card sx={{
-                    background: 'rgba(255, 255, 255, 0.1)',
-                    backdropFilter: 'blur(10px)',
-                    borderRadius: 3,
-                    border: '1px solid rgba(255, 255, 255, 0.2)',
-                    transition: 'all 0.3s ease',
-                    '&:hover': {
-                      transform: 'translateY(-5px)',
-                      boxShadow: '0 10px 30px rgba(0, 0, 0, 0.3)',
-                      background: 'rgba(255, 255, 255, 0.15)',
-                    }
-                  }}>
-                    <CardContent sx={{ textAlign: 'center', py: 3 }}>
-                      <Typography variant="body2" sx={{ color: 'white', mb: 2, fontWeight: 600, opacity: 0.9 }}>
-                        {subject.subject}
-                      </Typography>
-                      
-                      {/* Circular Progress */}
-                      <Box sx={{ position: 'relative', display: 'inline-flex', mb: 2 }}>
-                        <CircularProgress
-                          variant="determinate"
-                          value={100}
-                          size={100}
-                          thickness={4}
-                          sx={{ color: 'rgba(255, 255, 255, 0.1)' }}
-                        />
-                        <CircularProgress
-                          variant="determinate"
-                          value={subject.percentage}
-                          size={100}
-                          thickness={4}
-                          sx={{
-                            color: subject.color,
-                            position: 'absolute',
-                            left: 0,
-                            strokeLinecap: 'round',
-                          }}
-                        />
-                        <Box
-                          sx={{
-                            top: 0,
-                            left: 0,
-                            bottom: 0,
-                            right: 0,
-                            position: 'absolute',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                          }}
-                        >
-                          <Typography variant="h5" sx={{ fontWeight: 800, color: 'white' }}>
-                            {subject.percentage}%
-                          </Typography>
+            {subjectPerformanceData.length === 0 ? (
+              <Box sx={{ 
+                textAlign: 'center', 
+                py: 4,
+                background: 'rgba(255, 255, 255, 0.1)',
+                backdropFilter: 'blur(10px)',
+                borderRadius: 3,
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+              }}>
+                <Typography variant="h6" sx={{ color: 'white', mb: 1 }}>
+                  No exam results available yet
+                </Typography>
+                <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)' }}>
+                  Add exam results to see subject performance analytics
+                </Typography>
+              </Box>
+            ) : (
+              <Grid container spacing={2}>
+                {subjectPerformanceData.map((subject, index) => (
+                  <Grid item xs={12} sm={6} md={4} lg={2} key={index}>
+                    <Card sx={{
+                      background: 'rgba(255, 255, 255, 0.1)',
+                      backdropFilter: 'blur(10px)',
+                      borderRadius: 3,
+                      border: '1px solid rgba(255, 255, 255, 0.2)',
+                      transition: 'all 0.3s ease',
+                      '&:hover': {
+                        transform: 'translateY(-5px)',
+                        boxShadow: '0 10px 30px rgba(0, 0, 0, 0.3)',
+                        background: 'rgba(255, 255, 255, 0.15)',
+                      }
+                    }}>
+                      <CardContent sx={{ textAlign: 'center', py: 3 }}>
+                        <Typography variant="body2" sx={{ color: 'white', mb: 2, fontWeight: 600, opacity: 0.9 }}>
+                          {subject.subject}
+                        </Typography>
+                        
+                        {/* Circular Progress */}
+                        <Box sx={{ position: 'relative', display: 'inline-flex', mb: 2 }}>
+                          <CircularProgress
+                            variant="determinate"
+                            value={100}
+                            size={100}
+                            thickness={4}
+                            sx={{ color: 'rgba(255, 255, 255, 0.1)' }}
+                          />
+                          <CircularProgress
+                            variant="determinate"
+                            value={subject.percentage}
+                            size={100}
+                            thickness={4}
+                            sx={{
+                              color: subject.color,
+                              position: 'absolute',
+                              left: 0,
+                              strokeLinecap: 'round',
+                            }}
+                          />
+                          <Box
+                            sx={{
+                              top: 0,
+                              left: 0,
+                              bottom: 0,
+                              right: 0,
+                              position: 'absolute',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            <Typography variant="h5" sx={{ fontWeight: 800, color: 'white' }}>
+                              {subject.percentage}%
+                            </Typography>
+                          </Box>
                         </Box>
-                      </Box>
 
-                      {/* Change Indicator */}
-                      <Chip
-                        label={subject.change}
-                        size="small"
-                        sx={{
-                          bgcolor: subject.change.startsWith('+') ? 'rgba(67, 233, 123, 0.2)' : 'rgba(255, 107, 107, 0.2)',
-                          color: subject.changeColor,
-                          fontWeight: 700,
-                          fontSize: '0.75rem'
-                        }}
-                      />
-                    </CardContent>
-                  </Card>
-                </Grid>
-              ))}
-            </Grid>
+                        {/* Change Indicator */}
+                        <Chip
+                          label={subject.change}
+                          size="small"
+                          sx={{
+                            bgcolor: subject.change.startsWith('+') ? 'rgba(67, 233, 123, 0.2)' : 'rgba(255, 107, 107, 0.2)',
+                            color: subject.changeColor,
+                            fontWeight: 700,
+                            fontSize: '0.75rem'
+                          }}
+                        />
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                ))}
+              </Grid>
+            )}
           </Paper>
 
           {/* Fee Collection by Class Section */}

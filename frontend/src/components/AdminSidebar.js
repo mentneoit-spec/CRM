@@ -66,7 +66,8 @@ const menuStructure = [
     label: 'Finance',
     icon: AttachMoneyIcon,
     subItems: [
-      { label: 'Fees Management', path: '/admin/fees', icon: AttachMoneyIcon },
+      { label: 'Fee Management', path: '/admin/fee-management', icon: AttachMoneyIcon },
+      { label: 'Fees Structure', path: '/admin/fees', icon: AttachMoneyIcon },
       { label: 'Payments', path: '/admin/payments', icon: AttachMoneyIcon },
       { label: 'Receipts', path: '/admin/receipts', icon: BookIcon }
     ]

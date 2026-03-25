@@ -178,6 +178,7 @@ const DashboardLayout = ({ children, role = 'student' }) => {
       { text: 'Classes', icon: <School />, path: '/admin/classes' },
       { text: 'Subjects', icon: <Assignment />, path: '/admin/subjects' },
       { text: 'Admissions', icon: <Person />, path: '/admin/admissions' },
+      { text: 'Fee Management', icon: <Payment />, path: '/admin/fee-management' },
       { text: 'Fees', icon: <Payment />, path: '/admin/fees' },
       { text: 'Receipts & Payments', icon: <Receipt />, path: '/admin/receipts' },
       { text: 'Transport', icon: <DirectionsBus />, path: '/admin/transport' },

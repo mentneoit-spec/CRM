@@ -21,6 +21,7 @@ import {
 import DashboardLayout from '../../components/DashboardLayout';
 import { adminAPI } from '../../services/api';
 import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
+import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 
 const AdminResults = () => {
     const [loading, setLoading] = useState(true);
@@ -35,6 +36,7 @@ const AdminResults = () => {
     const [studentId, setStudentId] = useState('');
     const [message, setMessage] = useState(null);
     const [error, setError] = useState(null);
+    const [importing, setImporting] = useState(false);
 
     const subjectsForClass = useMemo(() => {
         if (!classId) return [];
@@ -101,6 +103,46 @@ const AdminResults = () => {
 
         return filtered;
     }, [results, classId, subjectId, examId, studentId]);
+
+    const handleImportCSV = async (file) => {
+        if (!file) return;
+
+        setImporting(true);
+        setError(null);
+        setMessage(null);
+
+        try {
+            // You need to specify examId and subjectId for import
+            if (!examId) {
+                setError('Please select an exam before importing results');
+                setImporting(false);
+                return;
+            }
+
+            if (!subjectId) {
+                setError('Please select a subject before importing results');
+                setImporting(false);
+                return;
+            }
+
+            const response = await adminAPI.importExamMarksCsv(examId, subjectId, file);
+            const result = response?.data;
+            const created = result?.created ?? 0;
+            const updated = result?.updated ?? 0;
+            const skipped = result?.skipped ?? 0;
+            const errorCount = Array.isArray(result?.errors) ? result.errors.length : 0;
+
+            setMessage(`Import complete: created ${created}, updated ${updated}, skipped ${skipped}, errors ${errorCount}`);
+
+            // Reload results
+            const resultsRes = await adminAPI.getResults();
+            setResults(Array.isArray(resultsRes?.data?.data) ? resultsRes.data.data : []);
+        } catch (e) {
+            setError(e?.response?.data?.message || e?.message || 'Failed to import CSV');
+        } finally {
+            setImporting(false);
+        }
+    };
 
     const handleExportCSV = () => {
         if (filteredResults.length === 0) {
@@ -183,6 +225,28 @@ const AdminResults = () => {
                             ))}
                         </Select>
                     </FormControl>
+
+                    <Button 
+                        variant="contained" 
+                        component="label"
+                        startIcon={<CloudUploadIcon />}
+                        disabled={loading || importing}
+                        sx={{ mr: 1 }}
+                    >
+                        {importing ? 'Importing...' : 'Import CSV'}
+                        <input
+                            type="file"
+                            accept=".csv"
+                            hidden
+                            onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                    handleImportCSV(file);
+                                }
+                                e.target.value = '';
+                            }}
+                        />
+                    </Button>
 
                     <Button 
                         variant="contained" 

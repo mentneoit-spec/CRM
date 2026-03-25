@@ -1162,6 +1162,82 @@ const getDashboard = async (req, res) => {
             };
         });
 
+        // --- Subject Performance Data ---
+        // Get all subjects for the college
+        const subjects = await prisma.subject.findMany({
+            where: { collegeId },
+            select: { id: true, subName: true },
+        });
+
+        // Get all exam results with marks
+        const examResults = await prisma.examResult.findMany({
+            where: { 
+                exam: { collegeId },
+            },
+            select: {
+                subjectId: true,
+                marksObtained: true,
+                totalMarks: true,
+            },
+        });
+
+        // Calculate subject performance
+        const subjectPerformanceMap = new Map();
+        
+        for (const result of examResults) {
+            if (!result.subjectId || !result.marksObtained || !result.totalMarks) continue;
+            
+            if (!subjectPerformanceMap.has(result.subjectId)) {
+                subjectPerformanceMap.set(result.subjectId, {
+                    totalMarks: 0,
+                    obtainedMarks: 0,
+                    count: 0,
+                });
+            }
+            
+            const data = subjectPerformanceMap.get(result.subjectId);
+            data.totalMarks += Number(result.totalMarks);
+            data.obtainedMarks += Number(result.marksObtained);
+            data.count += 1;
+        }
+
+        // Format subject performance with actual data
+        const subjectPerformance = subjects.map((subject) => {
+            const perfData = subjectPerformanceMap.get(subject.id);
+            
+            if (!perfData || perfData.count === 0) {
+                return {
+                    subjectId: subject.id,
+                    subject: subject.subName,
+                    percentage: 0,
+                    change: '0%',
+                    color: '#999',
+                    changeColor: '#999',
+                    hasData: false,
+                };
+            }
+
+            const percentage = Math.round((perfData.obtainedMarks / perfData.totalMarks) * 100);
+            
+            // Assign colors based on performance
+            let color = '#667eea'; // default blue
+            if (percentage >= 80) color = '#43e97b'; // green
+            else if (percentage >= 70) color = '#4facfe'; // light blue
+            else if (percentage >= 60) color = '#feca57'; // yellow
+            else if (percentage >= 50) color = '#fa709a'; // pink
+            else color = '#f5576c'; // red
+
+            return {
+                subjectId: subject.id,
+                subject: subject.subName,
+                percentage,
+                change: '+0%', // Can be calculated by comparing with previous period
+                color,
+                changeColor: '#43e97b',
+                hasData: true,
+            };
+        }).filter(s => s.hasData); // Only show subjects with data
+
         res.status(200).json({
             success: true,
             data: {
@@ -1177,6 +1253,7 @@ const getDashboard = async (req, res) => {
                 revenueByMonth: monthBuckets.map(({ month, year, revenue }) => ({ month, year, revenue })),
                 admissionsByStatus,
                 studentsByClass,
+                subjectPerformance,
                 feeManagement: {
                     totalDues,
                     totalCollected,

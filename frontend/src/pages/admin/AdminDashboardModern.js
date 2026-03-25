@@ -78,6 +78,10 @@ const AdminDashboardModern = () => {
     ? data.subjectPerformance
     : [];
 
+  // Debug log
+  console.log('Dashboard data:', data);
+  console.log('Subject Performance:', subjectPerformanceData);
+
   // FEE COLLECTION BY CLASS DATA
   const feeCollectionByClass = [
     { class: 'Class 10', collected: 91, due: 9, collectedAmount: '22.2L', dueAmount: '2.2L', totalAmount: '24.4L' },

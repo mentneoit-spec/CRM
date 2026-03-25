@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Dashboard API</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .result { background: #f0f0f0; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .subject { padding: 10px; margin: 5px 0; border-radius: 5px; color: white; }
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Dashboard API Test</h1>
+    <button onclick="testAPI()">Test Dashboard API</button>
+    <div id="result"></div>
+
+    <script>
+        async function testAPI() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<p>Loading...</p>';
+            
+            try {
+                // Get token from localStorage (if you're logged in)
+                const token = localStorage.getItem('token');
+                
+                const response = await fetch('http://localhost:5000/api/admin/dashboard', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success && data.data.subjectPerformance) {
+                    const subjects = data.data.subjectPerformance;
+                    
+                    let html = `<div class="result">`;
+                    html += `<h2>Subject Performance (${subjects.length} subjects)</h2>`;
+                    
+                    if (subjects.length === 0) {
+                        html += `<p style="color: red;">⚠️ No subject performance data returned!</p>`;
+                    } else {
+                        subjects.forEach(subject => {
+                            html += `<div class="subject" style="background-color: ${subject.color}">`;
+                            html += `<strong>${subject.subject}</strong>: ${subject.percentage}% ${subject.change}`;
+                            html += `</div>`;
+                        });
+                    }
+                    
+                    html += `</div>`;
+                    html += `<div class="result"><pre>${JSON.stringify(data.data.subjectPerformance, null, 2)}</pre></div>`;
+                    resultDiv.innerHTML = html;
+                } else {
+                    resultDiv.innerHTML = `<div class="result"><p style="color: red;">Error: ${data.message || 'No data'}</p><pre>${JSON.stringify(data, null, 2)}</pre></div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="result"><p style="color: red;">Error: ${error.message}</p></div>`;
+            }
+        }
+    </script>
+</body>
+</html>

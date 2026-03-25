@@ -93,19 +93,23 @@ const AdminDashboardModern = () => {
 
           {/* Stats Cards - Colorful Design */}
           <Grid container spacing={3} sx={{ mb: 4 }}>
-            {/* Students Card */}
+            {/* Students Card - Clickable */}
             <Grid item xs={12} sm={6} md={3}>
-              <Card sx={{
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                color: 'white',
-                borderRadius: 3,
-                boxShadow: '0 10px 30px rgba(102, 126, 234, 0.3)',
-                transition: 'transform 0.3s ease, box-shadow 0.3s ease',
-                '&:hover': {
-                  transform: 'translateY(-8px)',
-                  boxShadow: '0 20px 40px rgba(102, 126, 234, 0.4)',
-                }
-              }}>
+              <Card 
+                onClick={() => navigate('/admin/students')}
+                sx={{
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  color: 'white',
+                  borderRadius: 3,
+                  boxShadow: '0 10px 30px rgba(102, 126, 234, 0.3)',
+                  transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+                  cursor: 'pointer',
+                  '&:hover': {
+                    transform: 'translateY(-8px) scale(1.02)',
+                    boxShadow: '0 20px 40px rgba(102, 126, 234, 0.4)',
+                  }
+                }}
+              >
                 <CardContent>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <Box>
@@ -122,19 +126,23 @@ const AdminDashboardModern = () => {
               </Card>
             </Grid>
 
-            {/* Teachers Card */}
+            {/* Teachers Card - Clickable */}
             <Grid item xs={12} sm={6} md={3}>
-              <Card sx={{
-                background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-                color: 'white',
-                borderRadius: 3,
-                boxShadow: '0 10px 30px rgba(245, 87, 108, 0.3)',
-                transition: 'transform 0.3s ease, box-shadow 0.3s ease',
-                '&:hover': {
-                  transform: 'translateY(-8px)',
-                  boxShadow: '0 20px 40px rgba(245, 87, 108, 0.4)',
-                }
-              }}>
+              <Card 
+                onClick={() => navigate('/admin/teachers')}
+                sx={{
+                  background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+                  color: 'white',
+                  borderRadius: 3,
+                  boxShadow: '0 10px 30px rgba(245, 87, 108, 0.3)',
+                  transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+                  cursor: 'pointer',
+                  '&:hover': {
+                    transform: 'translateY(-8px) scale(1.02)',
+                    boxShadow: '0 20px 40px rgba(245, 87, 108, 0.4)',
+                  }
+                }}
+              >
                 <CardContent>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <Box>
@@ -151,19 +159,23 @@ const AdminDashboardModern = () => {
               </Card>
             </Grid>
 
-            {/* Pending Admissions Card */}
+            {/* Pending Admissions Card - Clickable */}
             <Grid item xs={12} sm={6} md={3}>
-              <Card sx={{
-                background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-                color: 'white',
-                borderRadius: 3,
-                boxShadow: '0 10px 30px rgba(79, 172, 254, 0.3)',
-                transition: 'transform 0.3s ease, box-shadow 0.3s ease',
-                '&:hover': {
-                  transform: 'translateY(-8px)',
-                  boxShadow: '0 20px 40px rgba(79, 172, 254, 0.4)',
-                }
-              }}>
+              <Card 
+                onClick={() => navigate('/admin/admissions')}
+                sx={{
+                  background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+                  color: 'white',
+                  borderRadius: 3,
+                  boxShadow: '0 10px 30px rgba(79, 172, 254, 0.3)',
+                  transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+                  cursor: 'pointer',
+                  '&:hover': {
+                    transform: 'translateY(-8px) scale(1.02)',
+                    boxShadow: '0 20px 40px rgba(79, 172, 254, 0.4)',
+                  }
+                }}
+              >
                 <CardContent>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <Box>
@@ -180,19 +192,23 @@ const AdminDashboardModern = () => {
               </Card>
             </Grid>
 
-            {/* Revenue Card */}
+            {/* Revenue Card - Clickable */}
             <Grid item xs={12} sm={6} md={3}>
-              <Card sx={{
-                background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
-                color: 'white',
-                borderRadius: 3,
-                boxShadow: '0 10px 30px rgba(67, 233, 123, 0.3)',
-                transition: 'transform 0.3s ease, box-shadow 0.3s ease',
-                '&:hover': {
-                  transform: 'translateY(-8px)',
-                  boxShadow: '0 20px 40px rgba(67, 233, 123, 0.4)',
-                }
-              }}>
+              <Card 
+                onClick={() => navigate('/admin/fees')}
+                sx={{
+                  background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+                  color: 'white',
+                  borderRadius: 3,
+                  boxShadow: '0 10px 30px rgba(67, 233, 123, 0.3)',
+                  transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+                  cursor: 'pointer',
+                  '&:hover': {
+                    transform: 'translateY(-8px) scale(1.02)',
+                    boxShadow: '0 20px 40px rgba(67, 233, 123, 0.4)',
+                  }
+                }}
+              >
                 <CardContent>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <Box>

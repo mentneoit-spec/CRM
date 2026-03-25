@@ -8,11 +8,12 @@ import {
 } from '@mui/material';
 import {
     Search as SearchIcon, Add as AddIcon, Edit as EditIcon,
-    Delete as DeleteIcon, Refresh as RefreshIcon, ContentCopy as ContentCopyIcon
+    Delete as DeleteIcon, Refresh as RefreshIcon, ContentCopy as ContentCopyIcon, Visibility as VisibilityIcon
 } from '@mui/icons-material';
 import DashboardLayout from '../../components/DashboardLayout';
 import { fetchStudents, createStudent, fetchClasses, updateStudent, deleteStudent } from '../../redux/slices/adminSlice';
 import BulkStudentImportDialog from '../../components/admin/BulkStudentImportDialog';
+import StudentDetailsModal from '../../components/admin/StudentDetailsModal';
 
 const AdminStudents = () => {
     const dispatch = useDispatch();
@@ -27,6 +28,8 @@ const AdminStudents = () => {
     const [openAddDialog, setOpenAddDialog] = useState(false);
     const [openEditDialog, setOpenEditDialog] = useState(false);
     const [openImportDialog, setOpenImportDialog] = useState(false);
+    const [openViewDialog, setOpenViewDialog] = useState(false);
+    const [selectedStudent, setSelectedStudent] = useState(null);
     const [newStudent, setNewStudent] = useState({
         name: '', studentId: '', email: '', phone: '', password: '',
         sclassId: '', parentName: '', parentPhone: ''
@@ -97,6 +100,11 @@ const AdminStudents = () => {
                 dispatch(fetchStudents());
             }
         });
+    };
+
+    const handleViewDetails = (student) => {
+        setSelectedStudent(student);
+        setOpenViewDialog(true);
     };
 
     const filteredStudents = students?.filter((student) =>
@@ -180,6 +188,9 @@ const AdminStudents = () => {
                                             <Typography variant="caption" color="text.secondary">{student.parentPhone}</Typography>
                                         </TableCell>
                                         <TableCell align="center">
+                                            <Tooltip title="View Details">
+                                                <IconButton color="info" size="small" onClick={() => handleViewDetails(student)}><VisibilityIcon fontSize="small" /></IconButton>
+                                            </Tooltip>
                                             <Tooltip title="Edit Student">
                                                 <IconButton color="primary" size="small" onClick={() => handleEditOpen(student)}><EditIcon fontSize="small" /></IconButton>
                                             </Tooltip>
@@ -322,6 +333,13 @@ const AdminStudents = () => {
             </Dialog>
 
             <BulkStudentImportDialog open={openImportDialog} onClose={() => setOpenImportDialog(false)} />
+            
+            {/* Student Details Modal */}
+            <StudentDetailsModal 
+                open={openViewDialog} 
+                onClose={() => setOpenViewDialog(false)} 
+                student={selectedStudent} 
+            />
         </DashboardLayout>
     );
 };

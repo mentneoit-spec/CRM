@@ -13,6 +13,7 @@ import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Cart
 import DashboardLayout from '../../components/DashboardLayout';
 import { fetchAdminDashboard } from '../../redux/slices/dashboardSlice';
 import { useNavigate } from 'react-router-dom';
+import FeeManagementDashboard from '../../components/admin/FeeManagementDashboard';
 
 const AdminDashboardModern = () => {
   const dispatch = useDispatch();
@@ -654,6 +655,11 @@ const AdminDashboardModern = () => {
               </Card>
             </Grid>
           </Grid>
+
+          {/* Fee Management Section */}
+          {data?.feeManagement && (
+            <FeeManagementDashboard feeData={data.feeManagement} />
+          )}
 
           {/* Subject Performance Section */}
           <Paper sx={{ p: 3, mb: 4, borderRadius: 3, boxShadow: '0 10px 30px rgba(0, 0, 0, 0.1)', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)' }}>

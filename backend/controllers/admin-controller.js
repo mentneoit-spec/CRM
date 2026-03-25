@@ -1035,6 +1035,133 @@ const getDashboard = async (req, res) => {
             students: c._count?.Students ?? 0,
         }));
 
+        // --- Fee Management Data ---
+        // Get all fees with payment information
+        const allFees = await prisma.fee.findMany({
+            where: { collegeId, isActive: true },
+            select: {
+                id: true,
+                amount: true,
+                dueDate: true,
+                studentId: true,
+                student: {
+                    select: {
+                        id: true,
+                        name: true,
+                        studentId: true,
+                        sclass: { select: { id: true, sclassName: true } },
+                    },
+                },
+            },
+        });
+
+        // Get all payments
+        const allPayments = await prisma.payment.findMany({
+            where: { collegeId, status: 'completed' },
+            select: {
+                studentId: true,
+                amount: true,
+            },
+        });
+
+        // Calculate payment totals per student
+        const paymentsByStudent = new Map();
+        for (const payment of allPayments) {
+            const current = paymentsByStudent.get(payment.studentId) || 0;
+            paymentsByStudent.set(payment.studentId, current + Number(payment.amount));
+        }
+
+        // Calculate fee statistics
+        let totalDues = 0;
+        let totalCollected = 0;
+        let overdueCount = 0;
+        const feesByClass = new Map();
+        const currentDate = new Date();
+
+        for (const fee of allFees) {
+            const feeAmount = Number(fee.amount) || 0;
+            totalDues += feeAmount;
+
+            const paidAmount = paymentsByStudent.get(fee.studentId) || 0;
+            totalCollected += Math.min(paidAmount, feeAmount);
+
+            // Check if overdue
+            const dueDate = new Date(fee.dueDate);
+            if (dueDate < currentDate && paidAmount < feeAmount) {
+                overdueCount++;
+            }
+
+            // Group by class
+            const className = fee.student?.sclass?.sclassName || 'Unassigned';
+            if (!feesByClass.has(className)) {
+                feesByClass.set(className, {
+                    className,
+                    totalDues: 0,
+                    collected: 0,
+                    studentCount: new Set(),
+                });
+            }
+            const classData = feesByClass.get(className);
+            classData.totalDues += feeAmount;
+            classData.collected += Math.min(paidAmount, feeAmount);
+            classData.studentCount.add(fee.studentId);
+        }
+
+        // Format fee collection by class
+        const feeCollectionByClass = Array.from(feesByClass.values())
+            .map((classData) => ({
+                className: classData.className,
+                totalDues: classData.totalDues,
+                collected: classData.collected,
+                pending: classData.totalDues - classData.collected,
+                collectionRate: classData.totalDues > 0 
+                    ? Math.round((classData.collected / classData.totalDues) * 100) 
+                    : 0,
+                studentCount: classData.studentCount.size,
+            }))
+            .sort((a, b) => b.totalDues - a.totalDues);
+
+        const totalPending = totalDues - totalCollected;
+        const overallCollectionRate = totalDues > 0 
+            ? Math.round((totalCollected / totalDues) * 100) 
+            : 0;
+
+        // Get recent fee records with payment status
+        const recentFeeRecords = await prisma.fee.findMany({
+            where: { collegeId, isActive: true },
+            take: 5,
+            select: {
+                id: true,
+                amount: true,
+                dueDate: true,
+                feeType: true,
+                student: {
+                    select: {
+                        id: true,
+                        name: true,
+                        studentId: true,
+                        sclass: { select: { sclassName: true } },
+                    },
+                },
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+
+        const recentFeesWithStatus = recentFeeRecords.map((fee) => {
+            const paidAmount = paymentsByStudent.get(fee.student.id) || 0;
+            const feeAmount = Number(fee.amount) || 0;
+            const dueDate = new Date(fee.dueDate);
+            const isPaid = paidAmount >= feeAmount;
+            const isOverdue = dueDate < currentDate && !isPaid;
+
+            return {
+                ...fee,
+                paidAmount,
+                dueAmount: Math.max(0, feeAmount - paidAmount),
+                status: isPaid ? 'paid' : isOverdue ? 'overdue' : 'pending',
+            };
+        });
+
         res.status(200).json({
             success: true,
             data: {
@@ -1050,6 +1177,15 @@ const getDashboard = async (req, res) => {
                 revenueByMonth: monthBuckets.map(({ month, year, revenue }) => ({ month, year, revenue })),
                 admissionsByStatus,
                 studentsByClass,
+                feeManagement: {
+                    totalDues,
+                    totalCollected,
+                    totalPending,
+                    overallCollectionRate,
+                    overdueStudents: overdueCount,
+                    feeCollectionByClass,
+                    recentFees: recentFeesWithStatus,
+                },
             },
         });
     } catch (error) {

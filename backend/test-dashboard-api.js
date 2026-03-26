@@ -34,38 +34,50 @@ async function testDashboardData() {
                 marksObtained: true,
                 percentage: true,
                 subject: {
-                    select: { maxMarks: true }
+                    select: { 
+                        maxMarks: true,
+                        subName: true 
+                    }
                 }
             },
         });
 
         console.log(`\nExam results found: ${examResults.length}`);
 
-        // Calculate subject performance
-        const subjectPerformanceMap = new Map();
+        // Calculate subject performance grouped by subject NAME (not ID)
+        const subjectPerformanceByName = new Map();
         
         for (const result of examResults) {
             if (!result.subjectId || result.marksObtained == null) continue;
             
-            if (!subjectPerformanceMap.has(result.subjectId)) {
-                subjectPerformanceMap.set(result.subjectId, {
+            const subjectName = result.subject?.subName;
+            if (!subjectName) continue;
+            
+            if (!subjectPerformanceByName.has(subjectName)) {
+                subjectPerformanceByName.set(subjectName, {
                     totalMarks: 0,
                     obtainedMarks: 0,
                     count: 0,
                 });
             }
             
-            const data = subjectPerformanceMap.get(result.subjectId);
+            const data = subjectPerformanceByName.get(subjectName);
             const maxMarks = result.subject?.maxMarks || 100;
             data.totalMarks += maxMarks;
             data.obtainedMarks += Number(result.marksObtained);
             data.count += 1;
         }
 
-        console.log('\nSubject Performance Calculation:');
-        // Format subject performance with actual data
-        const subjectPerformance = subjects.map((subject) => {
-            const perfData = subjectPerformanceMap.get(subject.id);
+        console.log('\nSubject Performance Calculation (Grouped by Name):');
+        
+        // Get unique subject names
+        const uniqueSubjectNames = new Set(subjects.map(s => s.subName));
+        console.log(`Unique subject names: ${uniqueSubjectNames.size}`);
+        uniqueSubjectNames.forEach(name => console.log(`  - ${name}`));
+
+        // Format subject performance with actual data (unique subjects only)
+        const subjectPerformance = Array.from(uniqueSubjectNames).map((subjectName) => {
+            const perfData = subjectPerformanceByName.get(subjectName);
             
             if (!perfData || perfData.count === 0) {
                 return null;
@@ -82,19 +94,21 @@ async function testDashboardData() {
             else color = '#f5576c';
 
             return {
-                subjectId: subject.id,
-                subject: subject.subName,
+                subject: subjectName,
                 percentage,
                 change: '+0%',
                 color,
                 changeColor: '#43e97b',
                 hasData: true,
+                resultCount: perfData.count
             };
-        }).filter(s => s !== null);
+        }).filter(s => s !== null)
+          .sort((a, b) => b.percentage - a.percentage);
 
         console.log(`\nFinal subject performance array length: ${subjectPerformance.length}`);
-        subjectPerformance.forEach(sp => {
-            console.log(`  ${sp.subject}: ${sp.percentage}% (${sp.color})`);
+        console.log('\n✅ UNIQUE SUBJECTS (No Duplicates):');
+        subjectPerformance.forEach((sp, index) => {
+            console.log(`  ${index + 1}. ${sp.subject}: ${sp.percentage}% (${sp.resultCount} results) - Color: ${sp.color}`);
         });
 
         if (subjectPerformance.length === 0) {

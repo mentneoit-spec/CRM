@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   Box, Grid, Card, CardContent, Typography, Avatar, Chip, Button,
@@ -11,7 +11,7 @@ import {
 } from '@mui/icons-material';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import DashboardLayout from '../../components/DashboardLayout';
-import { fetchAdminDashboard } from '../../redux/slices/dashboardSlice';
+import { fetchAdminDashboard, clearDashboard } from '../../redux/slices/dashboardSlice';
 import { useNavigate } from 'react-router-dom';
 import FeeManagementDashboard from '../../components/admin/FeeManagementDashboard';
 
@@ -19,8 +19,13 @@ const AdminDashboardModern = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { data, loading, error } = useSelector((state) => state.dashboard);
+  
+  // State to control showing all subjects
+  const [showAllSubjects, setShowAllSubjects] = useState(false);
 
   useEffect(() => {
+    // Force fresh data by clearing cache first
+    dispatch(clearDashboard());
     dispatch(fetchAdminDashboard());
   }, [dispatch]);
 
@@ -78,9 +83,17 @@ const AdminDashboardModern = () => {
     ? data.subjectPerformance
     : [];
 
-  // Debug log
-  console.log('Dashboard data:', data);
-  console.log('Subject Performance:', subjectPerformanceData);
+  // Debug log - FORCE REFRESH v2
+  useEffect(() => {
+    console.log('=== DASHBOARD DATA DEBUG v2 ===');
+    console.log('Full data object:', data);
+    console.log('Subject Performance Array:', subjectPerformanceData);
+    console.log('Subject Performance Length:', subjectPerformanceData.length);
+    if (subjectPerformanceData.length > 0) {
+      console.log('First subject:', subjectPerformanceData[0]);
+    }
+    console.log('================================');
+  }, [data, subjectPerformanceData]);
 
   // FEE COLLECTION BY CLASS DATA
   const feeCollectionByClass = [
@@ -722,17 +735,15 @@ const AdminDashboardModern = () => {
 
           {/* Subject Performance Section */}
           <Paper 
-            onClick={() => navigate('/admin/results')}
             sx={{ 
               p: 3, 
               mb: 4, 
               borderRadius: 3, 
               boxShadow: '0 10px 30px rgba(0, 0, 0, 0.1)', 
               background: 'linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)',
-              cursor: 'pointer',
               transition: 'all 0.3s ease',
               '&:hover': {
-                transform: 'translateY(-5px)',
+                transform: 'translateY(-2px)',
                 boxShadow: '0 15px 40px rgba(102, 126, 234, 0.4)',
               }
             }}
@@ -747,7 +758,58 @@ const AdminDashboardModern = () => {
                 </Typography>
               </Box>
               <Box sx={{ display: 'flex', gap: 1 }}>
-                <Chip label="All Classes" size="small" sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white', fontWeight: 600 }} />
+                <Chip 
+                  label={showAllSubjects ? "All Subjects" : "Top 5 Subjects"} 
+                  size="small" 
+                  sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white', fontWeight: 600 }} 
+                />
+                <Chip 
+                  label={`${subjectPerformanceData.length} Total`}
+                  size="small" 
+                  sx={{ bgcolor: 'rgba(255,255,255,0.15)', color: 'white' }} 
+                />
+                <Chip 
+                  label="🔄 Refresh" 
+                  size="small" 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    dispatch(clearDashboard());
+                    dispatch(fetchAdminDashboard());
+                  }}
+                  sx={{ 
+                    bgcolor: 'rgba(255,255,255,0.1)', 
+                    color: 'white',
+                    cursor: 'pointer',
+                    '&:hover': { bgcolor: 'rgba(255,255,255,0.2)' }
+                  }} 
+                />
+                {subjectPerformanceData.length > 5 && (
+                  <Chip 
+                    label={showAllSubjects ? "Show Less" : "Show All"} 
+                    size="small" 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowAllSubjects(!showAllSubjects);
+                    }}
+                    sx={{ 
+                      bgcolor: 'rgba(255,255,255,0.15)', 
+                      color: 'white',
+                      cursor: 'pointer',
+                      '&:hover': { bgcolor: 'rgba(255,255,255,0.25)' }
+                    }} 
+                  />
+                )}
+                <Chip 
+                  label="View Results Page" 
+                  size="small" 
+                  onClick={() => navigate('/admin/results')}
+                  sx={{ 
+                    bgcolor: 'rgba(255,255,255,0.1)', 
+                    color: 'white',
+                    cursor: 'pointer',
+                    '&:hover': { bgcolor: 'rgba(255,255,255,0.2)' }
+                  }} 
+                />
               </Box>
             </Box>
 
@@ -769,8 +831,9 @@ const AdminDashboardModern = () => {
               </Box>
             ) : (
               <Grid container spacing={2}>
-                {subjectPerformanceData.map((subject, index) => (
-                  <Grid item xs={12} sm={6} md={4} lg={2} key={index}>
+                {/* Show subjects based on showAllSubjects state */}
+                {(showAllSubjects ? subjectPerformanceData : subjectPerformanceData.slice(0, 5)).map((subject, index) => (
+                  <Grid item xs={12} sm={6} md={4} lg={showAllSubjects ? 3 : 2.4} key={index}>
                     <Card sx={{
                       background: 'rgba(255, 255, 255, 0.1)',
                       backdropFilter: 'blur(10px)',
@@ -842,6 +905,50 @@ const AdminDashboardModern = () => {
                     </Card>
                   </Grid>
                 ))}
+                
+                {/* Show "View More" card only when NOT showing all subjects and there are more than 5 */}
+                {!showAllSubjects && subjectPerformanceData.length > 5 && (
+                  <Grid item xs={12} sm={6} md={4} lg={2.4}>
+                    <Card 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowAllSubjects(true);
+                      }}
+                      sx={{
+                        background: 'rgba(255, 255, 255, 0.05)',
+                        backdropFilter: 'blur(10px)',
+                        borderRadius: 3,
+                        border: '2px dashed rgba(255, 255, 255, 0.3)',
+                        transition: 'all 0.3s ease',
+                        cursor: 'pointer',
+                        '&:hover': {
+                          transform: 'translateY(-5px)',
+                          boxShadow: '0 10px 30px rgba(0, 0, 0, 0.3)',
+                          background: 'rgba(255, 255, 255, 0.1)',
+                          borderColor: 'rgba(255, 255, 255, 0.5)',
+                        }
+                      }}
+                    >
+                      <CardContent sx={{ textAlign: 'center', py: 5, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '200px' }}>
+                        <Typography variant="h6" sx={{ color: 'white', mb: 1, fontWeight: 600 }}>
+                          +{subjectPerformanceData.length - 5} More
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)', mb: 2 }}>
+                          Click to View All
+                        </Typography>
+                        <Chip
+                          label="Expand"
+                          size="small"
+                          sx={{
+                            bgcolor: 'rgba(255, 255, 255, 0.2)',
+                            color: 'white',
+                            fontWeight: 600
+                          }}
+                        />
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                )}
               </Grid>
             )}
           </Paper>

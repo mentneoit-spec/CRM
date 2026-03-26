@@ -1166,7 +1166,12 @@ const getDashboard = async (req, res) => {
         // Get all subjects for the college
         const subjects = await prisma.subject.findMany({
             where: { collegeId },
-            select: { id: true, subName: true, maxMarks: true },
+            select: { 
+                id: true, 
+                subName: true, 
+                maxMarks: true,
+                subCode: true 
+            },
         });
 
         // Get all exam results with marks
@@ -1180,35 +1185,44 @@ const getDashboard = async (req, res) => {
                 marksObtained: true,
                 percentage: true,
                 subject: {
-                    select: { maxMarks: true }
+                    select: { 
+                        maxMarks: true,
+                        subName: true 
+                    }
                 }
             },
         });
 
-        // Calculate subject performance
-        const subjectPerformanceMap = new Map();
+        // Calculate subject performance grouped by subject NAME (not ID)
+        const subjectPerformanceByName = new Map();
         
         for (const result of examResults) {
             if (!result.subjectId || result.marksObtained == null) continue;
             
-            if (!subjectPerformanceMap.has(result.subjectId)) {
-                subjectPerformanceMap.set(result.subjectId, {
+            const subjectName = result.subject?.subName;
+            if (!subjectName) continue;
+            
+            if (!subjectPerformanceByName.has(subjectName)) {
+                subjectPerformanceByName.set(subjectName, {
                     totalMarks: 0,
                     obtainedMarks: 0,
                     count: 0,
                 });
             }
             
-            const data = subjectPerformanceMap.get(result.subjectId);
+            const data = subjectPerformanceByName.get(subjectName);
             const maxMarks = result.subject?.maxMarks || 100;
             data.totalMarks += maxMarks;
             data.obtainedMarks += Number(result.marksObtained);
             data.count += 1;
         }
 
-        // Format subject performance with actual data
-        const subjectPerformance = subjects.map((subject) => {
-            const perfData = subjectPerformanceMap.get(subject.id);
+        // Get unique subject names
+        const uniqueSubjectNames = new Set(subjects.map(s => s.subName));
+
+        // Format subject performance with actual data (unique subjects only)
+        const subjectPerformance = Array.from(uniqueSubjectNames).map((subjectName) => {
+            const perfData = subjectPerformanceByName.get(subjectName);
             
             if (!perfData || perfData.count === 0) {
                 return null; // Will be filtered out
@@ -1225,15 +1239,16 @@ const getDashboard = async (req, res) => {
             else color = '#f5576c'; // red
 
             return {
-                subjectId: subject.id,
-                subject: subject.subName,
+                subject: subjectName,
                 percentage,
-                change: '+0%', // Can be calculated by comparing with previous period
+                change: '+0%',
                 color,
                 changeColor: '#43e97b',
                 hasData: true,
+                resultCount: perfData.count
             };
-        }).filter(s => s !== null); // Only show subjects with data
+        }).filter(s => s !== null) // Only show subjects with data
+          .sort((a, b) => b.percentage - a.percentage); // Sort by percentage descending
 
         res.status(200).json({
             success: true,

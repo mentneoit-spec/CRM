@@ -64,6 +64,8 @@ const {
     updateAdmissionTeamMember,
     deleteAdmissionTeamMember,
     sendMarksEmail,
+    createPayment,
+    getPayments,
 } = require('../controllers/admin-controller');
 
 const {
@@ -222,6 +224,8 @@ router.post('/admissions/:admissionId/approve', authorize('Admin'), authorizeCol
 router.post('/admissions/:admissionId/reject', authorize('Admin'), authorizeCollege, rejectAdmission);
 
 // ==================== PAYMENTS & RECEIPTS ====================
+router.post('/payments', authorize('Admin'), authorizeCollege, createPayment);
+router.get('/payments', authorize('Admin'), authorizeCollege, getPayments);
 router.get('/payments/:paymentId/receipt', authorize('Admin'), authorizeCollege, downloadPaymentReceipt);
 
 // ==================== ADMISSION TEAM MANAGEMENT ====================

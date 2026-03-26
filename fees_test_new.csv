@@ -1,0 +1,11 @@
+student_id,fee_type,amount,due_date
+STU004,Annual_Fee,5000,2026-07-01
+STU008,Annual_Fee,5000,2026-07-01
+STU012,Annual_Fee,5000,2026-07-01
+STU006,Annual_Fee,6000,2026-07-01
+STU018,Annual_Fee,5000,2026-07-01
+STU002,Maintenance,1500,2026-07-01
+STU016,Maintenance,1500,2026-07-01
+STU017,Development,2000,2026-07-01
+STU015,Activity,800,2026-07-01
+STU014,Equipment,1200,2026-07-01

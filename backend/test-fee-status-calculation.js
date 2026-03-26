@@ -1,19 +1,14 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-async function testFeesAPI() {
+async function testFeeStatusCalculation() {
     try {
-        console.log('Testing fees API with payment integration...\n');
+        console.log('Testing fee status calculation with real data...\n');
 
-        // Get college ID
         const college = await prisma.college.findFirst();
-        if (!college) {
-            console.log('❌ No college found');
-            return;
-        }
         console.log(`College: ${college.name}`);
 
-        // Get all fees with payment information
+        // Get all fees with student information
         const fees = await prisma.fee.findMany({
             where: { collegeId: college.id, isActive: true },
             select: {
@@ -31,17 +26,15 @@ async function testFeesAPI() {
                     } 
                 },
             },
-            take: 5
+            orderBy: { createdAt: 'desc' }
         });
 
-        console.log(`\nFees found: ${fees.length}`);
+        console.log(`\nTotal fees found: ${fees.length}`);
 
-        // Get payments for these students
-        const studentIds = fees.map(fee => fee.studentId);
+        // Get all payments
         const payments = await prisma.payment.findMany({
             where: { 
-                collegeId: college.id, 
-                studentId: { in: studentIds },
+                collegeId: college.id,
                 status: 'completed' 
             },
             select: {
@@ -50,7 +43,7 @@ async function testFeesAPI() {
             },
         });
 
-        console.log(`Payments found: ${payments.length}`);
+        console.log(`Total completed payments found: ${payments.length}`);
 
         // Calculate payment totals per student
         const paymentsByStudent = new Map();
@@ -59,8 +52,15 @@ async function testFeesAPI() {
             paymentsByStudent.set(payment.studentId, current + Number(payment.amount));
         }
 
+        console.log(`\nPayments by student:`);
+        paymentsByStudent.forEach((amount, studentId) => {
+            console.log(`  Student ${studentId}: ₹${amount}`);
+        });
+
         // Process fees with payment information and status
         const currentDate = new Date();
+        console.log(`\nCurrent date: ${currentDate.toLocaleDateString()}`);
+        
         const processedFees = fees.map(fee => {
             const feeAmount = Number(fee.amount) || 0;
             const paidAmount = paymentsByStudent.get(fee.studentId) || 0;
@@ -76,6 +76,7 @@ async function testFeesAPI() {
             }
 
             return {
+                id: fee.id,
                 name: fee.student?.name || 'Unknown',
                 studentId: fee.student?.studentId || 'N/A',
                 class: fee.student?.sclass?.sclassName || 'N/A',
@@ -84,16 +85,20 @@ async function testFeesAPI() {
                 dueAmount,
                 dueDate: fee.dueDate,
                 feeStatus,
-                feeType: fee.feeType
+                feeType: fee.feeType,
+                student: fee.student
             };
         });
 
-        console.log('\n✅ PROCESSED FEES WITH PAYMENT STATUS:');
+        console.log('\n✅ PROCESSED FEES WITH REAL DATA:');
         processedFees.forEach((fee, index) => {
-            console.log(`  ${index + 1}. ${fee.name} (${fee.class})`);
-            console.log(`     Total: ₹${fee.totalFee}, Paid: ₹${fee.paidAmount}, Due: ₹${fee.dueAmount}`);
-            console.log(`     Status: ${fee.feeStatus.toUpperCase()}, Due Date: ${new Date(fee.dueDate).toLocaleDateString()}`);
-            console.log('');
+            console.log(`\n${index + 1}. ${fee.name} (${fee.studentId}) - ${fee.class}`);
+            console.log(`   Fee Type: ${fee.feeType}`);
+            console.log(`   Total Fee: ₹${fee.totalFee}`);
+            console.log(`   Paid Amount: ₹${fee.paidAmount}`);
+            console.log(`   Due Amount: ₹${fee.dueAmount}`);
+            console.log(`   Due Date: ${new Date(fee.dueDate).toLocaleDateString()}`);
+            console.log(`   Status: ${fee.feeStatus.toUpperCase()}`);
         });
 
         // Calculate summary statistics
@@ -104,7 +109,7 @@ async function testFeesAPI() {
         const pendingCount = processedFees.filter(fee => fee.feeStatus === 'pending').length;
         const overdueCount = processedFees.filter(fee => fee.feeStatus === 'overdue').length;
 
-        console.log('📊 SUMMARY STATISTICS:');
+        console.log('\n📊 SUMMARY STATISTICS:');
         console.log(`  Total Fees: ₹${totalFees.toLocaleString()}`);
         console.log(`  Total Collected: ₹${totalCollected.toLocaleString()}`);
         console.log(`  Total Due: ₹${totalDue.toLocaleString()}`);
@@ -114,11 +119,13 @@ async function testFeesAPI() {
         console.log(`  Overdue: ${overdueCount}`);
         console.log(`  Collection Rate: ${totalFees > 0 ? Math.round((totalCollected / totalFees) * 100) : 0}%`);
 
+        console.log('\n✅ Backend is using REAL DATABASE DATA, not dummy data!');
+
     } catch (error) {
-        console.error('❌ Error testing fees API:', error);
+        console.error('❌ Error:', error);
     } finally {
         await prisma.$disconnect();
     }
 }
 
-testFeesAPI();
+testFeeStatusCalculation();

@@ -1288,7 +1288,7 @@ const getDashboard = async (req, res) => {
 const getFees = async (req, res) => {
     try {
         const collegeId = req.collegeId || req.query.collegeId;
-        const { page = 1, limit = 50 } = req.query;
+        const { page = 1, limit = 50, status } = req.query;
         
         if (!collegeId) {
             return res.status(400).json({ success: false, message: 'College ID required' });
@@ -1296,8 +1296,9 @@ const getFees = async (req, res) => {
 
         const skip = (page - 1) * limit;
 
+        // Get all fees with student and payment information
         const fees = await prisma.fee.findMany({
-            where: { collegeId },
+            where: { collegeId, isActive: true },
             select: {
                 id: true,
                 feeType: true,
@@ -1308,23 +1309,108 @@ const getFees = async (req, res) => {
                 isActive: true,
                 createdAt: true,
                 studentId: true,
-                student: { select: { id: true, name: true, sclass: { select: { sclassName: true } } } },
+                student: { 
+                    select: { 
+                        id: true, 
+                        name: true, 
+                        studentId: true,
+                        sclass: { select: { sclassName: true } } 
+                    } 
+                },
             },
-            skip: parseInt(skip),
-            take: parseInt(limit),
             orderBy: { createdAt: 'desc' }
         });
 
-        const total = await prisma.fee.count({ where: { collegeId } });
+        // Get all payments for these students
+        const studentIds = fees.map(fee => fee.studentId);
+        const payments = await prisma.payment.findMany({
+            where: { 
+                collegeId, 
+                studentId: { in: studentIds },
+                status: 'completed' 
+            },
+            select: {
+                studentId: true,
+                amount: true,
+            },
+        });
+
+        // Calculate payment totals per student
+        const paymentsByStudent = new Map();
+        for (const payment of payments) {
+            const current = paymentsByStudent.get(payment.studentId) || 0;
+            paymentsByStudent.set(payment.studentId, current + Number(payment.amount));
+        }
+
+        // Process fees with payment information and status
+        const currentDate = new Date();
+        const processedFees = fees.map(fee => {
+            const feeAmount = Number(fee.amount) || 0;
+            const paidAmount = paymentsByStudent.get(fee.studentId) || 0;
+            const dueAmount = Math.max(0, feeAmount - paidAmount);
+            const dueDate = new Date(fee.dueDate);
+            
+            // Determine fee status
+            let feeStatus = 'pending';
+            if (paidAmount >= feeAmount) {
+                feeStatus = 'completed';
+            } else if (dueDate < currentDate) {
+                feeStatus = 'overdue';
+            }
+
+            return {
+                id: fee.id,
+                name: fee.student?.name || 'Unknown',
+                studentId: fee.student?.studentId || 'N/A',
+                class: fee.student?.sclass?.sclassName || 'N/A',
+                totalFee: feeAmount,
+                paidAmount,
+                dueAmount,
+                dueDate: fee.dueDate,
+                feeStatus,
+                feeType: fee.feeType,
+                feeCategory: fee.feeCategory,
+                student: fee.student,
+                createdAt: fee.createdAt
+            };
+        });
+
+        // Apply status filter if provided
+        let filteredFees = processedFees;
+        if (status && status !== 'all') {
+            filteredFees = processedFees.filter(fee => fee.feeStatus === status);
+        }
+
+        // Apply pagination to filtered results
+        const paginatedFees = filteredFees.slice(skip, skip + parseInt(limit));
+        const total = filteredFees.length;
+
+        // Calculate summary statistics
+        const totalFees = processedFees.reduce((sum, fee) => sum + fee.totalFee, 0);
+        const totalCollected = processedFees.reduce((sum, fee) => sum + fee.paidAmount, 0);
+        const totalDue = processedFees.reduce((sum, fee) => sum + fee.dueAmount, 0);
+        const completedCount = processedFees.filter(fee => fee.feeStatus === 'completed').length;
+        const pendingCount = processedFees.filter(fee => fee.feeStatus === 'pending').length;
+        const overdueCount = processedFees.filter(fee => fee.feeStatus === 'overdue').length;
 
         res.status(200).json({ 
             success: true, 
-            data: fees,
+            data: paginatedFees,
             pagination: {
                 total,
                 page: parseInt(page),
                 limit: parseInt(limit),
                 pages: Math.ceil(total / limit),
+            },
+            summary: {
+                totalFees,
+                totalCollected,
+                totalDue,
+                totalStudents: processedFees.length,
+                completedCount,
+                pendingCount,
+                overdueCount,
+                collectionRate: totalFees > 0 ? Math.round((totalCollected / totalFees) * 100) : 0
             }
         });
     } catch (error) {
@@ -4278,4 +4364,180 @@ module.exports = {
     updateAdmissionTeamMember,
     deleteAdmissionTeamMember,
     sendMarksEmail,
+};
+
+// ==================== PAYMENTS ====================
+
+const createPayment = async (req, res) => {
+    try {
+        const collegeId = req.collegeId || req.query.collegeId;
+        const { studentId, amount, paymentMethod, transactionId, remarks, status = 'completed' } = req.body;
+
+        if (!collegeId) {
+            return res.status(400).json({ success: false, message: 'College ID required' });
+        }
+
+        if (!studentId || !amount) {
+            return res.status(400).json({ success: false, message: 'Student ID and amount are required' });
+        }
+
+        // Verify student exists and belongs to college
+        const student = await prisma.student.findFirst({
+            where: { id: studentId, collegeId, isDeleted: false }
+        });
+
+        if (!student) {
+            return res.status(404).json({ success: false, message: 'Student not found' });
+        }
+
+        // Create payment record
+        const payment = await prisma.payment.create({
+            data: {
+                collegeId,
+                studentId,
+                amount: parseFloat(amount),
+                paymentMethod: paymentMethod || 'manual',
+                transactionId,
+                remarks,
+                status,
+                paymentDate: new Date(),
+            },
+            include: {
+                student: {
+                    select: {
+                        id: true,
+                        name: true,
+                        studentId: true,
+                        sclass: { select: { sclassName: true } }
+                    }
+                }
+            }
+        });
+
+        res.status(201).json({
+            success: true,
+            message: 'Payment recorded successfully',
+            data: payment
+        });
+
+    } catch (error) {
+        console.error('Create payment error:', error);
+        res.status(500).json({ success: false, message: 'Error creating payment' });
+    }
+};
+
+const getPayments = async (req, res) => {
+    try {
+        const collegeId = req.collegeId || req.query.collegeId;
+        const { page = 1, limit = 50, studentId, status } = req.query;
+
+        if (!collegeId) {
+            return res.status(400).json({ success: false, message: 'College ID required' });
+        }
+
+        const skip = (page - 1) * limit;
+        const where = { collegeId };
+
+        if (studentId) where.studentId = studentId;
+        if (status) where.status = status;
+
+        const payments = await prisma.payment.findMany({
+            where,
+            include: {
+                student: {
+                    select: {
+                        id: true,
+                        name: true,
+                        studentId: true,
+                        sclass: { select: { sclassName: true } }
+                    }
+                }
+            },
+            skip: parseInt(skip),
+            take: parseInt(limit),
+            orderBy: { createdAt: 'desc' }
+        });
+
+        const total = await prisma.payment.count({ where });
+
+        res.status(200).json({
+            success: true,
+            data: payments,
+            pagination: {
+                total,
+                page: parseInt(page),
+                limit: parseInt(limit),
+                pages: Math.ceil(total / limit),
+            }
+        });
+
+    } catch (error) {
+        console.error('Get payments error:', error);
+        res.status(500).json({ success: false, message: 'Error fetching payments' });
+    }
+};
+
+module.exports = {
+    getCollegeSettings,
+    updateCollegeSettings,
+    requestCustomDomain,
+    listMyDomains,
+    getAdminProfile,
+    updateAdminProfile,
+    createTeacher,
+    createStudent,
+    getAllStudents,
+    getAllTeachers,
+    getTeacher,
+    updateTeacher,
+    deleteTeacher,
+    getStudent,
+    updateStudent,
+    deleteStudent,
+    bulkImportStudents,
+    bulkImportTeachers,
+    bulkImportClasses,
+    bulkImportSubjects,
+    createTeamMember,
+    getTeamMembers,
+    createClass,
+    getAllClasses,
+    getClass,
+    updateClass,
+    deleteClass,
+    createSubject,
+    getSubjects,
+    getSubject,
+    updateSubject,
+    deleteSubject,
+    defineFeeStructure,
+    getDashboard,
+    getFees,
+    updateFee,
+    deleteFee,
+    bulkImportFees,
+    createNotice,
+    getNotices,
+    deleteNotice,
+    createExam,
+    uploadExamMarks,
+    listExams,
+    getExamMarks,
+    importExamMarksCsv,
+    getComplaints,
+    updateComplaint,
+    getTeacherSections,
+    setTeacherSections,
+    downloadPaymentReceipt,
+    getAnalytics,
+    getResults,
+    uploadMarksAdmin,
+    uploadMarksCsv,
+    getAdmissionTeamMembers,
+    createAdmissionTeamMember,
+    updateAdmissionTeamMember,
+    deleteAdmissionTeamMember,
+    sendMarksEmail,
+    createPayment,
+    getPayments,
 };

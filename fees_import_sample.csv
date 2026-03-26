@@ -1,0 +1,31 @@
+student_id,fee_type,amount,due_date,fee_category,frequency,description,is_active
+STU004,Tuition,15000,2026-05-15,Academic,Monthly,Tuition fee for May 2026,true
+STU004,Transport,3000,2026-05-15,Transport,Monthly,Bus transportation fee,true
+STU004,Library,500,2026-05-15,Academic,Monthly,Library access fee,true
+STU008,Tuition,15000,2026-05-15,Academic,Monthly,Tuition fee for May 2026,true
+STU008,Transport,3000,2026-05-15,Transport,Monthly,Bus transportation fee,true
+STU008,Hostel,8000,2026-05-15,Accommodation,Monthly,Hostel accommodation fee,true
+STU012,Tuition,15000,2026-05-15,Academic,Monthly,Tuition fee for May 2026,true
+STU012,Sports,1500,2026-05-15,Extracurricular,Monthly,Sports activities fee,true
+STU006,Tuition,18000,2026-05-15,Academic,Monthly,Tuition fee for Class 12,true
+STU006,Lab,2000,2026-05-15,Academic,Monthly,Laboratory fee,true
+STU018,Tuition,15000,2026-05-15,Academic,Monthly,Tuition fee for May 2026,true
+STU018,Transport,3000,2026-05-15,Transport,Monthly,Bus transportation fee,true
+STU002,Tuition,15000,2026-05-15,Academic,Monthly,Tuition fee for May 2026,true
+STU002,Hostel,8000,2026-05-15,Accommodation,Monthly,Hostel accommodation fee,true
+STU002,Exam,1000,2026-05-15,Academic,Quarterly,Examination fee,true
+STU016,Tuition,18000,2026-05-15,Academic,Monthly,Tuition fee for Class 12,true
+STU016,Transport,3000,2026-05-15,Transport,Monthly,Bus transportation fee,true
+STU017,Tuition,18000,2026-05-15,Academic,Monthly,Tuition fee for Class 12,true
+STU017,Library,500,2026-05-15,Academic,Monthly,Library access fee,true
+STU015,Tuition,15000,2026-05-15,Academic,Monthly,Tuition fee for May 2026,true
+STU015,Sports,1500,2026-05-15,Extracurricular,Monthly,Sports activities fee,true
+STU014,Tuition,15000,2026-05-15,Academic,Monthly,Tuition fee for May 2026,true
+STU014,Lab,2000,2026-05-15,Academic,Monthly,Laboratory fee,true
+STU019,Tuition,15000,2026-05-15,Academic,Monthly,Tuition fee for May 2026,true
+STU019,Transport,3000,2026-05-15,Transport,Monthly,Bus transportation fee,true
+STU004,Exam,1000,2026-06-15,Academic,Quarterly,Mid-term examination fee,true
+STU008,Sports,1500,2026-06-15,Extracurricular,Monthly,Sports activities fee,true
+STU012,Library,500,2026-06-15,Academic,Monthly,Library access fee,true
+STU006,Transport,3000,2026-06-15,Transport,Monthly,Bus transportation fee,true
+STU018,Hostel,8000,2026-06-15,Accommodation,Monthly,Hostel accommodation fee,true

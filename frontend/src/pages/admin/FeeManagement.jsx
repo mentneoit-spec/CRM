@@ -12,14 +12,15 @@ import DashboardLayout from '../../components/DashboardLayout';
 import { adminAPI } from '../../config/api';
 
 const FeeManagement = () => {
+  // State management
   const [loading, setLoading] = useState(true);
-  const [feeData, setFeeData] = useState(null);
-  const [allFees, setAllFees] = useState([]);
-  const [students, setStudents] = useState([]);
+  const [students, setStudents] = useState([]); // Original backend data
+  const [filteredStudents, setFilteredStudents] = useState([]); // Filtered data
+  const [selectedFilter, setSelectedFilter] = useState('all'); // Filter state
+  const [summary, setSummary] = useState(null); // Summary statistics
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [openRecordPayment, setOpenRecordPayment] = useState(false);
-  const [selectedFee, setSelectedFee] = useState(null);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   
@@ -31,43 +32,112 @@ const FeeManagement = () => {
     remarks: ''
   });
 
+  // Test API connection
+  const testAPIConnection = async () => {
+    try {
+      console.log('🧪 Testing API connection...');
+      
+      // Test basic connection
+      const dashboardResponse = await adminAPI.getDashboard();
+      console.log('📊 Dashboard API response:', dashboardResponse);
+      
+      // Test fees API specifically
+      const feesResponse = await adminAPI.getFees();
+      console.log('💰 Fees API response:', feesResponse);
+      
+    } catch (error) {
+      console.error('❌ API test failed:', error);
+    }
+  };
+
+  // Fetch data from backend
   useEffect(() => {
-    fetchFeeManagementData();
-    fetchAllFees();
-    fetchStudents();
+    console.log('🚀 FeeManagement component mounted, fetching data...');
+    console.log('🔑 Auth token:', localStorage.getItem('token') ? 'Present' : 'Missing');
+    console.log('🏫 College ID:', localStorage.getItem('collegeId') || 'Missing');
+    
+    // Test API first, then fetch data
+    testAPIConnection();
+    fetchFeesData();
   }, []);
 
-  const fetchFeeManagementData = async () => {
+  const fetchFeesData = async (status = 'all') => {
     try {
       setLoading(true);
-      const response = await adminAPI.getDashboard();
-      setFeeData(response?.data?.feeManagement || null);
+      setErrorMessage(''); // Clear previous errors
+      console.log('🔄 Fetching fees data with status:', status);
+      
+      const params = status !== 'all' ? { status } : {};
+      console.log('📤 API params:', params);
+      
+      const response = await adminAPI.getFees(params);
+      console.log('📊 Raw API Response:', response);
+      console.log('📊 Response type:', typeof response);
+      console.log('📊 Response keys:', Object.keys(response || {}));
+      
+      // The API interceptor already extracts response.data, so response IS the actual data
+      if (response?.success) {
+        console.log('✅ Data received:', response.data?.length, 'records');
+        console.log('📈 Summary:', response.summary);
+        console.log('🔍 First record:', response.data?.[0]);
+        
+        const feeRecords = response.data || [];
+        const summaryData = response.summary || {};
+        
+        console.log('💾 Setting state with:', {
+          records: feeRecords.length,
+          summary: summaryData
+        });
+        
+        setStudents(feeRecords);
+        setFilteredStudents(feeRecords);
+        setSummary(summaryData);
+        
+        if (feeRecords.length === 0) {
+          setErrorMessage('No fee records found. Please create fee records first.');
+        }
+      } else {
+        console.error('❌ API response not successful:', response);
+        setErrorMessage(`Failed to load fee data - API response: ${JSON.stringify(response)}`);
+      }
     } catch (error) {
-      console.error('Error fetching fee management data:', error);
-      setErrorMessage('Failed to load fee management data');
+      console.error('❌ Error fetching fees data:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        status: error.status,
+        response: error.response
+      });
+      setErrorMessage(`Failed to load fee data: ${error?.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchAllFees = async () => {
-    try {
-      const response = await adminAPI.getFees();
-      setAllFees(response?.data || []);
-    } catch (error) {
-      console.error('Error fetching fees:', error);
+  // Filter functions
+  const applyFilter = (filterType) => {
+    setSelectedFilter(filterType);
+    setPage(0); // Reset pagination
+    
+    let filtered = [];
+    const currentDate = new Date();
+    
+    switch (filterType) {
+      case 'pending':
+        filtered = students.filter(student => student.feeStatus === 'pending');
+        break;
+      case 'overdue':
+        filtered = students.filter(student => student.feeStatus === 'overdue');
+        break;
+      case 'completed':
+        filtered = students.filter(student => student.feeStatus === 'completed');
+        break;
+      default:
+        filtered = students;
     }
+    
+    setFilteredStudents(filtered);
   };
-
-  const fetchStudents = async () => {
-    try {
-      const response = await adminAPI.getStudents();
-      setStudents(response?.data || []);
-    } catch (error) {
-      console.error('Error fetching students:', error);
-    }
-  };
-
+  // Utility functions
   const formatCurrency = (amount) => {
     if (amount >= 100000) {
       return `₹${(amount / 100000).toFixed(1)}L`;
@@ -78,11 +148,21 @@ const FeeManagement = () => {
   const avatarColors = ['#4facfe', '#43e97b', '#fa709a', '#feca57', '#667eea', '#ff6b6b'];
   const getAvatarColor = (index) => avatarColors[index % avatarColors.length];
 
-  const handleRecordPayment = (fee) => {
-    setSelectedFee(fee);
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'completed': return { bg: '#E8F5E9', color: '#2E7D32', border: '#4CAF50' };
+      case 'pending': return { bg: '#FFF8E1', color: '#F57F17', border: '#FFC107' };
+      case 'overdue': return { bg: '#FFEBEE', color: '#C62828', border: '#F44336' };
+      default: return { bg: '#F5F5F5', color: '#666', border: '#CCC' };
+    }
+  };
+
+  // Event handlers
+  const handleRecordPayment = (student) => {
+    console.log('🎯 Recording payment for student:', student);
     setPaymentForm({
-      studentId: fee.student?.id || '',
-      amount: '',
+      studentId: student.student?.id || student.id || '',
+      amount: (student.dueAmount || 0).toString(),
       paymentMethod: 'cash',
       transactionId: '',
       remarks: ''
@@ -92,51 +172,75 @@ const FeeManagement = () => {
 
   const handlePaymentSubmit = async () => {
     try {
+      console.log('💰 Submitting payment:', paymentForm);
+      
       if (!paymentForm.studentId || !paymentForm.amount) {
+        const errorMsg = `Missing required fields: ${!paymentForm.studentId ? 'Student ID' : ''} ${!paymentForm.amount ? 'Amount' : ''}`;
+        console.error('❌ Validation error:', errorMsg);
         setErrorMessage('Student and amount are required');
         return;
       }
 
-      await adminAPI.createPayment({
+      const paymentData = {
         studentId: paymentForm.studentId,
         amount: parseFloat(paymentForm.amount),
         paymentMethod: paymentForm.paymentMethod,
         transactionId: paymentForm.transactionId || undefined,
         remarks: paymentForm.remarks || undefined,
         status: 'completed'
-      });
+      };
+
+      console.log('📤 Sending payment data:', paymentData);
+
+      const response = await adminAPI.createPayment(paymentData);
+      console.log('✅ Payment response:', response);
 
       setSuccessMessage('Payment recorded successfully');
       setOpenRecordPayment(false);
-      fetchFeeManagementData();
-      fetchAllFees();
+      
+      // Reset form
+      setPaymentForm({
+        studentId: '',
+        amount: '',
+        paymentMethod: 'cash',
+        transactionId: '',
+        remarks: ''
+      });
+      
+      fetchFeesData(selectedFilter); // Refresh data
     } catch (error) {
+      console.error('❌ Payment submission error:', error);
       setErrorMessage(error?.message || 'Failed to record payment');
-    }
-  };
-
-  const handleSendReminder = async (fee) => {
-    try {
-      // Implement send reminder functionality
-      setSuccessMessage(`Reminder sent to ${fee.student?.name}`);
-    } catch (error) {
-      setErrorMessage('Failed to send reminder');
     }
   };
 
   const handleImportFees = async (file) => {
     try {
       setLoading(true);
+      setErrorMessage(''); // Clear previous errors
+      setSuccessMessage(''); // Clear previous success messages
+      console.log('📤 Importing fees from file:', file.name);
+      
       const response = await adminAPI.bulkImportFees(file, 'update');
-      const result = response?.data;
+      console.log('📊 Import response:', response);
+      
+      const result = response?.data || response;
       const created = result?.created ?? 0;
       const updated = result?.updated ?? 0;
       const skipped = result?.skipped ?? 0;
       const errorCount = Array.isArray(result?.errors) ? result.errors.length : 0;
+      
       setSuccessMessage(`Import complete: created ${created}, updated ${updated}, skipped ${skipped}, errors ${errorCount}`);
-      fetchFeeManagementData();
-      fetchAllFees();
+      
+      // Force refresh data after import with a delay to ensure database is updated
+      console.log('🔄 Refreshing data after import...');
+      setTimeout(async () => {
+        await fetchFeesData('all'); // Force refresh with 'all' filter
+        setSelectedFilter('all'); // Reset filter to show all data
+      }, 1000); // 1 second delay
+      
     } catch (error) {
+      console.error('❌ Import error:', error);
       setErrorMessage(error?.message || 'Failed to import fees CSV');
     } finally {
       setLoading(false);
@@ -162,9 +266,7 @@ const FeeManagement = () => {
     );
   }
 
-  const recentFees = feeData?.recentFees || [];
-  const paginatedFees = allFees.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
-
+  const paginatedStudents = filteredStudents.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
   return (
     <DashboardLayout role="admin">
       <Box 
@@ -259,71 +361,240 @@ const FeeManagement = () => {
             >
               Record Payment
             </Button>
+            <Button
+              variant="outlined"
+              onClick={() => {
+                console.log('🔄 Force refreshing data...');
+                // Clear all state first
+                setStudents([]);
+                setFilteredStudents([]);
+                setSummary({});
+                setSelectedFilter('all');
+                // Then fetch fresh data
+                fetchFeesData('all');
+              }}
+              sx={{
+                borderColor: '#9C27B0',
+                color: '#9C27B0',
+                '&:hover': { 
+                  borderColor: '#7B1FA2',
+                  bgcolor: 'rgba(156, 39, 176, 0.04)',
+                  transform: 'translateY(-2px)' 
+                },
+                transition: 'all 0.3s ease',
+              }}
+            >
+              🔄 Force Refresh
+            </Button>
+            <Button
+              variant="outlined"
+              onClick={testAPIConnection}
+              sx={{
+                borderColor: '#FF5722',
+                color: '#FF5722',
+                '&:hover': { 
+                  borderColor: '#D84315',
+                  bgcolor: 'rgba(255, 87, 34, 0.04)',
+                  transform: 'translateY(-2px)' 
+                },
+                transition: 'all 0.3s ease',
+              }}
+            >
+              🧪 Test API
+            </Button>
           </Box>
         </Box>
+        {/* Debug Info - Remove in production */}
+        {process.env.NODE_ENV === 'development' && (
+          <Card sx={{ mb: 2, p: 2, bgcolor: '#f0f0f0' }}>
+            <Typography variant="h6">Debug Info:</Typography>
+            <Typography variant="body2">Students Array Length: {students.length}</Typography>
+            <Typography variant="body2">Filtered Students Length: {filteredStudents.length}</Typography>
+            <Typography variant="body2">Selected Filter: {selectedFilter}</Typography>
+            <Typography variant="body2">Summary: {JSON.stringify(summary)}</Typography>
+            <Typography variant="body2">First Student: {JSON.stringify(students[0])}</Typography>
+          </Card>
+        )}
 
-        {/* Summary Cards */}
+        {/* Summary Cards with Filtering */}
         <Grid container spacing={3} sx={{ mb: 4 }}>
+          {/* All Students Card */}
           <Grid item xs={12} sm={6} md={2.4}>
-            <Card sx={{
-              background: 'linear-gradient(135deg, #FFF8E1 0%, #FFECB3 100%)',
-              borderRadius: 3,
-              boxShadow: '0 4px 12px rgba(255, 193, 7, 0.15)',
-              transition: 'all 0.3s ease',
-              '&:hover': { transform: 'translateY(-5px)', boxShadow: '0 8px 24px rgba(255, 193, 7, 0.25)' }
-            }}>
+            <Card 
+              onClick={() => applyFilter('all')}
+              sx={{
+                background: selectedFilter === 'all' 
+                  ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' 
+                  : 'linear-gradient(135deg, #FFF8E1 0%, #FFECB3 100%)',
+                borderRadius: 3,
+                boxShadow: selectedFilter === 'all' 
+                  ? '0 8px 24px rgba(102, 126, 234, 0.4)' 
+                  : '0 4px 12px rgba(255, 193, 7, 0.15)',
+                transition: 'all 0.3s ease',
+                cursor: 'pointer',
+                '&:hover': { 
+                  transform: 'translateY(-5px)', 
+                  boxShadow: '0 12px 32px rgba(102, 126, 234, 0.3)' 
+                }
+              }}
+            >
               <CardContent sx={{ textAlign: 'center', py: 3 }}>
-                <Avatar sx={{ bgcolor: '#FFC107', width: 50, height: 50, mx: 'auto', mb: 2 }}>
-                  <AttachMoney sx={{ fontSize: 28, color: 'white' }} />
+                <Avatar sx={{ 
+                  bgcolor: selectedFilter === 'all' ? 'rgba(255,255,255,0.2)' : '#FFC107', 
+                  width: 50, height: 50, mx: 'auto', mb: 2 
+                }}>
+                  <AttachMoney sx={{ fontSize: 28, color: selectedFilter === 'all' ? 'white' : 'white' }} />
                 </Avatar>
-                <Typography variant="h4" sx={{ fontWeight: 800, color: '#F57F17', mb: 0.5 }}>
-                  {formatCurrency(feeData?.totalDues || 0)}
+                <Typography variant="h4" sx={{ 
+                  fontWeight: 800, 
+                  color: selectedFilter === 'all' ? 'white' : '#F57F17', 
+                  mb: 0.5 
+                }}>
+                  {summary?.totalStudents || 0}
                 </Typography>
-                <Typography variant="body2" sx={{ color: '#F57F17', fontWeight: 600 }}>Total Dues</Typography>
+                <Typography variant="body2" sx={{ 
+                  color: selectedFilter === 'all' ? 'rgba(255,255,255,0.9)' : '#F57F17', 
+                  fontWeight: 600 
+                }}>
+                  All Students
+                </Typography>
               </CardContent>
             </Card>
           </Grid>
 
+          {/* Pending Card */}
           <Grid item xs={12} sm={6} md={2.4}>
-            <Card sx={{
-              background: 'linear-gradient(135deg, #E8F5E9 0%, #C8E6C9 100%)',
-              borderRadius: 3,
-              boxShadow: '0 4px 12px rgba(76, 175, 80, 0.15)',
-              transition: 'all 0.3s ease',
-              '&:hover': { transform: 'translateY(-5px)', boxShadow: '0 8px 24px rgba(76, 175, 80, 0.25)' }
-            }}>
+            <Card 
+              onClick={() => applyFilter('pending')}
+              sx={{
+                background: selectedFilter === 'pending' 
+                  ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' 
+                  : 'linear-gradient(135deg, #FFF3E0 0%, #FFE0B2 100%)',
+                borderRadius: 3,
+                boxShadow: selectedFilter === 'pending' 
+                  ? '0 8px 24px rgba(102, 126, 234, 0.4)' 
+                  : '0 4px 12px rgba(255, 152, 0, 0.15)',
+                transition: 'all 0.3s ease',
+                cursor: 'pointer',
+                '&:hover': { 
+                  transform: 'translateY(-5px)', 
+                  boxShadow: '0 12px 32px rgba(255, 152, 0, 0.3)' 
+                }
+              }}
+            >
               <CardContent sx={{ textAlign: 'center', py: 3 }}>
-                <Avatar sx={{ bgcolor: '#4CAF50', width: 50, height: 50, mx: 'auto', mb: 2 }}>
-                  <CheckCircle sx={{ fontSize: 28, color: 'white' }} />
-                </Avatar>
-                <Typography variant="h4" sx={{ fontWeight: 800, color: '#2E7D32', mb: 0.5 }}>
-                  {formatCurrency(feeData?.totalCollected || 0)}
-                </Typography>
-                <Typography variant="body2" sx={{ color: '#2E7D32', fontWeight: 600 }}>Collected</Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-
-          <Grid item xs={12} sm={6} md={2.4}>
-            <Card sx={{
-              background: 'linear-gradient(135deg, #FFF3E0 0%, #FFE0B2 100%)',
-              borderRadius: 3,
-              boxShadow: '0 4px 12px rgba(255, 152, 0, 0.15)',
-              transition: 'all 0.3s ease',
-              '&:hover': { transform: 'translateY(-5px)', boxShadow: '0 8px 24px rgba(255, 152, 0, 0.25)' }
-            }}>
-              <CardContent sx={{ textAlign: 'center', py: 3 }}>
-                <Avatar sx={{ bgcolor: '#FF9800', width: 50, height: 50, mx: 'auto', mb: 2 }}>
+                <Avatar sx={{ 
+                  bgcolor: selectedFilter === 'pending' ? 'rgba(255,255,255,0.2)' : '#FF9800', 
+                  width: 50, height: 50, mx: 'auto', mb: 2 
+                }}>
                   <TrendingUp sx={{ fontSize: 28, color: 'white' }} />
                 </Avatar>
-                <Typography variant="h4" sx={{ fontWeight: 800, color: '#E65100', mb: 0.5 }}>
-                  {formatCurrency(feeData?.totalPending || 0)}
+                <Typography variant="h4" sx={{ 
+                  fontWeight: 800, 
+                  color: selectedFilter === 'pending' ? 'white' : '#E65100', 
+                  mb: 0.5 
+                }}>
+                  {summary?.pendingCount || 0}
                 </Typography>
-                <Typography variant="body2" sx={{ color: '#E65100', fontWeight: 600 }}>Pending</Typography>
+                <Typography variant="body2" sx={{ 
+                  color: selectedFilter === 'pending' ? 'rgba(255,255,255,0.9)' : '#E65100', 
+                  fontWeight: 600 
+                }}>
+                  Pending
+                </Typography>
               </CardContent>
             </Card>
           </Grid>
 
+          {/* Overdue Card */}
+          <Grid item xs={12} sm={6} md={2.4}>
+            <Card 
+              onClick={() => applyFilter('overdue')}
+              sx={{
+                background: selectedFilter === 'overdue' 
+                  ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' 
+                  : 'linear-gradient(135deg, #FFEBEE 0%, #FFCDD2 100%)',
+                borderRadius: 3,
+                boxShadow: selectedFilter === 'overdue' 
+                  ? '0 8px 24px rgba(102, 126, 234, 0.4)' 
+                  : '0 4px 12px rgba(244, 67, 54, 0.15)',
+                transition: 'all 0.3s ease',
+                cursor: 'pointer',
+                '&:hover': { 
+                  transform: 'translateY(-5px)', 
+                  boxShadow: '0 12px 32px rgba(244, 67, 54, 0.3)' 
+                }
+              }}
+            >
+              <CardContent sx={{ textAlign: 'center', py: 3 }}>
+                <Avatar sx={{ 
+                  bgcolor: selectedFilter === 'overdue' ? 'rgba(255,255,255,0.2)' : '#F44336', 
+                  width: 50, height: 50, mx: 'auto', mb: 2 
+                }}>
+                  <Warning sx={{ fontSize: 28, color: 'white' }} />
+                </Avatar>
+                <Typography variant="h4" sx={{ 
+                  fontWeight: 800, 
+                  color: selectedFilter === 'overdue' ? 'white' : '#C62828', 
+                  mb: 0.5 
+                }}>
+                  {summary?.overdueCount || 0}
+                </Typography>
+                <Typography variant="body2" sx={{ 
+                  color: selectedFilter === 'overdue' ? 'rgba(255,255,255,0.9)' : '#C62828', 
+                  fontWeight: 600 
+                }}>
+                  Overdue
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* Completed Card */}
+          <Grid item xs={12} sm={6} md={2.4}>
+            <Card 
+              onClick={() => applyFilter('completed')}
+              sx={{
+                background: selectedFilter === 'completed' 
+                  ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' 
+                  : 'linear-gradient(135deg, #E8F5E9 0%, #C8E6C9 100%)',
+                borderRadius: 3,
+                boxShadow: selectedFilter === 'completed' 
+                  ? '0 8px 24px rgba(102, 126, 234, 0.4)' 
+                  : '0 4px 12px rgba(76, 175, 80, 0.15)',
+                transition: 'all 0.3s ease',
+                cursor: 'pointer',
+                '&:hover': { 
+                  transform: 'translateY(-5px)', 
+                  boxShadow: '0 12px 32px rgba(76, 175, 80, 0.3)' 
+                }
+              }}
+            >
+              <CardContent sx={{ textAlign: 'center', py: 3 }}>
+                <Avatar sx={{ 
+                  bgcolor: selectedFilter === 'completed' ? 'rgba(255,255,255,0.2)' : '#4CAF50', 
+                  width: 50, height: 50, mx: 'auto', mb: 2 
+                }}>
+                  <CheckCircle sx={{ fontSize: 28, color: 'white' }} />
+                </Avatar>
+                <Typography variant="h4" sx={{ 
+                  fontWeight: 800, 
+                  color: selectedFilter === 'completed' ? 'white' : '#2E7D32', 
+                  mb: 0.5 
+                }}>
+                  {summary?.completedCount || 0}
+                </Typography>
+                <Typography variant="body2" sx={{ 
+                  color: selectedFilter === 'completed' ? 'rgba(255,255,255,0.9)' : '#2E7D32', 
+                  fontWeight: 600 
+                }}>
+                  Completed
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* Collection Rate Card */}
           <Grid item xs={12} sm={6} md={2.4}>
             <Card sx={{
               background: 'linear-gradient(135deg, #E3F2FD 0%, #BBDEFB 100%)',
@@ -337,40 +608,31 @@ const FeeManagement = () => {
                   <TrendingUp sx={{ fontSize: 28, color: 'white' }} />
                 </Avatar>
                 <Typography variant="h4" sx={{ fontWeight: 800, color: '#0D47A1', mb: 0.5 }}>
-                  {feeData?.overallCollectionRate || 0}%
+                  {summary?.collectionRate || 0}%
                 </Typography>
                 <Typography variant="body2" sx={{ color: '#0D47A1', fontWeight: 600 }}>Collection Rate</Typography>
               </CardContent>
             </Card>
           </Grid>
-
-          <Grid item xs={12} sm={6} md={2.4}>
-            <Card sx={{
-              background: 'linear-gradient(135deg, #FFEBEE 0%, #FFCDD2 100%)',
-              borderRadius: 3,
-              boxShadow: '0 4px 12px rgba(244, 67, 54, 0.15)',
-              transition: 'all 0.3s ease',
-              '&:hover': { transform: 'translateY(-5px)', boxShadow: '0 8px 24px rgba(244, 67, 54, 0.25)' }
-            }}>
-              <CardContent sx={{ textAlign: 'center', py: 3 }}>
-                <Avatar sx={{ bgcolor: '#F44336', width: 50, height: 50, mx: 'auto', mb: 2 }}>
-                  <Warning sx={{ fontSize: 28, color: 'white' }} />
-                </Avatar>
-                <Typography variant="h4" sx={{ fontWeight: 800, color: '#C62828', mb: 0.5 }}>
-                  {feeData?.overdueStudents || 0}
-                </Typography>
-                <Typography variant="body2" sx={{ color: '#C62828', fontWeight: 600 }}>Overdue Students</Typography>
-              </CardContent>
-            </Card>
-          </Grid>
         </Grid>
-
         {/* Fee Records Table */}
         <Card sx={{ 
           borderRadius: 3, 
           background: 'white',
           boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
         }}>
+          <Box sx={{ p: 2, borderBottom: '1px solid #e0e0e0' }}>
+            <Typography variant="h6" sx={{ fontWeight: 700, color: '#1a1a1a' }}>
+              {selectedFilter === 'all' ? 'All Students' : 
+               selectedFilter === 'pending' ? 'Pending Payments' :
+               selectedFilter === 'overdue' ? 'Overdue Payments' :
+               selectedFilter === 'completed' ? 'Completed Payments' : 'Fee Records'}
+            </Typography>
+            <Typography variant="body2" sx={{ color: '#666' }}>
+              {filteredStudents.length} {filteredStudents.length === 1 ? 'student' : 'students'} found
+            </Typography>
+          </Box>
+          
           <TableContainer>
             <Table>
               <TableHead>
@@ -386,64 +648,78 @@ const FeeManagement = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {paginatedFees.length === 0 ? (
+                {paginatedStudents.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={8} align="center" sx={{ color: '#666', py: 4 }}>
-                      No fee records found
+                      {selectedFilter === 'all' ? 'No fee records found' : 
+                       `No ${selectedFilter} payments found`}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  paginatedFees.map((fee, index) => {
-                    const status = fee.isActive ? 'pending' : 'paid';
+                  paginatedStudents.map((student, index) => {
+                    const statusStyle = getStatusColor(student.feeStatus);
                     return (
-                      <TableRow key={fee.id} sx={{ '&:hover': { bgcolor: '#f5f7fa' }, '& td': { color: '#1a1a1a', borderBottom: '1px solid #e0e0e0', py: 2 } }}>
+                      <TableRow key={student.id} sx={{ '&:hover': { bgcolor: '#f5f7fa' }, '& td': { color: '#1a1a1a', borderBottom: '1px solid #e0e0e0', py: 2 } }}>
                         <TableCell>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                             <Avatar sx={{ width: 40, height: 40, bgcolor: getAvatarColor(index), fontSize: '1rem', fontWeight: 700 }}>
-                              {fee.student?.name?.charAt(0) || 'S'}
+                              {student.name?.charAt(0) || 'S'}
                             </Avatar>
-                            <Typography variant="body2" sx={{ fontWeight: 600, color: '#1a1a1a' }}>
-                              {fee.student?.name || 'Unknown'}
-                            </Typography>
+                            <Box>
+                              <Typography variant="body2" sx={{ fontWeight: 600, color: '#1a1a1a' }}>
+                                {student.name || 'Unknown'}
+                              </Typography>
+                              <Typography variant="caption" sx={{ color: '#666' }}>
+                                {student.studentId || 'N/A'}
+                              </Typography>
+                            </Box>
                           </Box>
                         </TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>{fee.student?.sclass?.sclassName || 'N/A'}</TableCell>
-                        <TableCell sx={{ fontWeight: 700, color: '#1976D2' }}>₹{fee.amount?.toLocaleString() || 0}</TableCell>
-                        <TableCell sx={{ fontWeight: 700, color: '#2E7D32' }}>₹0</TableCell>
-                        <TableCell sx={{ fontWeight: 700, color: '#F57F17' }}>₹{fee.amount?.toLocaleString() || 0}</TableCell>
-                        <TableCell>{fee.dueDate ? new Date(fee.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'N/A'}</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>{student.class || 'N/A'}</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#1976D2' }}>₹{(student.totalFee || 0).toLocaleString()}</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#2E7D32' }}>₹{(student.paidAmount || 0).toLocaleString()}</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#F57F17' }}>₹{(student.dueAmount || 0).toLocaleString()}</TableCell>
+                        <TableCell>
+                          {student.dueDate ? new Date(student.dueDate).toLocaleDateString('en-US', { 
+                            month: 'short', 
+                            day: 'numeric',
+                            year: 'numeric'
+                          }) : 'N/A'}
+                        </TableCell>
                         <TableCell>
                           <Chip
-                            label={status === 'paid' ? 'Paid' : 'Pending'}
+                            label={student.feeStatus === 'completed' ? 'Paid' : 
+                                  student.feeStatus === 'pending' ? 'Pending' : 
+                                  student.feeStatus === 'overdue' ? 'Overdue' : 'Unknown'}
                             size="small"
                             sx={{
-                              bgcolor: status === 'paid' ? '#E8F5E9' : '#FFF8E1',
-                              color: status === 'paid' ? '#2E7D32' : '#F57F17',
+                              bgcolor: statusStyle.bg,
+                              color: statusStyle.color,
                               fontWeight: 700,
-                              border: `1px solid ${status === 'paid' ? '#4CAF50' : '#FFC107'}`,
+                              border: `1px solid ${statusStyle.border}`,
                             }}
                           />
                         </TableCell>
                         <TableCell>
-                          <Button
-                            size="small"
-                            variant="contained"
-                            startIcon={<Send />}
-                            onClick={() => handleSendReminder(fee)}
-                            sx={{
-                              bgcolor: 'rgba(79, 172, 254, 0.2)',
-                              backdropFilter: 'blur(10px)',
-                              border: '1px solid rgba(79, 172, 254, 0.3)',
-                              color: 'white',
-                              textTransform: 'none',
-                              fontSize: '0.75rem',
-                              py: 0.75,
-                              px: 2,
-                              '&:hover': { bgcolor: 'rgba(79, 172, 254, 0.3)' }
-                            }}
-                          >
-                            Send Reminder
-                          </Button>
+                          {student.feeStatus !== 'completed' && (
+                            <Button
+                              size="small"
+                              variant="contained"
+                              startIcon={<Send />}
+                              onClick={() => handleRecordPayment(student)}
+                              sx={{
+                                bgcolor: '#4CAF50',
+                                color: 'white',
+                                textTransform: 'none',
+                                fontSize: '0.75rem',
+                                py: 0.75,
+                                px: 2,
+                                '&:hover': { bgcolor: '#45A049' }
+                              }}
+                            >
+                              Record Payment
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
                     );
@@ -452,9 +728,10 @@ const FeeManagement = () => {
               </TableBody>
             </Table>
           </TableContainer>
+          
           <TablePagination
             component="div"
-            count={allFees.length}
+            count={filteredStudents.length}
             page={page}
             onPageChange={handleChangePage}
             rowsPerPage={rowsPerPage}
@@ -468,7 +745,6 @@ const FeeManagement = () => {
             }}
           />
         </Card>
-
         {/* Summary Card at Bottom */}
         <Card sx={{ 
           mt: 4,
@@ -484,7 +760,7 @@ const FeeManagement = () => {
               <Grid item xs={12} sm={6} md={3}>
                 <Box sx={{ textAlign: 'center' }}>
                   <Typography variant="h4" sx={{ fontWeight: 800, color: '#1976D2', mb: 0.5 }}>
-                    {formatCurrency(allFees.reduce((sum, fee) => sum + (fee.amount || 0), 0))}
+                    {formatCurrency(summary?.totalFees || 0)}
                   </Typography>
                   <Typography variant="body2" sx={{ color: '#2E7D32', fontWeight: 600 }}>
                     Total Fees
@@ -494,7 +770,7 @@ const FeeManagement = () => {
               <Grid item xs={12} sm={6} md={3}>
                 <Box sx={{ textAlign: 'center' }}>
                   <Typography variant="h4" sx={{ fontWeight: 800, color: '#2E7D32', mb: 0.5 }}>
-                    ₹0
+                    {formatCurrency(summary?.totalCollected || 0)}
                   </Typography>
                   <Typography variant="body2" sx={{ color: '#2E7D32', fontWeight: 600 }}>
                     Total Collected
@@ -504,7 +780,7 @@ const FeeManagement = () => {
               <Grid item xs={12} sm={6} md={3}>
                 <Box sx={{ textAlign: 'center' }}>
                   <Typography variant="h4" sx={{ fontWeight: 800, color: '#F57F17', mb: 0.5 }}>
-                    {formatCurrency(allFees.reduce((sum, fee) => sum + (fee.amount || 0), 0))}
+                    {formatCurrency(summary?.totalDue || 0)}
                   </Typography>
                   <Typography variant="body2" sx={{ color: '#2E7D32', fontWeight: 600 }}>
                     Total Due
@@ -514,7 +790,7 @@ const FeeManagement = () => {
               <Grid item xs={12} sm={6} md={3}>
                 <Box sx={{ textAlign: 'center' }}>
                   <Typography variant="h4" sx={{ fontWeight: 800, color: '#0D47A1', mb: 0.5 }}>
-                    {allFees.length}
+                    {summary?.totalStudents || 0}
                   </Typography>
                   <Typography variant="body2" sx={{ color: '#2E7D32', fontWeight: 600 }}>
                     Total Students
@@ -538,8 +814,8 @@ const FeeManagement = () => {
                   onChange={(e) => setPaymentForm({ ...paymentForm, studentId: e.target.value })}
                 >
                   {students.map((student) => (
-                    <MenuItem key={student.id} value={student.id}>
-                      {student.name} - {student.studentId} ({student.sclass?.sclassName || 'N/A'})
+                    <MenuItem key={student.id} value={student.student?.id || student.id}>
+                      {student.name || 'Unknown'} - {student.studentId || 'N/A'} ({student.class || 'N/A'})
                     </MenuItem>
                   ))}
                 </Select>

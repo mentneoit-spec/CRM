@@ -17,7 +17,16 @@ const FeeManagement = () => {
   const [students, setStudents] = useState([]); // Original backend data
   const [filteredStudents, setFilteredStudents] = useState([]); // Filtered data
   const [selectedFilter, setSelectedFilter] = useState('all'); // Filter state
-  const [summary, setSummary] = useState(null); // Summary statistics
+  const [summary, setSummary] = useState({
+    totalStudents: 0,
+    totalFees: 0,
+    totalCollected: 0,
+    totalDue: 0,
+    completedCount: 0,
+    pendingCount: 0,
+    overdueCount: 0,
+    collectionRate: 0
+  }); // Summary statistics with defaults
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [openRecordPayment, setOpenRecordPayment] = useState(false);
@@ -32,32 +41,8 @@ const FeeManagement = () => {
     remarks: ''
   });
 
-  // Test API connection
-  const testAPIConnection = async () => {
-    try {
-      console.log('🧪 Testing API connection...');
-      
-      // Test basic connection
-      const dashboardResponse = await adminAPI.getDashboard();
-      console.log('📊 Dashboard API response:', dashboardResponse);
-      
-      // Test fees API specifically
-      const feesResponse = await adminAPI.getFees();
-      console.log('💰 Fees API response:', feesResponse);
-      
-    } catch (error) {
-      console.error('❌ API test failed:', error);
-    }
-  };
-
   // Fetch data from backend
   useEffect(() => {
-    console.log('🚀 FeeManagement component mounted, fetching data...');
-    console.log('🔑 Auth token:', localStorage.getItem('token') ? 'Present' : 'Missing');
-    console.log('🏫 College ID:', localStorage.getItem('collegeId') || 'Missing');
-    
-    // Test API first, then fetch data
-    testAPIConnection();
     fetchFeesData();
   }, []);
 
@@ -65,48 +50,70 @@ const FeeManagement = () => {
     try {
       setLoading(true);
       setErrorMessage(''); // Clear previous errors
+      
       console.log('🔄 Fetching fees data with status:', status);
       
       const params = status !== 'all' ? { status } : {};
-      console.log('📤 API params:', params);
-      
       const response = await adminAPI.getFees(params);
-      console.log('📊 Raw API Response:', response);
-      console.log('📊 Response type:', typeof response);
-      console.log('📊 Response keys:', Object.keys(response || {}));
+      
+      console.log('📡 API Response:', response);
+      console.log('📡 Response type:', typeof response);
+      console.log('📡 Response keys:', Object.keys(response || {}));
+      console.log('📡 Response.success:', response?.success);
+      console.log('📡 Response.data length:', response?.data?.length);
+      console.log('📡 Response.summary:', response?.summary);
       
       // The API interceptor already extracts response.data, so response IS the actual data
       if (response?.success) {
-        console.log('✅ Data received:', response.data?.length, 'records');
-        console.log('📈 Summary:', response.summary);
-        console.log('🔍 First record:', response.data?.[0]);
-        
         const feeRecords = response.data || [];
-        const summaryData = response.summary || {};
+        const summaryData = response.summary || {
+          totalStudents: 0,
+          totalFees: 0,
+          totalCollected: 0,
+          totalDue: 0,
+          completedCount: 0,
+          pendingCount: 0,
+          overdueCount: 0,
+          collectionRate: 0
+        };
         
-        console.log('💾 Setting state with:', {
-          records: feeRecords.length,
-          summary: summaryData
-        });
+        console.log('✅ Fee records received:', feeRecords.length);
+        console.log('📊 Summary data:', summaryData);
+        
+        // If summary is empty but we have data, calculate it manually
+        if (feeRecords.length > 0 && summaryData.totalStudents === 0) {
+          console.log('🔧 Calculating summary manually from fee records');
+          const manualSummary = {
+            totalStudents: feeRecords.length,
+            totalFees: feeRecords.reduce((sum, fee) => sum + (fee.totalFee || 0), 0),
+            totalCollected: feeRecords.reduce((sum, fee) => sum + (fee.paidAmount || 0), 0),
+            totalDue: feeRecords.reduce((sum, fee) => sum + (fee.dueAmount || 0), 0),
+            completedCount: feeRecords.filter(fee => fee.feeStatus === 'completed').length,
+            pendingCount: feeRecords.filter(fee => fee.feeStatus === 'pending').length,
+            overdueCount: feeRecords.filter(fee => fee.feeStatus === 'overdue').length,
+            collectionRate: 0
+          };
+          manualSummary.collectionRate = manualSummary.totalFees > 0 ? 
+            Math.round((manualSummary.totalCollected / manualSummary.totalFees) * 100) : 0;
+          
+          console.log('🔧 Manual summary:', manualSummary);
+          setSummary(manualSummary);
+        } else {
+          setSummary(summaryData);
+        }
         
         setStudents(feeRecords);
         setFilteredStudents(feeRecords);
-        setSummary(summaryData);
         
         if (feeRecords.length === 0) {
           setErrorMessage('No fee records found. Please create fee records first.');
         }
       } else {
         console.error('❌ API response not successful:', response);
-        setErrorMessage(`Failed to load fee data - API response: ${JSON.stringify(response)}`);
+        setErrorMessage('Failed to load fee data - API response not successful');
       }
     } catch (error) {
       console.error('❌ Error fetching fees data:', error);
-      console.error('❌ Error details:', {
-        message: error.message,
-        status: error.status,
-        response: error.response
-      });
       setErrorMessage(`Failed to load fee data: ${error?.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
@@ -119,7 +126,6 @@ const FeeManagement = () => {
     setPage(0); // Reset pagination
     
     let filtered = [];
-    const currentDate = new Date();
     
     switch (filterType) {
       case 'pending':
@@ -172,11 +178,7 @@ const FeeManagement = () => {
 
   const handlePaymentSubmit = async () => {
     try {
-      console.log('💰 Submitting payment:', paymentForm);
-      
       if (!paymentForm.studentId || !paymentForm.amount) {
-        const errorMsg = `Missing required fields: ${!paymentForm.studentId ? 'Student ID' : ''} ${!paymentForm.amount ? 'Amount' : ''}`;
-        console.error('❌ Validation error:', errorMsg);
         setErrorMessage('Student and amount are required');
         return;
       }
@@ -190,10 +192,7 @@ const FeeManagement = () => {
         status: 'completed'
       };
 
-      console.log('📤 Sending payment data:', paymentData);
-
-      const response = await adminAPI.createPayment(paymentData);
-      console.log('✅ Payment response:', response);
+      await adminAPI.createPayment(paymentData);
 
       setSuccessMessage('Payment recorded successfully');
       setOpenRecordPayment(false);
@@ -207,9 +206,8 @@ const FeeManagement = () => {
         remarks: ''
       });
       
-      fetchFeesData(selectedFilter); // Refresh data
+      fetchFeesData(selectedFilter);
     } catch (error) {
-      console.error('❌ Payment submission error:', error);
       setErrorMessage(error?.message || 'Failed to record payment');
     }
   };
@@ -217,14 +215,16 @@ const FeeManagement = () => {
   const handleImportFees = async (file) => {
     try {
       setLoading(true);
-      setErrorMessage(''); // Clear previous errors
-      setSuccessMessage(''); // Clear previous success messages
-      console.log('📤 Importing fees from file:', file.name);
+      setErrorMessage('');
+      setSuccessMessage('');
+      
+      console.log('📤 Starting CSV import for file:', file.name);
       
       const response = await adminAPI.bulkImportFees(file, 'update');
-      console.log('📊 Import response:', response);
-      
       const result = response?.data || response;
+      
+      console.log('📥 Import response:', result);
+      
       const created = result?.created ?? 0;
       const updated = result?.updated ?? 0;
       const skipped = result?.skipped ?? 0;
@@ -232,12 +232,14 @@ const FeeManagement = () => {
       
       setSuccessMessage(`Import complete: created ${created}, updated ${updated}, skipped ${skipped}, errors ${errorCount}`);
       
-      // Force refresh data after import with a delay to ensure database is updated
-      console.log('🔄 Refreshing data after import...');
+      console.log('✅ Import completed, refreshing data...');
+      
+      // Force refresh data after import with a delay
       setTimeout(async () => {
-        await fetchFeesData('all'); // Force refresh with 'all' filter
-        setSelectedFilter('all'); // Reset filter to show all data
-      }, 1000); // 1 second delay
+        await fetchFeesData('all');
+        setSelectedFilter('all');
+        console.log('🔄 Data refreshed after import');
+      }, 1000);
       
     } catch (error) {
       console.error('❌ Import error:', error);
@@ -364,11 +366,20 @@ const FeeManagement = () => {
             <Button
               variant="outlined"
               onClick={() => {
-                console.log('🔄 Force refreshing data...');
+                console.log('🔄 Manual refresh triggered');
                 // Clear all state first
                 setStudents([]);
                 setFilteredStudents([]);
-                setSummary({});
+                setSummary({
+                  totalStudents: 0,
+                  totalFees: 0,
+                  totalCollected: 0,
+                  totalDue: 0,
+                  completedCount: 0,
+                  pendingCount: 0,
+                  overdueCount: 0,
+                  collectionRate: 0
+                });
                 setSelectedFilter('all');
                 // Then fetch fresh data
                 fetchFeesData('all');
@@ -384,38 +395,10 @@ const FeeManagement = () => {
                 transition: 'all 0.3s ease',
               }}
             >
-              🔄 Force Refresh
-            </Button>
-            <Button
-              variant="outlined"
-              onClick={testAPIConnection}
-              sx={{
-                borderColor: '#FF5722',
-                color: '#FF5722',
-                '&:hover': { 
-                  borderColor: '#D84315',
-                  bgcolor: 'rgba(255, 87, 34, 0.04)',
-                  transform: 'translateY(-2px)' 
-                },
-                transition: 'all 0.3s ease',
-              }}
-            >
-              🧪 Test API
+              🔄 Refresh
             </Button>
           </Box>
         </Box>
-        {/* Debug Info - Remove in production */}
-        {process.env.NODE_ENV === 'development' && (
-          <Card sx={{ mb: 2, p: 2, bgcolor: '#f0f0f0' }}>
-            <Typography variant="h6">Debug Info:</Typography>
-            <Typography variant="body2">Students Array Length: {students.length}</Typography>
-            <Typography variant="body2">Filtered Students Length: {filteredStudents.length}</Typography>
-            <Typography variant="body2">Selected Filter: {selectedFilter}</Typography>
-            <Typography variant="body2">Summary: {JSON.stringify(summary)}</Typography>
-            <Typography variant="body2">First Student: {JSON.stringify(students[0])}</Typography>
-          </Card>
-        )}
-
         {/* Summary Cards with Filtering */}
         <Grid container spacing={3} sx={{ mb: 4 }}>
           {/* All Students Card */}

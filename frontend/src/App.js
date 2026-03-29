@@ -102,6 +102,17 @@ import AdminProfileModern from './pages/admin/AdminProfileModern';
 import ChooseUser from './pages/ChooseUser';
 import ProtectedRoute from './components/ProtectedRoute';
 
+// AI Dashboards
+import AdminAIDashboard from './pages/ai/AdminAIDashboard';
+import TeacherAIDashboard from './pages/ai/TeacherAIDashboard';
+import StudentAIDashboard from './pages/ai/StudentAIDashboard';
+import ParentAIDashboard from './pages/ai/ParentAIDashboard';
+
+// HR Portal
+import HRDashboard from './pages/hr/HRDashboard';
+
+import DevTestPage from './pages/DevTestPage';
+
 const getStoredRoleHome = () => {
   try {
     const userRaw = localStorage.getItem('user');
@@ -122,6 +133,8 @@ const getStoredRoleHome = () => {
         return '/accounts/dashboard';
       case 'TransportTeam':
         return '/transport/dashboard';
+      case 'HRTeam':
+        return '/hr/dashboard';
       default:
         return '/';
     }
@@ -136,6 +149,9 @@ function App() {
       <CssBaseline />
       <Router>
         <Routes>
+          {/* Dev Test Page */}
+          <Route path="/dev-test" element={<DevTestPage />} />
+          
           {/* Modern Routes */}
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<ModernLogin />} />
@@ -293,6 +309,10 @@ function App() {
             path="/admin/profile"
             element={<ProtectedRoute allowedRoles={["Admin", "SuperAdmin"]} element={<AdminProfileModern />} />}
           />
+          <Route
+            path="/admin/ai"
+            element={<ProtectedRoute allowedRoles={["Admin", "SuperAdmin"]} element={<AdminAIDashboard />} />}
+          />
 
           <Route
             path="/teacher/dashboard"
@@ -338,6 +358,10 @@ function App() {
             path="/teacher/settings"
             element={<ProtectedRoute allowedRoles={["Teacher"]} element={<TeacherSettingsModern />} />}
           />
+          <Route
+            path="/teacher/ai"
+            element={<ProtectedRoute allowedRoles={["Teacher"]} element={<TeacherAIDashboard />} />}
+          />
 
           <Route
             path="/parent/dashboard"
@@ -374,6 +398,10 @@ function App() {
           <Route
             path="/parent/feedback"
             element={<ProtectedRoute allowedRoles={["Parent"]} element={<ParentFeedback />} />}
+          />
+          <Route
+            path="/parent/ai"
+            element={<ProtectedRoute allowedRoles={["Parent"]} element={<ParentAIDashboard />} />}
           />
 
           <Route
@@ -447,6 +475,11 @@ function App() {
           />
 
           <Route
+            path="/hr/dashboard"
+            element={<ProtectedRoute allowedRoles={["HRTeam", "Admin", "SuperAdmin"]} element={<HRDashboard />} />}
+          />
+
+          <Route
             path="/student/dashboard"
             element={<ProtectedRoute allowedRoles={["Student"]} element={<StudentDashboardModern />} />}
           />
@@ -501,6 +534,10 @@ function App() {
           <Route
             path="/student/notices"
             element={<ProtectedRoute allowedRoles={["Student"]} element={<StudentDashboardModern />} />}
+          />
+          <Route
+            path="/student/ai"
+            element={<ProtectedRoute allowedRoles={["Student"]} element={<StudentAIDashboard />} />}
           />
 
           {/* Old Routes (backward compatibility) */}

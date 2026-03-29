@@ -36,6 +36,7 @@ import {
   DirectionsBus,
   Announcement,
   Receipt,
+  Psychology as AIIcon,
 } from '@mui/icons-material';
 import { useSelector } from 'react-redux';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -143,6 +144,7 @@ const DashboardLayout = ({ children, role = 'student' }) => {
     ],
     student: [
       { text: 'Dashboard', icon: <Dashboard />, path: '/student/dashboard' },
+      { text: 'AI Assistant', icon: <AIIcon />, path: '/student/ai', badge: 'NEW' },
       { text: 'My Courses', icon: <School />, path: '/student/courses' },
       { text: 'Attendance', icon: <Event />, path: '/student/attendance' },
       { text: 'Assignments', icon: <Assignment />, path: '/student/assignments' },
@@ -153,6 +155,7 @@ const DashboardLayout = ({ children, role = 'student' }) => {
     ],
     teacher: [
       { text: 'Dashboard', icon: <Dashboard />, path: '/teacher/dashboard' },
+      { text: 'AI Assistant', icon: <AIIcon />, path: '/teacher/ai', badge: 'NEW' },
       { text: 'My Classes', icon: <School />, path: '/teacher/classes' },
       { text: 'Students', icon: <People />, path: '/teacher/students' },
       { text: 'Attendance', icon: <Event />, path: '/teacher/attendance' },
@@ -163,6 +166,7 @@ const DashboardLayout = ({ children, role = 'student' }) => {
     ],
     parent: [
       { text: 'Dashboard', icon: <Dashboard />, path: '/parent/dashboard' },
+      { text: 'AI Assistant', icon: <AIIcon />, path: '/parent/ai', badge: 'NEW' },
       { text: 'My Children', icon: <People />, path: '/parent/children' },
       { text: 'Attendance', icon: <Event />, path: '/parent/attendance' },
       { text: 'Academic Progress', icon: <Assessment />, path: '/parent/progress' },
@@ -171,6 +175,7 @@ const DashboardLayout = ({ children, role = 'student' }) => {
     ],
     admin: [
       { text: 'Dashboard', icon: <Dashboard />, path: '/admin/dashboard' },
+      { text: 'AI Assistant', icon: <AIIcon />, path: '/admin/ai', badge: 'NEW' },
       { text: 'Analytics', icon: <Assessment />, path: '/admin/analytics' },
       { text: 'Students', icon: <People />, path: '/admin/students' },
       { text: 'Teachers', icon: <People />, path: '/admin/teachers' },
@@ -247,6 +252,20 @@ const DashboardLayout = ({ children, role = 'student' }) => {
                     fontWeight: isActive ? 600 : 500,
                   }}
                 />
+                {item.badge && (
+                  <Chip
+                    label={item.badge}
+                    size="small"
+                    sx={{
+                      height: 20,
+                      fontSize: '0.65rem',
+                      backgroundColor: isActive ? 'rgba(255,255,255,0.3)' : '#FF6B6B',
+                      color: isActive ? 'white' : 'white',
+                      fontWeight: 'bold',
+                      ml: 1
+                    }}
+                  />
+                )}
               </ListItemButton>
             </ListItem>
           );

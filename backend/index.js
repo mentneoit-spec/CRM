@@ -246,6 +246,9 @@ app.post("/api/webhooks/razorpay", handleWebhook);
 // Public Auth
 app.use("/api/auth", require("./routes/auth-routes"));
 
+// 🤖 AI Chatbot (Public - No Auth Required)
+app.use("/api/ai", require("./routes/aiChatbot"));
+
 // Protected Routes
 app.use("/api/superadmin", authMiddleware, require("./routes/superadmin-routes"));
 app.use("/api/admin", authMiddleware, require("./routes/admin-routes"));

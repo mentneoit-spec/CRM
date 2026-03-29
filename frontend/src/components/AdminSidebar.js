@@ -21,7 +21,8 @@ import {
   EventNote as EventNoteIcon,
   CheckCircle as CheckCircleIcon,
   Groups as GroupsIcon,
-  CloudUpload
+  CloudUpload,
+  Psychology as AIIcon
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 
@@ -33,6 +34,12 @@ const menuStructure = [
     icon: DashboardIcon,
     path: '/admin/dashboard',
     badge: null
+  },
+  {
+    label: 'AI Assistant',
+    icon: AIIcon,
+    path: '/admin/ai',
+    badge: 'NEW'
   },
   {
     label: 'Academic',
@@ -183,12 +190,12 @@ const AdminSidebar = ({ open = true, onClose }) => {
             />
             {item.badge && (
               <Chip
-                label={item.badge.count}
+                label={typeof item.badge === 'string' ? item.badge : item.badge.count}
                 size="small"
                 sx={{
                   height: 20,
                   fontSize: '0.75rem',
-                  backgroundColor: item.badge.color,
+                  backgroundColor: typeof item.badge === 'string' ? '#FF6B6B' : item.badge.color,
                   color: 'white',
                   fontWeight: 'bold'
                 }}

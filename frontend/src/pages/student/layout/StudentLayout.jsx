@@ -3,10 +3,11 @@ import { NavLink, useLocation } from "react-router-dom";
 import { cn } from "../../../lib/utils";
 import StudentHeader from "../components/StudentHeader";
 import BottomNavigation from "../components/BottomNavigation";
-import { CalendarCheck, ClipboardList, FileText, Home, MessageCircle, UserRound, Wallet, Medal, Settings } from "lucide-react";
+import { CalendarCheck, ClipboardList, FileText, Home, MessageCircle, UserRound, Wallet, Medal, Settings, Sparkles } from "lucide-react";
 
 const sidebarItems = [
   { label: "Dashboard", icon: Home, to: "/student/dashboard" },
+  { label: "AI Assistant", icon: Sparkles, to: "/student/ai", badge: "NEW" },
   { label: "Homework", icon: ClipboardList, to: "/student/homework" },
   { label: "Tests", icon: FileText, to: "/student/tests" },
   { label: "Marks", icon: Medal, to: "/student/marks" },
@@ -35,13 +36,20 @@ function StudentLayout({ title, children }) {
                 to={item.to}
                 className={({ isActive }) =>
                   cn(
-                    "flex items-center gap-3 rounded-xl px-3 py-2 text-sm text-gray-600 transition hover:bg-indigo-50 hover:text-indigo-600 dark:text-gray-300 dark:hover:bg-indigo-500/10",
+                    "flex items-center justify-between gap-3 rounded-xl px-3 py-2 text-sm text-gray-600 transition hover:bg-indigo-50 hover:text-indigo-600 dark:text-gray-300 dark:hover:bg-indigo-500/10",
                     isActive && "bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-200"
                   )
                 }
               >
-                <item.icon className="h-4 w-4" />
-                <span>{item.label}</span>
+                <div className="flex items-center gap-3">
+                  <item.icon className="h-4 w-4" />
+                  <span>{item.label}</span>
+                </div>
+                {item.badge && (
+                  <span className="inline-block rounded-full bg-red-500 px-2 py-0.5 text-xs font-semibold text-white">
+                    {item.badge}
+                  </span>
+                )}
               </NavLink>
             ))}
           </div>

@@ -1,0 +1,80 @@
+🏫 🎯 1. COLLEGE / ADMIN SIDE AI
+🧠 AI Chat Assistant (Admin Control)
+“Total attendance report ivvu”
+“Fee pending students list ivvu”
+📊 AI Analytics Dashboard
+Overall performance
+Department-wise stats
+Attendance trends
+⚠️ AI Risk Detection
+Dropout risk students
+Low attendance alerts
+💰 AI Fee Intelligence
+Fee defaulters prediction
+Collection trends
+📩 AI Bulk Notification Generator
+Circulars auto generate
+Fee reminders
+🧠 AI Decision Support
+“Which class is underperforming?”
+“Where to improve?”
+📅 AI Scheduling
+Timetable suggestions
+Exam planning
+👨‍🏫 🎯 2. TEACHER SIDE AI
+🧠 AI Teaching Assistant
+Lesson plan generate
+Topic explanation
+📝 AI Question Paper Generator
+Exams
+Assignments
+📊 AI Class Insights
+Weak students
+Subject-wise analysis
+🧾 AI Auto Evaluation (basic)
+Marks analysis
+Feedback generation
+📩 AI Communication
+Message to parents
+Student feedback
+🎓 🎯 3. STUDENT SIDE AI
+🤖 Personal AI Chatbot
+Ask doubts
+Get explanations
+📊 Performance Insights
+“Nenu ela perform chesthunna?”
+Suggestions
+🧠 AI Study Planner
+Daily schedule
+Exam prep plan
+📉 Weak Area Detection
+Subject-wise weak topics
+🧾 AI Notes Generator
+Topic summary
+Quick revision
+🎯 AI Goal Tracker
+Target marks
+Progress tracking
+👨‍👩‍👧 🎯 4. PARENT SIDE AI
+📊 Child Performance AI
+Marks summary
+Attendance summary
+⚠️ AI Alerts
+Low attendance
+Low marks
+📩 AI Message System
+Auto updates
+Personalized alerts
+🧠 AI Suggestions
+“Mee child improve avvalante…”
+🤖 Parent Chatbot
+Ask about child
+Get reports
+💥 COMBINED POWER FEATURE (🔥)
+🤖 UNIVERSAL AI ASSISTANT
+👉 One AI → all roles
+Example:
+Admin → analytics
+Teacher → class insights
+Student → study help
+Parent → child report

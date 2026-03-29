@@ -11,6 +11,37 @@ import FeesCard from "../components/FeesCard";
 import AttendanceCalendar from "../../../components/AttendanceCalendar";
 import { studentAPI } from "../../../services/api";
 import { CheckCircle, Download } from "lucide-react";
+import {
+  Box,
+  Grid,
+  Card,
+  CardContent,
+  Typography,
+  Chip,
+  Paper,
+  Alert,
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  IconButton,
+  LinearProgress,
+} from "@mui/material";
+import {
+  TrendingUp,
+  AutoAwesome,
+  MenuBook,
+  EmojiEvents,
+  Close,
+  Lightbulb,
+} from "@mui/icons-material";
+import { motion } from "framer-motion";
+import {
+  performanceInsights,
+  aiStudyPlanner,
+  weakAreaDetection,
+  aiNotesGenerator,
+  aiGoalTracker,
+} from "../../../data/mockAIData/studentAIData";
 
 function StudentDashboard() {
   const navigate = useNavigate();
@@ -24,6 +55,8 @@ function StudentDashboard() {
   const [attendanceHistory, setAttendanceHistory] = useState([]);
   const [calendarMonth, setCalendarMonth] = useState(new Date().getMonth());
   const [calendarYear, setCalendarYear] = useState(new Date().getFullYear());
+  const [selectedAIFeature, setSelectedAIFeature] = useState(null);
+  const [aiModalOpen, setAIModalOpen] = useState(false);
 
   const handleQuickAction = (key) => {
     const routes = {
@@ -120,6 +153,137 @@ function StudentDashboard() {
   }, []);
 
   const feesDue = dashboard?.stats?.fees?.totalDue;
+
+  const renderAIModalContent = () => {
+    switch (selectedAIFeature) {
+      case "performance":
+        return (
+          <Box sx={{ p: 2 }}>
+            <Typography variant="h6" sx={{ mb: 2, fontWeight: 700 }}>
+              📊 Performance Insights
+            </Typography>
+            <Paper sx={{ p: 2, mb: 2, background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", color: "white" }}>
+              <Typography variant="h4" sx={{ fontWeight: 800 }}>{performanceInsights.overallScore}%</Typography>
+              <Typography variant="body2">Overall Score ({performanceInsights.trend})</Typography>
+            </Paper>
+
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>Subject Performance:</Typography>
+            {performanceInsights.subjectScores.map((subject) => (
+              <Box key={subject.subject} sx={{ mb: 1.5 }}>
+                <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
+                  <Typography variant="body2">{subject.subject}</Typography>
+                  <Chip label={subject.grade} size="small" color="primary" />
+                </Box>
+                <LinearProgress variant="determinate" value={subject.score} sx={{ height: 8, borderRadius: 1 }} />
+              </Box>
+            ))}
+
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, mt: 2 }}>
+              Class Rank: {performanceInsights.classRank} / {performanceInsights.totalStudents}
+            </Typography>
+            <LinearProgress variant="determinate" value={(performanceInsights.classRank / performanceInsights.totalStudents) * 100} />
+          </Box>
+        );
+
+      case "studyplan":
+        return (
+          <Box sx={{ p: 2 }}>
+            <Typography variant="h6" sx={{ mb: 2, fontWeight: 700 }}>
+              📅 Your Study Plan
+            </Typography>
+            {aiStudyPlanner.dailySchedule.slice(0, 7).map((day) => (
+              <Paper key={day.day} sx={{ p: 1.5, mb: 1.5, border: "1px solid #e0e0e0" }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
+                  {day.day}
+                </Typography>
+                {day.sessions.map((session, idx) => (
+                  <Box key={idx} sx={{ display: "flex", gap: 1, mb: 0.5 }}>
+                    <Chip label={session.time} size="small" variant="outlined" />
+                    <Typography variant="body2">{session.subject} - {session.topic}</Typography>
+                  </Box>
+                ))}
+              </Paper>
+            ))}
+          </Box>
+        );
+
+      case "weakareas":
+        return (
+          <Box sx={{ p: 2 }}>
+            <Typography variant="h6" sx={{ mb: 2, fontWeight: 700 }}>
+              🎯 Weak Areas Analysis
+            </Typography>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>Weak Topics:</Typography>
+            {weakAreaDetection.weakTopics.map((topic, idx) => (
+              <Alert key={idx} severity="warning" sx={{ mb: 1 }}>
+                <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                  {topic.subject} - {topic.topic}
+                </Typography>
+                <Typography variant="caption">{topic.reason}</Typography>
+              </Alert>
+            ))}
+
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, mt: 2 }}>Strong Topics:</Typography>
+            {weakAreaDetection.strongTopics.map((topic, idx) => (
+              <Paper key={idx} sx={{ p: 1.5, mb: 1, background: "rgba(76, 175, 80, 0.1)", border: "1px solid #4caf50" }}>
+                <Typography variant="body2">✅ {topic.subject} - {topic.topic}</Typography>
+              </Paper>
+            ))}
+
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, mt: 2 }}>Recommendations:</Typography>
+            {weakAreaDetection.recommendations.map((rec, idx) => (
+              <Paper key={idx} sx={{ p: 1, mb: 1, background: "rgba(33, 150, 243, 0.05)" }}>
+                <Typography variant="body2">→ {rec}</Typography>
+              </Paper>
+            ))}
+          </Box>
+        );
+
+      case "notes":
+        return (
+          <Box sx={{ p: 2 }}>
+            <Typography variant="h6" sx={{ mb: 2, fontWeight: 700 }}>
+              📝 AI Generated Notes
+            </Typography>
+            {aiNotesGenerator.notes.map((note, idx) => (
+              <Paper key={idx} sx={{ p: 2, mb: 2, background: "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)" }}>
+                <Chip label={note.subject} size="small" color="primary" sx={{ mb: 1 }} />
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
+                  {note.topic}
+                </Typography>
+                <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
+                  {note.keyPoints.join("\n")}
+                </Typography>
+              </Paper>
+            ))}
+          </Box>
+        );
+
+      case "goals":
+        return (
+          <Box sx={{ p: 2 }}>
+            <Typography variant="h6" sx={{ mb: 2, fontWeight: 700 }}>
+              🎯 Goal Tracker
+            </Typography>
+            {aiGoalTracker.goals.map((goal, idx) => (
+              <Paper key={idx} sx={{ p: 2, mb: 1.5, border: "1px solid #e0e0e0" }}>
+                <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                    {goal.goal}
+                  </Typography>
+                  <Chip label={`${goal.progress}%`} size="small" color={goal.progress === 100 ? "success" : "primary"} />
+                </Box>
+                <LinearProgress variant="determinate" value={goal.progress} sx={{ mb: 1, height: 8 }} />
+                <Typography variant="caption">{goal.actionItems.join(" • ")}</Typography>
+              </Paper>
+            ))}
+          </Box>
+        );
+
+      default:
+        return null;
+    }
+  };
 
   const homeworkCardText = useMemo(() => {
     if (!todayHomework) return { title: "No tasks assigned yet", subtitle: "Check back later" };
@@ -316,6 +480,213 @@ function StudentDashboard() {
               </button>
             </div>
           )}
+          {/* 🚀 AI FEATURES SECTION */}
+          <Box sx={{ mt: 4 }}>
+            <Typography
+              variant="h5"
+              sx={{
+                fontWeight: 800,
+                mb: 2,
+                background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                display: "flex",
+                alignItems: "center",
+                gap: 1,
+              }}
+            >
+              ✨ AI Learning Companion
+            </Typography>
+
+            <Grid container spacing={2}>
+              {/* Performance AI */}
+              <Grid item xs={12} sm={6} md={4}>
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <Card
+                    onClick={() => {
+                      setSelectedAIFeature("performance");
+                      setAIModalOpen(true);
+                    }}
+                    sx={{
+                      background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                      color: "white",
+                      cursor: "pointer",
+                      height: "100%",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center",
+                      "&:hover": { boxShadow: 6 },
+                    }}
+                  >
+                    <CardContent sx={{ textAlign: "center" }}>
+                      <TrendingUp sx={{ fontSize: 40, mb: 1 }} />
+                      <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                        Performance
+                      </Typography>
+                      <Typography variant="caption">Your Score & Rank</Typography>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              </Grid>
+
+              {/* Study Plan AI */}
+              <Grid item xs={12} sm={6} md={4}>
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <Card
+                    onClick={() => {
+                      setSelectedAIFeature("studyplan");
+                      setAIModalOpen(true);
+                    }}
+                    sx={{
+                      background: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
+                      color: "white",
+                      cursor: "pointer",
+                      height: "100%",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center",
+                      "&:hover": { boxShadow: 6 },
+                    }}
+                  >
+                    <CardContent sx={{ textAlign: "center" }}>
+                      <Lightbulb sx={{ fontSize: 40, mb: 1 }} />
+                      <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                        Study Plan
+                      </Typography>
+                      <Typography variant="caption">Daily Schedule</Typography>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              </Grid>
+
+              {/* Weak Areas AI */}
+              <Grid item xs={12} sm={6} md={4}>
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <Card
+                    onClick={() => {
+                      setSelectedAIFeature("weakareas");
+                      setAIModalOpen(true);
+                    }}
+                    sx={{
+                      background: "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
+                      color: "white",
+                      cursor: "pointer",
+                      height: "100%",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center",
+                      "&:hover": { boxShadow: 6 },
+                    }}
+                  >
+                    <CardContent sx={{ textAlign: "center" }}>
+                      <AutoAwesome sx={{ fontSize: 40, mb: 1 }} />
+                      <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                        Weak Areas
+                      </Typography>
+                      <Typography variant="caption">Topics to Focus</Typography>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              </Grid>
+
+              {/* Notes AI */}
+              <Grid item xs={12} sm={6} md={4}>
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <Card
+                    onClick={() => {
+                      setSelectedAIFeature("notes");
+                      setAIModalOpen(true);
+                    }}
+                    sx={{
+                      background: "linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)",
+                      color: "white",
+                      cursor: "pointer",
+                      height: "100%",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center",
+                      "&:hover": { boxShadow: 6 },
+                    }}
+                  >
+                    <CardContent sx={{ textAlign: "center" }}>
+                      <MenuBook sx={{ fontSize: 40, mb: 1 }} />
+                      <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                        Notes
+                      </Typography>
+                      <Typography variant="caption">Quick Revision</Typography>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              </Grid>
+
+              {/* Goals AI */}
+              <Grid item xs={12} sm={6} md={4}>
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <Card
+                    onClick={() => {
+                      setSelectedAIFeature("goals");
+                      setAIModalOpen(true);
+                    }}
+                    sx={{
+                      background: "linear-gradient(135deg, #fa709a 0%, #fee140 100%)",
+                      color: "white",
+                      cursor: "pointer",
+                      height: "100%",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center",
+                      "&:hover": { boxShadow: 6 },
+                    }}
+                  >
+                    <CardContent sx={{ textAlign: "center" }}>
+                      <EmojiEvents sx={{ fontSize: 40, mb: 1 }} />
+                      <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                        Goals
+                      </Typography>
+                      <Typography variant="caption">Track Progress</Typography>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              </Grid>
+            </Grid>
+          </Box>
+
+          {/* AI Modal */}
+          <Dialog
+            open={aiModalOpen}
+            onClose={() => setAIModalOpen(false)}
+            maxWidth="sm"
+            fullWidth
+            PaperProps={{
+              sx: {
+                borderRadius: 3,
+                background: "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)",
+              },
+            }}
+          >
+            <DialogTitle
+              sx={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                fontWeight: 700,
+                background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                color: "white",
+                fontSize: "1.2rem",
+              }}
+            >
+              Learning Insights
+              <IconButton
+                onClick={() => setAIModalOpen(false)}
+                sx={{ color: "white" }}
+              >
+                <Close />
+              </IconButton>
+            </DialogTitle>
+            <DialogContent sx={{ pt: 3, background: "white" }}>
+              {renderAIModalContent()}
+            </DialogContent>
+          </Dialog>
         </>
       )}
     </StudentLayout>

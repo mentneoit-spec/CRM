@@ -1,15 +1,15 @@
 import { NavLink } from "react-router-dom";
-import { CalendarCheck, ClipboardList, Home, UserRound, FileText, Settings } from "lucide-react";
+import { CalendarCheck, ClipboardList, Home, UserRound, FileText, Settings, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "../../../lib/utils";
 
 const navItems = [
   { label: "Home", icon: Home, to: "/student/dashboard" },
+  { label: "AI", icon: Sparkles, to: "/student/ai" },
   { label: "Homework", icon: ClipboardList, to: "/student/homework" },
   { label: "Tests", icon: FileText, to: "/student/tests" },
   { label: "Attendance", icon: CalendarCheck, to: "/student/attendance" },
   { label: "Profile", icon: UserRound, to: "/student/profile" },
-  { label: "Settings", icon: Settings, to: "/student/settings" },
 ];
 
 function BottomNavigation() {

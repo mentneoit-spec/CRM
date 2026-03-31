@@ -95,6 +95,11 @@ model College {
   TransportFees             TransportFee[]
   TransportTeams            TransportTeam[]
   Users                     User[]
+  HRManagers                HRManager[]
+  Employees                 Employee[]
+  EmployeeAttendances       EmployeeAttendance[]
+  EmployeeSalaries          EmployeeSalary[]
+  EmployeeLeaves            EmployeeLeave[]
 }
 
 model Role {
@@ -120,6 +125,7 @@ model User {
   isPhoneVerified      Boolean        @default(false)
   twoFAEnabled         Boolean        @default(false)
   twoFASecret          String?
+  tempPassword         String?        // Temporary password (cleared after first login)
   lastLogin            DateTime?
   lastLoginIP          String?
   isActive             Boolean        @default(true)
@@ -136,6 +142,7 @@ model User {
   StudentProfile       Student?
   TeacherProfile       Teacher?
   TransportTeamProfile TransportTeam?
+  HRManagerProfile     HRManager?
   college              College?       @relation(fields: [collegeId], references: [id], onDelete: Cascade)
 
   @@unique([email, collegeId])
@@ -219,6 +226,129 @@ model TransportTeam {
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([collegeId])
+}
+
+model HRManager {
+  id           String     @id @default(uuid())
+  name         String
+  email        String
+  phone        String?
+  profileImage String?
+  role         String     @default("HR Manager")
+  designation  String?
+  department   String?    @default("Human Resources")
+  collegeId    String
+  userId       String     @unique
+  isActive     Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  college      College    @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  Employees    Employee[]
+
+  @@index([collegeId])
+  @@index([email])
+}
+
+model Employee {
+  id                   String                @id @default(uuid())
+  name                 String
+  email                String
+  phone                String?
+  employeeId           String
+  department           String
+  designation          String
+  dateOfJoining        DateTime?
+  dateOfBirth          DateTime?
+  gender               String?
+  qualification        String?
+  experience           Int?
+  salary               Float                 @default(0)
+  bankAccount          String?
+  bankName             String?
+  ifscCode             String?
+  address              String?
+  status               String                @default("Active")
+  profileImage         String?
+  collegeId            String
+  hrManagerId          String
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  Attendances          EmployeeAttendance[]
+  SalaryDetails        EmployeeSalary[]
+  LeaveRecords         EmployeeLeave[]
+  college              College               @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  hrManager            HRManager             @relation(fields: [hrManagerId], references: [id], onDelete: Cascade)
+
+  @@unique([collegeId, employeeId])
+  @@index([collegeId])
+  @@index([hrManagerId])
+  @@index([email])
+}
+
+model EmployeeAttendance {
+  id          String    @id @default(uuid())
+  date        DateTime
+  status      String    @default("Present")
+  leaveType   String?
+  remarks     String?
+  employeeId  String
+  collegeId   String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  college     College   @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, date])
+  @@index([employeeId])
+  @@index([date])
+  @@index([collegeId])
+}
+
+model EmployeeSalary {
+  id              String    @id @default(uuid())
+  month           String
+  year            Int
+  baseSalary      Float
+  allowances      Float     @default(0)
+  deductions      Float     @default(0)
+  netSalary       Float
+  workingDays     Int       @default(30)
+  attendedDays    Int       @default(30)
+  status          String    @default("Pending")
+  remarks         String?
+  employeeId      String
+  collegeId       String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  college         College   @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  employee        Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, month, year])
+  @@index([employeeId])
+  @@index([collegeId])
+  @@index([status])
+}
+
+model EmployeeLeave {
+  id          String    @id @default(uuid())
+  leaveType   String
+  startDate   DateTime
+  endDate     DateTime
+  reason      String?
+  status      String    @default("Pending")
+  approvedBy  String?
+  approvedAt  DateTime?
+  employeeId  String
+  collegeId   String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  college     College   @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([collegeId])
+  @@index([status])
 }
 
 model Sclass {

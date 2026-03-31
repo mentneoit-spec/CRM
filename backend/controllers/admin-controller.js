@@ -4477,6 +4477,249 @@ const getPayments = async (req, res) => {
     }
 };
 
+// ==================== HR MANAGEMENT (ADMIN VIEW) ====================
+
+// Get HR Dashboard for Admin
+const getHRDashboardAdmin = async (req, res) => {
+    try {
+        const collegeId = req.user.collegeId;
+
+        // Get all HR Managers
+        const hrManagers = await prisma.hRManager.count({
+            where: { collegeId },
+        });
+
+        // Get all Employees
+        const employees = await prisma.employee.findMany({
+            where: { collegeId },
+            include: {
+                hrManager: {
+                    select: { name: true, email: true, id: true },
+                },
+            },
+        });
+
+        // Today's attendance
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        const todayAttendance = await prisma.employeeAttendance.findMany({
+            where: {
+                collegeId,
+                date: {
+                    gte: today,
+                    lt: tomorrow,
+                },
+            },
+        });
+
+        // Get pending salaries
+        const pendingSalaries = await prisma.employeeSalary.findMany({
+            where: { collegeId, status: 'Pending' },
+            include: {
+                employee: {
+                    select: { name: true, email: true, salary: true },
+                },
+            },
+        });
+
+        // Department breakdown
+        const departmentStats = {};
+        employees.forEach((emp) => {
+            if (!departmentStats[emp.department]) {
+                departmentStats[emp.department] = {
+                    count: 0,
+                    salary: 0,
+                };
+            }
+            departmentStats[emp.department].count++;
+            departmentStats[emp.department].salary += emp.salary;
+        });
+
+        const totalSalary = employees.reduce((sum, emp) => sum + emp.salary, 0);
+        const activeEmployees = employees.filter((e) => e.status === 'Active').length;
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                stats: {
+                    hrManagers,
+                    totalEmployees: employees.length,
+                    activeEmployees,
+                    totalSalaryBill: totalSalary,
+                    attendanceToday: todayAttendance.length,
+                    pendingSalaries: pendingSalaries.length,
+                },
+                employees,
+                departmentStats,
+                pendingSalaries,
+            },
+        });
+    } catch (error) {
+        console.error('Error fetching HR dashboard:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Error fetching HR dashboard',
+            error: error.message,
+        });
+    }
+};
+
+// Get list of HR Managers
+const getHRManagersList = async (req, res) => {
+    try {
+        const collegeId = req.user.collegeId;
+
+        const hrManagers = await prisma.hRManager.findMany({
+            where: { collegeId },
+            include: {
+                user: {
+                    select: { lastLogin: true, isActive: true, createdAt: true },
+                },
+                Employees: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                        designation: true,
+                        salary: true,
+                    },
+                },
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+
+        return res.status(200).json({
+            success: true,
+            data: hrManagers,
+        });
+    } catch (error) {
+        console.error('Error fetching HR managers:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Error fetching HR managers',
+            error: error.message,
+        });
+    }
+};
+
+// Get all employees (Admin view)
+const getAllEmployees = async (req, res) => {
+    try {
+        const collegeId = req.user.collegeId;
+        const { department, status, hrManagerId } = req.query;
+
+        let where = { collegeId };
+        if (department) where.department = department;
+        if (status) where.status = status;
+        if (hrManagerId) where.hrManagerId = hrManagerId;
+
+        const employees = await prisma.employee.findMany({
+            where,
+            include: {
+                hrManager: {
+                    select: { id: true, name: true, email: true },
+                },
+                Attendances: {
+                    where: {
+                        date: {
+                            gte: new Date(new Date().setDate(new Date().getDate() - 30)),
+                        },
+                    },
+                },
+                SalaryDetails: {
+                    orderBy: { createdAt: 'desc' },
+                    take: 1,
+                },
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+
+        const totalSalary = employees.reduce((sum, e) => sum + e.salary, 0);
+
+        return res.status(200).json({
+            success: true,
+            data: employees,
+            stats: {
+                total: employees.length,
+                active: employees.filter((e) => e.status === 'Active').length,
+                totalSalary,
+            },
+        });
+    } catch (error) {
+        console.error('Error fetching employees:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Error fetching employees',
+            error: error.message,
+        });
+    }
+};
+
+// Get individual employee data (Admin view)
+const getEmployeeData = async (req, res) => {
+    try {
+        const { employeeId } = req.params;
+        const collegeId = req.user.collegeId;
+
+        const employee = await prisma.employee.findFirst({
+            where: { id: employeeId, collegeId },
+            include: {
+                hrManager: true,
+                Attendances: {
+                    orderBy: { date: 'desc' },
+                    take: 60,
+                },
+                SalaryDetails: {
+                    orderBy: { createdAt: 'desc' },
+                    take: 24,
+                },
+                LeaveRecords: {
+                    orderBy: { createdAt: 'desc' },
+                    take: 20,
+                },
+            },
+        });
+
+        if (!employee) {
+            return res.status(404).json({
+                success: false,
+                message: 'Employee not found',
+            });
+        }
+
+        // Calculate attendance percentage
+        const totalAttendance = employee.Attendances.length;
+        const presentDays = employee.Attendances.filter((a) => a.status === 'Present').length;
+        const attendancePercentage = totalAttendance > 0 ? ((presentDays / totalAttendance) * 100).toFixed(2) : 0;
+
+        // Calculate total salary
+        const totalSalaryPaid = employee.SalaryDetails.reduce((sum, s) => sum + (s.status === 'Processed' ? s.netSalary : 0), 0);
+
+        return res.status(200).json({
+            success: true,
+            data: employee,
+            stats: {
+                attendancePercentage,
+                totalAttendance,
+                presentDays,
+                totalSalaryPaid,
+                salaryRecords: employee.SalaryDetails.length,
+                leaves: employee.LeaveRecords.length,
+            },
+        });
+    } catch (error) {
+        console.error('Error fetching employee data:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Error fetching employee data',
+            error: error.message,
+        });
+    }
+};
+
 module.exports = {
     getCollegeSettings,
     updateCollegeSettings,
@@ -4540,4 +4783,9 @@ module.exports = {
     sendMarksEmail,
     createPayment,
     getPayments,
+    // HR Management
+    getHRDashboardAdmin,
+    getHRManagersList,
+    getAllEmployees,
+    getEmployeeData,
 };

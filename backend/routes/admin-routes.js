@@ -66,7 +66,12 @@ const {
     sendMarksEmail,
     createPayment,
     getPayments,
+    getHRDashboardAdmin,
+    getHRManagersList,
+    getAllEmployees,
+    getEmployeeData,
 } = require('../controllers/admin-controller');
+const { addHRManager, deleteHRManager } = require('../controllers/hr-controller');
 
 const {
     getAllAdmissions,
@@ -236,5 +241,13 @@ router.delete('/admission-team/:id', authorize('Admin'), authorizeCollege, delet
 
 // ==================== MARKS EMAIL NOTIFICATION ====================
 router.post('/marks/send-email', authorize('Admin'), authorizeCollege, sendMarksEmail);
+
+// ==================== HR MANAGEMENT (ADMIN) ====================
+router.post('/hr/managers', authorize('Admin'), authorizeCollege, addHRManager);
+router.delete('/hr/managers/:hrManagerId', authorize('Admin'), authorizeCollege, deleteHRManager);
+router.get('/hr/dashboard', authorize('Admin'), authorizeCollege, getHRDashboardAdmin);
+router.get('/hr/managers', authorize('Admin'), authorizeCollege, getHRManagersList);
+router.get('/hr/employees', authorize('Admin'), authorizeCollege, getAllEmployees);
+router.get('/hr/employees/:employeeId', authorize('Admin'), authorizeCollege, getEmployeeData);
 
 module.exports = router;

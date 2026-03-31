@@ -56,11 +56,14 @@ api.interceptors.request.use(
     const token = localStorage.getItem('token');
     if (token) config.headers.Authorization = `Bearer ${token}`;
 
-    // IMPORTANT: don't force-inject collegeId into Auth routes.
+    // IMPORTANT: don't force-inject collegeId into Auth routes or HR routes
     // Auth endpoints may accept collegeId in the request body, and a stale
     // localStorage value can cause failures if injected as a query param.
+    // HR routes should use the collegeId from the JWT token user object.
     const isAuthRoute = typeof config.url === 'string' && config.url.startsWith('/auth');
-    if (!isAuthRoute) {
+    const isHRRoute = typeof config.url === 'string' && config.url.startsWith('/hr');
+    
+    if (!isAuthRoute && !isHRRoute) {
       const collegeId = localStorage.getItem('collegeId');
       if (collegeId && !config.params?.collegeId) {
         config.params = { ...config.params, collegeId };

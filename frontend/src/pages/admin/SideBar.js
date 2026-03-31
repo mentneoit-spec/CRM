@@ -15,6 +15,7 @@ import ReceiptIcon from '@mui/icons-material/Receipt';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import GroupIcon from '@mui/icons-material/Group';
+import PeopleAltIcon from '@mui/icons-material/PeopleAlt';
 
 const SideBar = () => {
     const location = useLocation();
@@ -104,6 +105,12 @@ const SideBar = () => {
                         <CloudUploadIcon color={location.pathname.startsWith("/admin/marks-upload") ? 'primary' : 'inherit'} />
                     </ListItemIcon>
                     <ListItemText primary="Upload Marks" />
+                </ListItemButton>
+                <ListItemButton component={Link} to="/admin/hr">
+                    <ListItemIcon>
+                        <PeopleAltIcon color={location.pathname.startsWith("/admin/hr") ? 'primary' : 'inherit'} />
+                    </ListItemIcon>
+                    <ListItemText primary="HR Management" />
                 </ListItemButton>
                 <ListItemButton component={Link} to="/admin/analytics">
                     <ListItemIcon>

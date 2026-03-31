@@ -177,6 +177,7 @@ const DashboardLayout = ({ children, role = 'student' }) => {
       { text: 'Dashboard', icon: <Dashboard />, path: '/admin/dashboard' },
       { text: 'AI Assistant', icon: <AIIcon />, path: '/admin/ai', badge: 'NEW' },
       { text: 'Analytics', icon: <Assessment />, path: '/admin/analytics' },
+      { text: 'HR Management', icon: <People />, path: '/admin/hr-management', badge: 'NEW' },
       { text: 'Students', icon: <People />, path: '/admin/students' },
       { text: 'Teachers', icon: <People />, path: '/admin/teachers' },
       { text: 'Teams', icon: <People />, path: '/admin/teams' },

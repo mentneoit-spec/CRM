@@ -257,6 +257,8 @@ app.use("/api/student", authMiddleware, require("./routes/student-routes"));
 app.use("/api/parent", authMiddleware, require("./routes/parent-routes"));
 app.use("/api/accounts", authMiddleware, require("./routes/accounts-routes"));
 app.use("/api/transport", authMiddleware, require("./routes/transport-routes"));
+app.use("/api/hr", authMiddleware, require("./routes/hr-routes"));
+app.use("/api/ai-hr", authMiddleware, require("./routes/ai-routes"));
 
 // Uploads
 app.use('/api/upload', authMiddleware, require('./routes/upload-routes'));

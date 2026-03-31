@@ -44,6 +44,7 @@ import SendMarksEmail from './pages/admin/SendMarksEmail';
 import ImportStudentsCSV from './pages/admin/ImportStudentsCSV';
 import AdmissionsTeamDashboard from './pages/admin/AdmissionsTeamDashboard';
 import AdmissionTeamManagement from './pages/admin/AdmissionTeamManagement';
+import AdminHRManagement from './pages/admin/AdminHRManagement';
 import TeacherMarksUpload from './pages/teacher/TeacherMarksUpload';
 import StudentDashboardModern from './pages/student/StudentDashboardModern';
 import StudentHomework from './pages/student/pages/HomeworkPage';
@@ -260,6 +261,10 @@ function App() {
           <Route
             path="/admin/analytics"
             element={<ProtectedRoute allowedRoles={["Admin", "SuperAdmin"]} element={<AdminAnalytics />} />}
+          />
+          <Route
+            path="/admin/hr-management"
+            element={<ProtectedRoute allowedRoles={["Admin", "SuperAdmin"]} element={<AdminHRManagement />} />}
           />
           <Route
             path="/admin/teams"

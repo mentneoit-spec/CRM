@@ -16,6 +16,7 @@ import Logout from '../Logout';
 import SideBar from './SideBar';
 import AdminProfile from './AdminProfile';
 import AdminHomePage from './AdminHomePage';
+import AdminHRManagement from './AdminHRManagement';
 
 import AddStudent from './studentRelated/AddStudent';
 import SeeComplains from './studentRelated/SeeComplains';
@@ -133,6 +134,9 @@ const AdminDashboard = () => {
                         <Route path="/Admin/teachers/choosesubject/:id" element={<ChooseSubject situation="Norm" />} />
                         <Route path="/Admin/teachers/choosesubject/:classID/:teacherID" element={<ChooseSubject situation="Teacher" />} />
                         <Route path="/Admin/teachers/addteacher/:id" element={<AddTeacher />} />
+
+                        {/* HR Management */}
+                        <Route path="/admin/hr" element={<AdminHRManagement />} />
 
                         <Route path="/logout" element={<Logout />} />
                     </Routes>

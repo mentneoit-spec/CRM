@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Drawer,
@@ -51,13 +51,67 @@ function HRDashboard() {
   const [activeSection, setActiveSection] = useState(0);
   const [employees, setEmployees] = useState(initialEmployees);
   const [attendance, setAttendance] = useState(attendanceRecords);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch real teacher data from backend
+  useEffect(() => {
+    fetchTeachersData();
+  }, []);
+
+  const fetchTeachersData = async () => {
+    try {
+      setLoading(true);
+      console.log('🔄 HRDashboard: Fetching teachers from API...');
+      
+      // Get token from localStorage
+      const token = localStorage.getItem('token');
+      console.log('🔑 Token exists:', !!token);
+      
+      const apiUrl = 'http://localhost:5000/api/hr/teachers';
+      console.log('📍 API URL:', apiUrl);
+      
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        credentials: 'include',
+      });
+
+      console.log('📡 API Response Status:', response.status);
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('✅ API Result:', result);
+        if (result.success && result.data && result.data.length > 0) {
+          console.log('✅ Fetched real teachers data:', result.data.length, 'teachers');
+          setEmployees(result.data);
+        } else {
+          console.warn('⚠️ API returned success but no data. Using initial data.');
+          console.warn('Result:', result);
+          setEmployees(initialEmployees);
+        }
+      } else {
+        const errorText = await response.text();
+        console.warn('❌ API response not ok (Status:', response.status, ')');
+        console.warn('Error:', errorText);
+        setEmployees(initialEmployees);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching teachers:', error);
+      setEmployees(initialEmployees);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const renderContent = () => {
     switch (activeSection) {
       case 0:
-        return <DashboardOverview employees={employees} attendance={attendance} />;
+        return <DashboardOverview employees={employees} attendance={attendance} loading={loading} />;
       case 1:
-        return <EmployeeManagement employees={employees} setEmployees={setEmployees} />;
+        return <EmployeeManagement employees={employees} setEmployees={setEmployees} isHRRole={true} />;
       case 2:
         return <AttendanceManagement employees={employees} attendance={attendance} setAttendance={setAttendance} />;
       case 3:
@@ -69,7 +123,7 @@ function HRDashboard() {
       case 6:
         return <AIAssistant employees={employees} attendance={attendance} />;
       default:
-        return <DashboardOverview employees={employees} attendance={attendance} />;
+        return <DashboardOverview employees={employees} attendance={attendance} loading={loading} />;
     }
   };
 

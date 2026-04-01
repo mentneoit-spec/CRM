@@ -55,11 +55,13 @@ const AdminHRManagement = () => {
   const [openHRDialog, setOpenHRDialog] = useState(false);
   const [selectedTeacher, setSelectedTeacher] = useState(null);
   const [selectedManager, setSelectedManager] = useState(null);
+  const [selectedManagerPassword, setSelectedManagerPassword] = useState(null);
   const [showCredentials, setShowCredentials] = useState(false);
   const [newHRForm, setNewHRForm] = useState({
     name: '',
     email: '',
     phone: '',
+    password: '',
     designation: 'HR Manager',
     department: 'Human Resources',
   });
@@ -109,13 +111,18 @@ const AdminHRManagement = () => {
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     
-    if (!newHRForm.name || !newHRForm.email) {
-      setError('Please fill all required fields');
+    if (!newHRForm.name || !newHRForm.email || !newHRForm.password) {
+      setError('Please fill all required fields (Name, Email, Password)');
       return;
     }
 
     if (!emailRegex.test(newHRForm.email)) {
       setError('Please enter a valid email address');
+      return;
+    }
+
+    if (newHRForm.password.length < 6) {
+      setError('Password must be at least 6 characters long');
       return;
     }
 
@@ -128,10 +135,17 @@ const AdminHRManagement = () => {
       console.log('HR Manager response:', response);
       
       if (response.success) {
-        const tempPassword = response.data?.tempPassword || 'Check email for credentials';
-        alert(`✅ HR Manager Added Successfully!\n\nName: ${newHRForm.name}\nEmail: ${newHRForm.email}\nTemporary Password: ${tempPassword}\n\nShare these credentials with the HR Manager.`);
+        // Store the password temporarily for display in credentials modal
+        if (response.password) {
+          const managerData = response.data;
+          setSelectedManager({ ...managerData, displayPassword: response.password });
+          setSelectedManagerPassword(response.password);
+          setShowCredentials(true);
+        } else {
+          alert(`✅ HR Manager Added Successfully!\n\nName: ${newHRForm.name}\nEmail: ${newHRForm.email}`);
+        }
         setOpenHRDialog(false);
-        setNewHRForm({ name: '', email: '', phone: '', designation: 'HR Manager', department: 'Human Resources' });
+        setNewHRForm({ name: '', email: '', phone: '', password: '', designation: 'HR Manager', department: 'Human Resources' });
         setError(null);
         fetchHRDashboard();
       } else {
@@ -549,6 +563,16 @@ const AdminHRManagement = () => {
           />
           <TextField
             fullWidth
+            label="Password"
+            type="password"
+            value={newHRForm.password}
+            onChange={(e) => setNewHRForm({ ...newHRForm, password: e.target.value })}
+            margin="normal"
+            disabled={loadingAddHR}
+            helperText="Minimum 6 characters"
+          />
+          <TextField
+            fullWidth
             label="Phone"
             value={newHRForm.phone}
             onChange={(e) => setNewHRForm({ ...newHRForm, phone: e.target.value })}
@@ -587,7 +611,7 @@ const AdminHRManagement = () => {
       </Dialog>
 
       {/* HR Manager Credentials Dialog */}
-      <Dialog open={showCredentials} onClose={() => setShowCredentials(false)} maxWidth="sm" fullWidth>
+      <Dialog open={showCredentials} onClose={() => { setShowCredentials(false); setSelectedManagerPassword(null); }} maxWidth="sm" fullWidth>
         <DialogTitle>HR Manager Credentials</DialogTitle>
         <DialogContent sx={{ pt: 2 }}>
           {selectedManager && (
@@ -615,12 +639,12 @@ const AdminHRManagement = () => {
 
               <Box sx={{ p: 2, bgcolor: '#fff3cd', borderRadius: 1, border: '1px solid #ffc107' }}>
                 <Typography variant="caption" color="textSecondary" sx={{ fontWeight: 'bold', display: 'block', mb: 1 }}>
-                  🔐 TEMPORARY PASSWORD
+                  🔐 PASSWORD
                 </Typography>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 0.5 }}>
                   <TextField
                     fullWidth
-                    value={selectedManager.user?.tempPassword || 'Password not available'}
+                    value={selectedManager.displayPassword || selectedManagerPassword || selectedManager.user?.tempPassword || 'Password not available'}
                     InputProps={{ readOnly: true }}
                     size="small"
                     sx={{ mr: 1, bgcolor: 'white' }}
@@ -629,8 +653,8 @@ const AdminHRManagement = () => {
                   <Button
                     variant="contained"
                     size="small"
-                    onClick={() => copyToClipboard(selectedManager.user?.tempPassword || '')}
-                    disabled={!selectedManager.user?.tempPassword}
+                    onClick={() => copyToClipboard(selectedManager.displayPassword || selectedManagerPassword || selectedManager.user?.tempPassword || '')}
+                    disabled={!selectedManager.displayPassword && !selectedManagerPassword && !selectedManager.user?.tempPassword}
                     sx={{ minWidth: 60, bgcolor: '#ffc107', color: 'black', '&:hover': { bgcolor: '#ffb300' } }}
                   >
                     Copy

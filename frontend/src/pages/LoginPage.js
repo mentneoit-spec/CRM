@@ -106,8 +106,8 @@ const LoginPage = ({ role }) => {
                 navigate('/Student/dashboard');
             } else if (currentRole === 'Teacher') {
                 navigate('/Teacher/dashboard');
-            } else if (currentRole === 'HR') {
-                navigate('/HRManager/dashboard');
+            } else if (currentRole === 'HRTeam') {
+                navigate('/hr/dashboard');
             }
         }
         else if (status === 'failed') {

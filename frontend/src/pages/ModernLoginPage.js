@@ -168,6 +168,9 @@ const ModernLoginPage = () => {
           else if (role === 'Teacher') navigate('/teacher/dashboard');
           else if (role === 'Student') navigate('/student/dashboard');
           else if (role === 'Parent') navigate('/parent/dashboard');
+          else if (role === 'HRTeam') navigate('/hr/dashboard');
+          else if (role === 'TransportTeam') navigate('/transport/dashboard');
+          else if (role === 'AccountsTeam') navigate('/accounts/dashboard');
           else navigate('/');
         }, 1500);
       } else {

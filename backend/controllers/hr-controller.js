@@ -12,10 +12,10 @@ const addHRManager = async (req, res) => {
         console.log('Request body:', JSON.stringify(req.body));
         console.log('Request user:', JSON.stringify(req.user));
         
-        const { name, email, phone, designation, department } = req.body;
+        const { name, email, phone, designation, department, password } = req.body;
         const collegeId = req.user.collegeId;
 
-        console.log('Extracted data:', { name, email, phone, designation, department, collegeId });
+        console.log('Extracted data:', { name, email, phone, designation, department, collegeId, hasPassword: !!password });
 
         if (!collegeId) {
             console.log('ERROR: No collegeId from user token');
@@ -25,11 +25,18 @@ const addHRManager = async (req, res) => {
             });
         }
 
-        if (!name || !email) {
-            console.log('ERROR: Missing required fields - name:', name, 'email:', email);
+        if (!name || !email || !password) {
+            console.log('ERROR: Missing required fields - name:', name, 'email:', email, 'password:', !!password);
             return res.status(400).json({
                 success: false,
-                message: 'Name and email are required',
+                message: 'Name, email, and password are required',
+            });
+        }
+
+        if (password.length < 6) {
+            return res.status(400).json({
+                success: false,
+                message: 'Password must be at least 6 characters long',
             });
         }
 
@@ -50,11 +57,10 @@ const addHRManager = async (req, res) => {
             });
         }
 
-        // Generate temporary password
-        const tempPassword = Math.random().toString(36).slice(-12);
-        const hashedPassword = await bcrypt.hash(tempPassword, 10);
+        // Hash the provided password
+        const hashedPassword = await bcrypt.hash(password, 10);
 
-        console.log('Creating user with:', { name, email: email.toLowerCase(), phone, role: 'HR', collegeId });
+        console.log('Creating user with:', { name, email: email.toLowerCase(), phone, role: 'HRTeam', collegeId });
 
         // Create User
         let user;
@@ -65,8 +71,7 @@ const addHRManager = async (req, res) => {
                     email: email.toLowerCase(),
                     phone,
                     password: hashedPassword,
-                    tempPassword, // Store plain-text temporary password for display
-                    role: 'HR',
+                    role: 'HRTeam',
                     collegeId,
                     isActive: true,
                 },
@@ -74,11 +79,10 @@ const addHRManager = async (req, res) => {
                     id: true,
                     name: true,
                     email: true,
-                    tempPassword: true,
                     createdAt: true,
                 },
             });
-            console.log('User created successfully:', user.id, 'Password:', user.tempPassword);
+            console.log('User created successfully:', user.id);
         } catch (userError) {
             console.error('Failed to create User:', userError.message);
             throw userError;
@@ -118,9 +122,8 @@ const addHRManager = async (req, res) => {
             <p>Your HR Manager account has been created.</p>
             <h3>Login Credentials:</h3>
             <p><strong>Email:</strong> ${email}</p>
-            <p><strong>Temporary Password:</strong> ${tempPassword}</p>
-            <p>Please log in and change your password immediately.</p>
-            <p>You can now manage employees, track attendance, and handle payroll.</p>
+            <p><strong>Password:</strong> The password you provided during account creation</p>
+            <p>You can now log in to the HR portal and manage employees, track attendance, and handle payroll.</p>
         `;
 
         // Send email in background without blocking response
@@ -135,10 +138,8 @@ const addHRManager = async (req, res) => {
         return res.status(201).json({
             success: true,
             message: 'HR Manager added successfully',
-            data: {
-                ...hrManager,
-                tempPassword, // Return for admin display
-            },
+            data: hrManager,
+            password: password, // Return the plaintext password for one-time display to admin
         });
     } catch (error) {
         console.error('=== ERROR ADDING HR MANAGER ===');
@@ -1041,6 +1042,181 @@ const getAvailableTeachers = async (req, res) => {
     }
 };
 
+// ==================== GET TEACHERS WITH SALARY FOR HR DASHBOARD ====================
+
+const getTeachersForHR = async (req, res) => {
+    try {
+        console.log('=== GET TEACHERS FOR HR DASHBOARD ===');
+        const collegeId = req.user.collegeId;
+
+        if (!collegeId) {
+            return res.status(400).json({
+                success: false,
+                message: 'College ID is required',
+            });
+        }
+
+        // Fetch all teachers from the database
+        const teachers = await prisma.teacher.findMany({
+            where: { collegeId },
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                phone: true,
+                specialization: true,
+                qualification: true,
+                experience: true,
+                salary: true,
+                isActive: true,
+                createdAt: true,
+                gender: true,
+                dateOfBirth: true,
+                profileImage: true,
+            },
+            orderBy: { name: 'asc' },
+        });
+
+        // Format the data for HR dashboard
+        const formattedTeachers = teachers.map(teacher => ({
+            id: teacher.id,
+            name: teacher.name,
+            email: teacher.email,
+            phone: teacher.phone,
+            department: teacher.specialization || 'Not Specified',
+            designation: 'Teacher',
+            salary: parseFloat(teacher.salary) || 0,
+            joinDate: teacher.createdAt,
+            status: teacher.isActive ? 'Active' : 'Inactive',
+            bankAccount: '',
+            bankName: '',
+            qualification: teacher.qualification || '',
+            address: '',
+            experience: teacher.experience || 0,
+            gender: teacher.gender || '',
+            dateOfBirth: teacher.dateOfBirth || '',
+            profileImage: teacher.profileImage || '',
+        }));
+
+        console.log('Found teachers:', formattedTeachers.length);
+
+        // Calculate stats
+        const stats = {
+            totalEmployees: formattedTeachers.length,
+            activeEmployees: formattedTeachers.filter((e) => e.status === 'Active').length,
+            inactiveEmployees: formattedTeachers.filter((e) => e.status === 'Inactive').length,
+            totalSalary: 0,
+            averageSalary: 0,
+        };
+
+        return res.status(200).json({
+            success: true,
+            data: formattedTeachers,
+            stats,
+        });
+    } catch (error) {
+        console.error('Error fetching teachers for HR:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Error fetching teachers',
+            error: error.message,
+        });
+    }
+};
+
+// ==================== UPDATE TEACHER SALARY ====================
+
+const updateTeacherSalary = async (req, res) => {
+    try {
+        console.log('=== UPDATE TEACHER SALARY ===');
+        const { teacherId } = req.params;
+        const { salary } = req.body;
+        const collegeId = req.user.collegeId;
+
+        if (!collegeId) {
+            return res.status(400).json({
+                success: false,
+                message: 'College ID is required',
+            });
+        }
+
+        if (!teacherId || salary === undefined) {
+            return res.status(400).json({
+                success: false,
+                message: 'Teacher ID and salary are required',
+            });
+        }
+
+        // Check if teacher exists
+        const teacher = await prisma.teacher.findFirst({
+            where: { id: teacherId, collegeId },
+        });
+
+        if (!teacher) {
+            return res.status(404).json({
+                success: false,
+                message: 'Teacher not found',
+            });
+        }
+
+        // Update teacher salary
+        const updatedTeacher = await prisma.teacher.update({
+            where: { id: teacherId },
+            data: {
+                salary: parseFloat(salary) || 0,
+            },
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                phone: true,
+                specialization: true,
+                qualification: true,
+                experience: true,
+                salary: true,
+                isActive: true,
+                createdAt: true,
+                gender: true,
+                dateOfBirth: true,
+                profileImage: true,
+            },
+        });
+
+        console.log('Teacher salary updated:', updatedTeacher.id, 'Salary:', updatedTeacher.salary);
+
+        return res.status(200).json({
+            success: true,
+            message: 'Teacher salary updated successfully',
+            data: {
+                id: updatedTeacher.id,
+                name: updatedTeacher.name,
+                email: updatedTeacher.email,
+                phone: updatedTeacher.phone,
+                department: updatedTeacher.specialization || 'Not Specified',
+                designation: 'Teacher',
+                salary: updatedTeacher.salary || 0,
+                joinDate: updatedTeacher.createdAt,
+                status: updatedTeacher.isActive ? 'Active' : 'Inactive',
+                bankAccount: '',
+                bankName: '',
+                qualification: updatedTeacher.qualification || '',
+                address: '',
+                experience: updatedTeacher.experience || 0,
+                gender: updatedTeacher.gender || '',
+                dateOfBirth: updatedTeacher.dateOfBirth || '',
+                profileImage: updatedTeacher.profileImage || '',
+            },
+        });
+    } catch (error) {
+        console.error('Error updating teacher salary:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Error updating teacher salary',
+            error: error.message,
+        });
+    }
+};
+
 // ==================== REGENERATE HR MANAGER PASSWORDS ====================
 
 const regenerateHRManagerPasswords = async (req, res) => {
@@ -1132,6 +1308,8 @@ module.exports = {
     getAdminHRDashboard,
     // Available Teachers
     getAvailableTeachers,
+    getTeachersForHR,
+    updateTeacherSalary,
     // Password Management
     regenerateHRManagerPasswords,
 };

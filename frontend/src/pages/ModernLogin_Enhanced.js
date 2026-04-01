@@ -270,6 +270,9 @@ const ModernLoginEnhanced = () => {
             Parent: '/parent/dashboard',
             Admin: '/admin/dashboard',
             SuperAdmin: '/superadmin/dashboard',
+            HRTeam: '/hr/dashboard',
+            TransportTeam: '/transport/dashboard',
+            AccountsTeam: '/accounts/dashboard',
           };
           navigate(roleRoutes[me.data.role] || '/dashboard', { replace: true });
         } else {
@@ -387,6 +390,9 @@ const ModernLoginEnhanced = () => {
           Parent: '/parent/dashboard',
           Admin: '/admin/dashboard',
           SuperAdmin: '/superadmin/dashboard',
+          HRTeam: '/hr/dashboard',
+          TransportTeam: '/transport/dashboard',
+          AccountsTeam: '/accounts/dashboard',
         };
         
         setTimeout(() => {

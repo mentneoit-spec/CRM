@@ -1,6 +1,5 @@
 const express = require('express');
 const router = express.Router();
-const { authMiddleware } = require('../middleware/auth');
 const {
     addHRManager,
     getHRManagers,
@@ -18,11 +17,12 @@ const {
     getHRDashboard,
     getAdminHRDashboard,
     getAvailableTeachers,
+    getTeachersForHR,
+    updateTeacherSalary,
     regenerateHRManagerPasswords,
 } = require('../controllers/hr-controller');
 
-// All routes require authentication
-router.use(authMiddleware);
+// Note: authMiddleware is already applied in index.js
 
 // ==================== HR MANAGER ROUTES (Admin only) ====================
 router.post('/hr-managers', addHRManager);
@@ -51,6 +51,8 @@ router.get('/dashboard/admin-hr', getAdminHRDashboard);
 
 // ==================== AVAILABLE TEACHERS ROUTES ====================
 router.get('/teachers/available', getAvailableTeachers);
+router.get('/teachers', getTeachersForHR);
+router.put('/teachers/:teacherId/salary', updateTeacherSalary);
 
 // ==================== PASSWORD MANAGEMENT ROUTES ====================
 router.post('/hr-managers/regenerate-passwords', regenerateHRManagerPasswords);

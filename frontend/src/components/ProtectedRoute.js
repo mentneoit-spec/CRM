@@ -25,6 +25,9 @@ const getDefaultPathForRole = (role) => {
     case 'transportteam':
     case 'transport':
       return '/transport/dashboard';
+    case 'hrteam':
+    case 'hr':
+      return '/hr/dashboard';
     default:
       return '/';
   }

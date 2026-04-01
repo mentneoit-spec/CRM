@@ -102,6 +102,9 @@ const SimpleLogin = () => {
           Parent: '/parent/dashboard',
           Admin: '/admin/dashboard',
           SuperAdmin: '/superadmin/dashboard',
+          HRTeam: '/hr/dashboard',
+          TransportTeam: '/transport/dashboard',
+          AccountsTeam: '/accounts/dashboard',
         };
         
         const dashboardUrl = roleRoutes[user.role] || '/dashboard';

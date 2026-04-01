@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Button,
@@ -20,6 +20,8 @@ import {
   MenuItem,
   Alert,
   InputAdornment,
+  Snackbar,
+  SnackbarContent,
 } from '@mui/material';
 import {
   Edit as EditIcon,
@@ -29,10 +31,17 @@ import {
 } from '@mui/icons-material';
 import { departments, designations } from '../../../data/hr-data/employees';
 
-const EmployeeManagement = ({ employees, setEmployees }) => {
+const EmployeeManagement = ({ employees: initialEmployees, setEmployees, isHRRole = false }) => {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [employees, setLocalEmployees] = useState(initialEmployees);
+  const [notification, setNotification] = useState({
+    open: false,
+    message: '',
+    type: 'success', // 'success' or 'error'
+  });
+  const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     department: '',
@@ -48,6 +57,58 @@ const EmployeeManagement = ({ employees, setEmployees }) => {
     address: '',
   });
 
+  // Fetch real teacher data on mount
+  const fetchTeachersData = async () => {
+    try {
+      console.log('🔄 EmployeeManagement: Fetching teachers from API...');
+      
+      // Get token from localStorage
+      const token = localStorage.getItem('token');
+      console.log('🔑 Token exists:', !!token);
+      
+      const apiUrl = 'http://localhost:5000/api/hr/teachers';
+      console.log('📍 API URL:', apiUrl);
+      
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        credentials: 'include',
+      });
+
+      console.log('📡 API Response Status:', response.status);
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('✅ API Result:', result);
+        
+        if (result.success && result.data) {
+          console.log('✅ Loaded', result.data.length, 'real teachers');
+          setLocalEmployees(result.data);
+          setEmployees(result.data);  // Update parent component too
+        } else {
+          console.warn('⚠️ API no data, using initial employees');
+          setLocalEmployees(initialEmployees);
+        }
+      } else {
+        const errorText = await response.text();
+        console.warn('❌ API Error (Status:', response.status, '):', errorText);
+        setLocalEmployees(initialEmployees);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching teachers:', error);
+      setLocalEmployees(initialEmployees);
+    }
+  };
+
+  useEffect(() => {
+    fetchTeachersData();
+    // Only run once on mount, not on every render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const filteredEmployees = employees.filter(
     (emp) =>
       emp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -56,6 +117,11 @@ const EmployeeManagement = ({ employees, setEmployees }) => {
   );
 
   const handleOpen = (employee = null) => {
+    // HR Role can only edit existing employees, not add new ones
+    if (isHRRole && !employee) {
+      return;
+    }
+    
     if (employee) {
       setFormData(employee);
       setEditingId(employee.id);
@@ -92,23 +158,92 @@ const EmployeeManagement = ({ employees, setEmployees }) => {
     }));
   };
 
-  const handleSave = () => {
-    if (editingId) {
-      // Update existing employee
-      setEmployees(
-        employees.map((emp) =>
-          emp.id === editingId ? { ...formData, id: editingId } : emp
-        )
-      );
-    } else {
-      // Add new employee
-      const newEmployee = {
-        ...formData,
-        id: `EMP${String(employees.length + 1).padStart(3, '0')}`,
-      };
-      setEmployees([...employees, newEmployee]);
+  const handleSave = async () => {
+    try {
+      if (editingId) {
+        // Update existing employee
+        if (isHRRole) {
+          // HR role is updating salary - call backend API
+          setSaving(true);
+          console.log('💾 Saving salary for teacher:', editingId);
+          console.log('📊 New salary:', formData.salary);
+          
+          const token = localStorage.getItem('token');
+          if (!token) {
+            throw new Error('No authentication token found');
+          }
+          
+          const apiUrl = `http://localhost:5000/api/hr/teachers/${editingId}/salary`;
+          console.log('📍 API URL:', apiUrl);
+          
+          const response = await fetch(apiUrl, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({ salary: parseFloat(formData.salary) || 0 }),
+            credentials: 'include',
+          });
+          
+          console.log('📡 Response Status:', response.status);
+          
+          if (response.ok) {
+            const result = await response.json();
+            console.log('✅ API Response:', result);
+            
+            if (result.success && result.data) {
+              // Update local employees list with the response data
+              const updatedEmployees = employees.map((emp) =>
+                emp.id === editingId ? result.data : emp
+              );
+              setLocalEmployees(updatedEmployees);
+              setEmployees(updatedEmployees);
+              
+              setNotification({
+                open: true,
+                message: `✅ Salary updated successfully for ${result.data.name}!`,
+                type: 'success',
+              });
+              console.log('✅ Salary updated successfully');
+              console.log('💰 Updated salary:', result.data.salary);
+              handleClose();
+            } else {
+              throw new Error(result.message || 'Failed to update salary');
+            }
+          } else {
+            const errorText = await response.text();
+            console.error('❌ API Error (Status:', response.status, '):', errorText);
+            throw new Error(`Error: ${response.status} - ${errorText}`);
+          }
+        } else {
+          // Non-HR role just updates local state (for admin)
+          setEmployees(
+            employees.map((emp) =>
+              emp.id === editingId ? { ...formData, id: editingId } : emp
+            )
+          );
+          handleClose();
+        }
+      } else {
+        // Add new employee (only for non-HR)
+        const newEmployee = {
+          ...formData,
+          id: `EMP${String(employees.length + 1).padStart(3, '0')}`,
+        };
+        setEmployees([...employees, newEmployee]);
+        handleClose();
+      }
+    } catch (error) {
+      console.error('❌ Error saving employee:', error);
+      setNotification({
+        open: true,
+        message: `❌ Error: ${error.message}`,
+        type: 'error',
+      });
+    } finally {
+      setSaving(false);
     }
-    handleClose();
   };
 
   const handleDelete = (id) => {
@@ -117,12 +252,21 @@ const EmployeeManagement = ({ employees, setEmployees }) => {
     }
   };
 
+  const closeNotification = () => {
+    setNotification({ ...notification, open: false });
+  };
+
   const getStatusColor = (status) => {
     return status === 'Active' ? 'success' : 'error';
   };
 
   return (
     <Box>
+      {isHRRole && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          📌 HR Mode: You can update salaries and manage attendance. To add new employees, contact your Administrator.
+        </Alert>
+      )}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3, gap: 2 }}>
         <TextField
           placeholder="Search by name, email, or designation..."
@@ -139,13 +283,15 @@ const EmployeeManagement = ({ employees, setEmployees }) => {
             ),
           }}
         />
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => handleOpen()}
-        >
-          Add Employee
-        </Button>
+        {!isHRRole && (
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => handleOpen()}
+          >
+            Add Employee
+          </Button>
+        )}
       </Box>
 
       {filteredEmployees.length === 0 && (
@@ -178,7 +324,11 @@ const EmployeeManagement = ({ employees, setEmployees }) => {
                 <TableCell>{employee.department}</TableCell>
                 <TableCell>{employee.designation}</TableCell>
                 <TableCell sx={{ fontSize: '0.9rem' }}>{employee.email}</TableCell>
-                <TableCell align="right">₹{employee.salary.toLocaleString()}</TableCell>
+                <TableCell align="right">
+                  ₹{(parseFloat(employee.salary) || 0).toLocaleString('en-IN', { 
+                    maximumFractionDigits: 0 
+                  })}
+                </TableCell>
                 <TableCell>
                   <Chip
                     label={employee.status}
@@ -194,13 +344,15 @@ const EmployeeManagement = ({ employees, setEmployees }) => {
                   >
                     <EditIcon fontSize="small" />
                   </IconButton>
-                  <IconButton
-                    size="small"
-                    onClick={() => handleDelete(employee.id)}
-                    color="error"
-                  >
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
+                  {!isHRRole && (
+                    <IconButton
+                      size="small"
+                      onClick={() => handleDelete(employee.id)}
+                      color="error"
+                    >
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  )}
                 </TableCell>
               </TableRow>
             ))}
@@ -211,70 +363,85 @@ const EmployeeManagement = ({ employees, setEmployees }) => {
       {/* Add/Edit Employee Dialog */}
       <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ fontWeight: 700 }}>
-          {editingId ? 'Edit Employee' : 'Add New Employee'}
+          {editingId ? `Edit Employee${isHRRole ? ' - Update Salary' : ''}` : 'Add New Employee'}
         </DialogTitle>
         <DialogContent sx={{ pt: 3 }}>
           <Grid container spacing={2}>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Name"
-                name="name"
-                value={formData.name}
-                onChange={handleChange}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Department"
-                name="department"
-                value={formData.department}
-                onChange={handleChange}
-                select
-              >
-                {departments.map((dept) => (
-                  <MenuItem key={dept} value={dept}>
-                    {dept}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Designation"
-                name="designation"
-                value={formData.designation}
-                onChange={handleChange}
-                select
-              >
-                {designations.map((des) => (
-                  <MenuItem key={des} value={des}>
-                    {des}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Email"
-                name="email"
-                type="email"
-                value={formData.email}
-                onChange={handleChange}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Phone"
-                name="phone"
-                value={formData.phone}
-                onChange={handleChange}
-              />
-            </Grid>
+            {!isHRRole && (
+              <>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Name"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleChange}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Department"
+                    name="department"
+                    value={formData.department}
+                    onChange={handleChange}
+                    select
+                  >
+                    {departments.map((dept) => (
+                      <MenuItem key={dept} value={dept}>
+                        {dept}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Designation"
+                    name="designation"
+                    value={formData.designation}
+                    onChange={handleChange}
+                    select
+                  >
+                    {designations.map((des) => (
+                      <MenuItem key={des} value={des}>
+                        {des}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Email"
+                    name="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Phone"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleChange}
+                  />
+                </Grid>
+              </>
+            )}
+            {isHRRole && (
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Employee Name"
+                  value={formData.name}
+                  disabled
+                  InputProps={{ readOnly: true }}
+                />
+              </Grid>
+            )}
             <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
@@ -298,17 +465,21 @@ const EmployeeManagement = ({ employees, setEmployees }) => {
                 <MenuItem value="Inactive">Inactive</MenuItem>
               </TextField>
             </Grid>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Join Date"
-                name="joinDate"
-                type="date"
-                value={formData.joinDate}
-                onChange={handleChange}
-                InputLabelProps={{ shrink: true }}
-              />
-            </Grid>
+            {!isHRRole && (
+              <>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Join Date"
+                    name="joinDate"
+                    type="date"
+                    value={formData.joinDate}
+                    onChange={handleChange}
+                    InputLabelProps={{ shrink: true }}
+                  />
+                </Grid>
+              </>
+            )}
             <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
@@ -327,35 +498,64 @@ const EmployeeManagement = ({ employees, setEmployees }) => {
                 onChange={handleChange}
               />
             </Grid>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Qualification"
-                name="qualification"
-                value={formData.qualification}
-                onChange={handleChange}
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Address"
-                name="address"
-                value={formData.address}
-                onChange={handleChange}
-                multiline
-                rows={2}
-              />
-            </Grid>
+            {!isHRRole && (
+              <>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Qualification"
+                    name="qualification"
+                    value={formData.qualification}
+                    onChange={handleChange}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Address"
+                    name="address"
+                    value={formData.address}
+                    onChange={handleChange}
+                    multiline
+                    rows={2}
+                  />
+                </Grid>
+              </>
+            )}
           </Grid>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleClose}>Cancel</Button>
-          <Button onClick={handleSave} variant="contained">
-            {editingId ? 'Update' : 'Add'}
-          </Button>
+          <Button onClick={handleClose} disabled={saving}>Cancel</Button>
+          {editingId && (
+            <Button onClick={handleSave} variant="contained" color="success" disabled={saving}>
+              {saving ? '💾 Saving...' : 'Update Salary'}
+            </Button>
+          )}
+          {!editingId && !isHRRole && (
+            <Button onClick={handleSave} variant="contained" disabled={saving}>
+              {saving ? '💾 Adding...' : 'Add Employee'}
+            </Button>
+          )}
         </DialogActions>
       </Dialog>
+
+      {/* Success/Error Notification */}
+      <Snackbar
+        open={notification.open}
+        autoHideDuration={5000}
+        onClose={closeNotification}
+        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+      >
+        <SnackbarContent
+          message={notification.message}
+          sx={{
+            backgroundColor: notification.type === 'success' ? '#4caf50' : '#f44336',
+            color: '#fff',
+            fontWeight: 600,
+            borderRadius: '4px',
+          }}
+        />
+      </Snackbar>
     </Box>
   );
 };

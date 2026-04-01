@@ -427,6 +427,7 @@ model Teacher {
   experience         Int?
   specialization     String?
   employeeId         String?
+  salary             Decimal?                   @default(0)
   collegeId          String
   userId             String                     @unique
   isActive           Boolean                    @default(true)

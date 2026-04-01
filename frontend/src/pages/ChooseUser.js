@@ -73,6 +73,8 @@ const ChooseUser = ({ visitor }) => {
         navigate('/Student/dashboard');
       } else if (currentRole === 'Teacher') {
         navigate('/Teacher/dashboard');
+      } else if (currentRole === 'HRTeam') {
+        navigate('/hr/dashboard');
       }
     }
     else if (status === 'error') {

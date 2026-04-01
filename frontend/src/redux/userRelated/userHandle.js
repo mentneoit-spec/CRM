@@ -17,13 +17,18 @@ export const loginUser = (fields, role) => async (dispatch) => {
     dispatch(authRequest());
 
     try {
-        const result = await axios.post(`${process.env.REACT_APP_BASE_URL}/${role}Login`, fields, {
+        const result = await axios.post(`${process.env.REACT_APP_BASE_URL}/auth/login`, fields, {
             headers: { 'Content-Type': 'application/json' },
         });
-        if (result.data.role) {
-            dispatch(authSuccess(result.data));
+        if (result.data.success && result.data.data && result.data.data.user) {
+            const { user, token } = result.data.data;
+            const userData = {
+                ...user,
+                token
+            };
+            dispatch(authSuccess(userData));
         } else {
-            dispatch(authFailed(result.data.message));
+            dispatch(authFailed(result.data.message || 'Login failed'));
         }
     } catch (error) {
         dispatch(authError(error));

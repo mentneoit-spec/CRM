@@ -23,12 +23,15 @@ import {
   Schedule,
   Notifications,
   Book,
+  Psychology as AIIcon,
 } from '@mui/icons-material';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import DashboardLayout from '../../components/DashboardLayout';
 import { teacherAPI } from '../../services/api';
+import { useNavigate } from 'react-router-dom';
 
 const TeacherDashboardModern = () => {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [dashboard, setDashboard] = useState(null);
   const [classes, setClasses] = useState([]);
@@ -325,6 +328,59 @@ const TeacherDashboardModern = () => {
 
         {/* Lists */}
         <Grid container spacing={3}>
+          {/* AI Exam Evaluator Card */}
+          <Grid item xs={12}>
+            <Card sx={{
+              background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+              borderRadius: 3,
+              boxShadow: '0 8px 24px rgba(99,102,241,0.3)',
+            }}>
+              <CardContent sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2, py: 2.5 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)', width: 52, height: 52 }}>
+                    <AIIcon sx={{ color: 'white', fontSize: 28 }} />
+                  </Avatar>
+                  <Box>
+                    <Typography variant="h6" sx={{ color: 'white', fontWeight: 700, lineHeight: 1.2 }}>
+                      AI Exam Evaluator
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.8)' }}>
+                      Evaluate student answers instantly with Groq AI — get score, feedback & suggestions
+                    </Typography>
+                  </Box>
+                </Box>
+                <Box sx={{ display: 'flex', gap: 1.5 }}>
+                  <Button
+                    variant="contained"
+                    onClick={() => navigate('/teacher/exam-eval')}
+                    sx={{
+                      bgcolor: 'white',
+                      color: '#6366f1',
+                      fontWeight: 700,
+                      '&:hover': { bgcolor: 'rgba(255,255,255,0.9)' },
+                      borderRadius: 2,
+                    }}
+                  >
+                    Evaluate Answer
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    onClick={() => navigate('/teacher/exam-eval/dashboard')}
+                    sx={{
+                      borderColor: 'rgba(255,255,255,0.6)',
+                      color: 'white',
+                      fontWeight: 600,
+                      '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.1)' },
+                      borderRadius: 2,
+                    }}
+                  >
+                    View Dashboard
+                  </Button>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+
           <Grid item xs={12} md={6}>
             <Card>
               <CardContent>

@@ -100,6 +100,7 @@ model College {
   EmployeeAttendances       EmployeeAttendance[]
   EmployeeSalaries          EmployeeSalary[]
   EmployeeLeaves            EmployeeLeave[]
+  AIExamEvaluations         AIExamEvaluation[]
 }
 
 model Role {
@@ -405,6 +406,7 @@ model Subject {
   Attendances  Attendance[]
   ExamResults  ExamResult[]
   Homeworks    Homework[]
+  AIEvaluations AIExamEvaluation[]
   college      College      @relation(fields: [collegeId], references: [id], onDelete: Cascade)
   sclass       Sclass       @relation(fields: [sclassId], references: [id], onDelete: Cascade)
   teacher      Teacher?     @relation(fields: [teacherId], references: [id])
@@ -512,6 +514,7 @@ model Student {
   Attendances       Attendance[]
   Complaints        Complain[]
   ExamResults       ExamResult[]
+  AIEvaluations     AIExamEvaluation[]
   Fees              Fee[]
   Payments          Payment[]
   busRoute          BusRoute?    @relation(fields: [busRouteId], references: [id])
@@ -604,6 +607,7 @@ model Exam {
   college      College      @relation(fields: [collegeId], references: [id], onDelete: Cascade)
   sclass       Sclass       @relation(fields: [sclassId], references: [id], onDelete: Cascade)
   ExamResults  ExamResult[]
+  AIEvaluations AIExamEvaluation[]
 
   @@index([collegeId])
   @@index([sclassId])
@@ -878,4 +882,32 @@ enum Board {
   CBSE
   IGCSE
   IB
+}
+
+// ── AI Exam Evaluation ────────────────────────────────────────────────────────
+model AIExamEvaluation {
+  id              String   @id @default(uuid())
+  question        String   @db.Text
+  studentAnswer   String   @db.Text
+  maxMarks        Int
+  score           Int
+  feedback        String   @db.Text
+  suggestions     String   @db.Text
+  similarityScore Float    @default(0)
+  studentId       String
+  examId          String
+  subjectId       String?
+  collegeId       String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  student  Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  exam     Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  subject  Subject? @relation(fields: [subjectId], references: [id])
+  college  College  @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([examId])
+  @@index([collegeId])
+  @@map("ai_exam_evaluations")
 }

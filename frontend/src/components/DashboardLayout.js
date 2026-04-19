@@ -76,6 +76,13 @@ const DashboardLayout = ({ children, role = 'student' }) => {
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
+  const [notifAnchorEl, setNotifAnchorEl] = useState(null);
+  const [notifications] = useState([
+    { id: 1, message: 'New leave request from Priya Sharma.' },
+    { id: 2, message: 'Salary processed for March.' },
+    { id: 3, message: 'Attendance marked for today.' },
+    { id: 4, message: 'Team meeting scheduled at 3 PM.' },
+  ]);
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -134,6 +141,8 @@ const DashboardLayout = ({ children, role = 'student' }) => {
   const menuItems = {
     superadmin: [
       { text: 'Dashboard', icon: <Dashboard />, path: '/superadmin/dashboard' },
+      { text: 'AI Exam Evaluator', icon: <AIIcon />, path: '/admin/exam-eval', badge: 'NEW' },
+      { text: 'Eval Dashboard', icon: <Assessment />, path: '/admin/exam-eval/dashboard' },
       { text: 'Colleges', icon: <School />, path: '/superadmin/colleges' },
       { text: 'Admins', icon: <People />, path: '/superadmin/admins' },
       { text: 'Analytics', icon: <Assessment />, path: '/superadmin/analytics' },
@@ -155,7 +164,9 @@ const DashboardLayout = ({ children, role = 'student' }) => {
     ],
     teacher: [
       { text: 'Dashboard', icon: <Dashboard />, path: '/teacher/dashboard' },
-      { text: 'AI Assistant', icon: <AIIcon />, path: '/teacher/ai', badge: 'NEW' },
+      { text: 'AI Assistant', icon: <AIIcon />, path: '/teacher/ai', badge: 'AI' },
+      { text: 'AI Exam Evaluator', icon: <AIIcon />, path: '/teacher/exam-eval', badge: 'NEW' },
+      { text: 'Eval Dashboard', icon: <Assessment />, path: '/teacher/exam-eval/dashboard' },
       { text: 'My Classes', icon: <School />, path: '/teacher/classes' },
       { text: 'Students', icon: <People />, path: '/teacher/students' },
       { text: 'Attendance', icon: <Event />, path: '/teacher/attendance' },
@@ -175,9 +186,11 @@ const DashboardLayout = ({ children, role = 'student' }) => {
     ],
     admin: [
       { text: 'Dashboard', icon: <Dashboard />, path: '/admin/dashboard' },
-      { text: 'AI Assistant', icon: <AIIcon />, path: '/admin/ai', badge: 'NEW' },
+      { text: 'AI Assistant', icon: <AIIcon />, path: '/admin/ai', badge: 'AI' },
+      { text: 'AI Exam Evaluator', icon: <AIIcon />, path: '/admin/exam-eval', badge: 'NEW' },
+      { text: 'Eval Dashboard', icon: <Assessment />, path: '/admin/exam-eval/dashboard' },
       { text: 'Analytics', icon: <Assessment />, path: '/admin/analytics' },
-      { text: 'HR Management', icon: <People />, path: '/admin/hr-management', badge: 'NEW' },
+      { text: 'HR Management', icon: <People />, path: '/admin/hr', badge: 'NEW' },
       { text: 'Students', icon: <People />, path: '/admin/students' },
       { text: 'Teachers', icon: <People />, path: '/admin/teachers' },
       { text: 'Teams', icon: <People />, path: '/admin/teams' },
@@ -331,11 +344,36 @@ const DashboardLayout = ({ children, role = 'student' }) => {
             {currentMenuItems.find(item => item.path === location.pathname)?.text || 'Dashboard'}
           </Typography>
 
-          <IconButton sx={{ mr: 1 }}>
-            <Badge badgeContent={4} color="error">
+
+          <IconButton
+            onClick={e => setNotifAnchorEl(e.currentTarget)}
+            sx={{ mr: 1, cursor: 'pointer', '&:hover': { bgcolor: 'rgba(0,0,0,0.1)' } }}
+          >
+            <Badge badgeContent={notifications.length} color="error">
               <Notifications />
             </Badge>
           </IconButton>
+          <Menu
+            anchorEl={notifAnchorEl}
+            open={Boolean(notifAnchorEl)}
+            onClose={() => setNotifAnchorEl(null)}
+            PaperProps={{ sx: { minWidth: 280 } }}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+          >
+            <Typography sx={{ px: 2, pt: 1, fontWeight: 700 }}>Notifications</Typography>
+            <Divider sx={{ mb: 1 }} />
+            {notifications.map(n => (
+              <MenuItem key={n.id} sx={{ whiteSpace: 'normal', alignItems: 'flex-start' }}>
+                <Box>
+                  <Typography variant="body2">{n.message}</Typography>
+                </Box>
+              </MenuItem>
+            ))}
+            {notifications.length === 0 && (
+              <MenuItem disabled>No new notifications</MenuItem>
+            )}
+          </Menu>
 
           <IconButton onClick={handleProfileMenuOpen}>
             <Avatar src={avatarSrc || undefined} sx={{ width: 36, height: 36, bgcolor: 'primary.main' }}>

@@ -260,6 +260,9 @@ app.use("/api/transport", authMiddleware, require("./routes/transport-routes"));
 app.use("/api/hr", authMiddleware, require("./routes/hr-routes"));
 app.use("/api/ai-hr", authMiddleware, require("./routes/ai-routes"));
 
+// AI Exam Evaluation
+app.use("/api/exam-eval", authMiddleware, require("./routes/exam-evaluation-routes"));
+
 // Uploads
 app.use('/api/upload', authMiddleware, require('./routes/upload-routes'));
 

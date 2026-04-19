@@ -6,7 +6,7 @@ const getDefaultApiBaseUrl = () => {
       const hostname = window.location.hostname;
 
       if (hostname === 'localhost' || hostname === '127.0.0.1') {
-        return 'http://localhost:5001/api';
+        return 'http://localhost:5000/api';
       }
 
       // Production: prefer same-origin API (avoids CORS and mismatched backends)
@@ -250,6 +250,7 @@ export const adminAPI = {
   
   // Students
   getStudents: () => api.get('/admin/students'),
+  getAllStudents: () => api.get('/admin/students'),
   getStudent: (id) => api.get(`/admin/students/${id}`),
   createStudent: (data) => api.post('/admin/students', data),
   updateStudent: (id, data) => api.put(`/admin/students/${id}`, data),
@@ -302,6 +303,15 @@ export const adminAPI = {
   getResults: (params) => api.get('/admin/results', params ? { params } : undefined),
   getExams: () => api.get('/admin/exams'),
   createExam: (data) => api.post('/admin/exams', data),
+  importExamMarksCsv: (examId, subjectId, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (subjectId) formData.append('subjectId', subjectId);
+    return api.post(`/admin/exams/${examId}/marks/import`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 120000,
+    });
+  },
   getAdmissions: () => api.get('/admin/admissions'),
   approveAdmission: (id, data) => api.post(`/admin/admissions/${id}/approve`, data),
   rejectAdmission: (id, data) => api.post(`/admin/admissions/${id}/reject`, data),
@@ -315,3 +325,18 @@ export const adminAPI = {
 };
 
 export default api;
+
+// ── Exam Evaluation AI API ────────────────────────────────────────────────────
+export const examEvalAPI = {
+  /** POST /exam-eval/evaluate — evaluate a student answer with AI */
+  evaluate: (data) => api.post('/exam-eval/evaluate', data),
+
+  /** GET /exam-eval/results — list evaluations (supports ?studentId, ?examId, ?page, ?limit) */
+  getResults: (params) => api.get('/exam-eval/results', params ? { params } : undefined),
+
+  /** GET /exam-eval/dashboard — aggregate stats for admin/teacher dashboard */
+  getDashboard: () => api.get('/exam-eval/dashboard'),
+
+  /** DELETE /exam-eval/results/:id — remove an evaluation record */
+  deleteResult: (id) => api.delete(`/exam-eval/results/${id}`),
+};

@@ -40,12 +40,12 @@ const AdminResults = () => {
 
     const subjectsForClass = useMemo(() => {
         if (!classId) return [];
-        return (Array.isArray(subjects) ? subjects : []).filter((s) => s?.sclassId === classId);
+        return (Array.isArray(subjects) ? subjects : []).filter((s) => s?.sclass?.id === classId || s?.sclassId === classId);
     }, [subjects, classId]);
 
     const studentsForClass = useMemo(() => {
         if (!classId) return [];
-        return (Array.isArray(students) ? students : []).filter((s) => s?.sclassId === classId);
+        return (Array.isArray(students) ? students : []).filter((s) => s?.sclass?.id === classId || s?.sclassId === classId);
     }, [students, classId]);
 
     useEffect(() => {
@@ -66,11 +66,11 @@ const AdminResults = () => {
 
                 if (!mounted) return;
 
-                setClasses(Array.isArray(classesRes?.data?.data) ? classesRes.data.data : []);
-                setSubjects(Array.isArray(subjectsRes?.data?.data) ? subjectsRes.data.data : []);
-                setExams(Array.isArray(examsRes?.data?.data) ? examsRes.data.data : []);
-                setStudents(Array.isArray(studentsRes?.data?.data) ? studentsRes.data.data : []);
-                setResults(Array.isArray(resultsRes?.data?.data) ? resultsRes.data.data : []);
+                setClasses(Array.isArray(classesRes?.data?.data) ? classesRes.data.data : (Array.isArray(classesRes?.data) ? classesRes.data : []));
+                setSubjects(Array.isArray(subjectsRes?.data?.data) ? subjectsRes.data.data : (Array.isArray(subjectsRes?.data) ? subjectsRes.data : []));
+                setExams(Array.isArray(examsRes?.data?.data) ? examsRes.data.data : (Array.isArray(examsRes?.data) ? examsRes.data : []));
+                setStudents(Array.isArray(studentsRes?.data?.data) ? studentsRes.data.data : (Array.isArray(studentsRes?.data) ? studentsRes.data : []));
+                setResults(Array.isArray(resultsRes?.data?.data) ? resultsRes.data.data : (Array.isArray(resultsRes?.data) ? resultsRes.data : []));
             } catch (e) {
                 if (!mounted) return;
                 setError(e?.response?.data?.message || e?.message || 'Failed to load data');
@@ -89,7 +89,7 @@ const AdminResults = () => {
         let filtered = Array.isArray(results) ? results : [];
 
         if (classId) {
-            filtered = filtered.filter((r) => r?.student?.sclassId === classId);
+            filtered = filtered.filter((r) => r?.student?.sclass?.id === classId || r?.student?.sclassId === classId);
         }
         if (subjectId) {
             filtered = filtered.filter((r) => r?.subjectId === subjectId);
@@ -136,7 +136,7 @@ const AdminResults = () => {
 
             // Reload results
             const resultsRes = await adminAPI.getResults();
-            setResults(Array.isArray(resultsRes?.data?.data) ? resultsRes.data.data : []);
+            setResults(Array.isArray(resultsRes?.data?.data) ? resultsRes.data.data : (Array.isArray(resultsRes?.data) ? resultsRes.data : []));
         } catch (e) {
             setError(e?.response?.data?.message || e?.message || 'Failed to import CSV');
         } finally {

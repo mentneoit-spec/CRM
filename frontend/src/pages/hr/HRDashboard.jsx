@@ -15,6 +15,7 @@ import {
   Grid,
   Avatar,
   Chip,
+  IconButton,
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
@@ -26,6 +27,7 @@ import {
   SmartToy as AIIcon,
   Logout as LogoutIcon,
 } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
 import { employees as initialEmployees } from '../../data/hr-data/employees';
 import { attendanceRecords } from '../../data/hr-data/attendance';
 import EmployeeManagement from './sections/EmployeeManagement';
@@ -48,6 +50,7 @@ const navigationItems = [
 ];
 
 function HRDashboard() {
+  const navigate = useNavigate();
   const [activeSection, setActiveSection] = useState(0);
   const [employees, setEmployees] = useState(initialEmployees);
   const [attendance, setAttendance] = useState(attendanceRecords);
@@ -209,6 +212,12 @@ function HRDashboard() {
         {/* Sidebar Footer */}
         <Box sx={{ p: 1.5 }}>
           <ListItem
+            onClick={() => {
+              localStorage.removeItem('token');
+              localStorage.removeItem('user');
+              localStorage.removeItem('collegeId');
+              navigate('/login');
+            }}
             sx={{
               borderRadius: '10px',
               cursor: 'pointer',
@@ -294,9 +303,31 @@ function HRDashboard() {
               {/* Right side */}
               <Box sx={{ ml: 'auto', display: 'flex', gap: 2, alignItems: 'center' }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Avatar sx={{ width: 32, height: 32, bgcolor: '#66BB6A' }}>
-                    HR
-                  </Avatar>
+                  <IconButton
+                    onClick={() => navigate('/hr/profile')}
+                    sx={{
+                      padding: 0,
+                      '&:hover': {
+                        transform: 'scale(1.1)',
+                        filter: 'brightness(0.9)',
+                      },
+                      transition: 'all 0.3s ease',
+                    }}
+                  >
+                    <Avatar
+                      sx={{
+                        width: 40,
+                        height: 40,
+                        bgcolor: '#66BB6A',
+                        fontWeight: 800,
+                        fontSize: '18px',
+                        cursor: 'pointer',
+                        transition: 'all 0.3s ease',
+                      }}
+                    >
+                      HR
+                    </Avatar>
+                  </IconButton>
                 </Box>
               </Box>
             </Box>

@@ -109,8 +109,13 @@ import TeacherAIDashboard from './pages/ai/TeacherAIDashboard';
 import StudentAIDashboard from './pages/ai/StudentAIDashboard';
 import ParentAIDashboard from './pages/ai/ParentAIDashboard';
 
+// AI Exam Evaluation
+import ExamEvaluation from './pages/ai/ExamEvaluation';
+import ExamEvaluationDashboard from './pages/ai/ExamEvaluationDashboard';
+
 // HR Portal
 import HRDashboard from './pages/hr/HRDashboard';
+import HRProfile from './pages/hr/HRProfile';
 
 import DevTestPage from './pages/DevTestPage';
 
@@ -318,6 +323,14 @@ function App() {
             path="/admin/ai"
             element={<ProtectedRoute allowedRoles={["Admin", "SuperAdmin"]} element={<AdminAIDashboard />} />}
           />
+          <Route
+            path="/admin/exam-eval"
+            element={<ProtectedRoute allowedRoles={["Admin", "SuperAdmin"]} element={<ExamEvaluation />} />}
+          />
+          <Route
+            path="/admin/exam-eval/dashboard"
+            element={<ProtectedRoute allowedRoles={["Admin", "SuperAdmin"]} element={<ExamEvaluationDashboard />} />}
+          />
 
           <Route
             path="/teacher/dashboard"
@@ -366,6 +379,14 @@ function App() {
           <Route
             path="/teacher/ai"
             element={<ProtectedRoute allowedRoles={["Teacher"]} element={<TeacherAIDashboard />} />}
+          />
+          <Route
+            path="/teacher/exam-eval"
+            element={<ProtectedRoute allowedRoles={["Teacher"]} element={<ExamEvaluation />} />}
+          />
+          <Route
+            path="/teacher/exam-eval/dashboard"
+            element={<ProtectedRoute allowedRoles={["Teacher"]} element={<ExamEvaluationDashboard />} />}
           />
 
           <Route
@@ -485,6 +506,11 @@ function App() {
           />
 
           <Route
+            path="/hr/profile"
+            element={<ProtectedRoute allowedRoles={["HRTeam", "Admin", "SuperAdmin"]} element={<HRProfile />} />}
+          />
+
+          <Route
             path="/student/dashboard"
             element={<ProtectedRoute allowedRoles={["Student"]} element={<StudentDashboardModern />} />}
           />
@@ -543,6 +569,10 @@ function App() {
           <Route
             path="/student/ai"
             element={<ProtectedRoute allowedRoles={["Student"]} element={<StudentAIDashboard />} />}
+          />
+          <Route
+            path="/student/exam-eval"
+            element={<ProtectedRoute allowedRoles={["Student"]} element={<ExamEvaluation />} />}
           />
 
           {/* Old Routes (backward compatibility) */}

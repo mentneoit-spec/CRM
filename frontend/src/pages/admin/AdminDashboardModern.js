@@ -7,7 +7,7 @@ import {
 } from '@mui/material';
 import {
   People, School, Payment, TrendingUp, PersonAdd, Assessment, Notifications, CheckCircle, Warning,
-  AttachMoney, PieChart as PieChartIcon, Email, CloudUpload, Subject
+  AttachMoney, PieChart as PieChartIcon, Email, CloudUpload, Subject, Psychology as AIIcon
 } from '@mui/icons-material';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import DashboardLayout from '../../components/DashboardLayout';
@@ -407,6 +407,50 @@ const AdminDashboardModern = () => {
                   }}
                 >
                   Manage Fees
+                </Button>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <Button
+                  fullWidth
+                  variant="contained"
+                  size="large"
+                  startIcon={<AIIcon />}
+                  onClick={() => navigate('/admin/exam-eval')}
+                  sx={{
+                    py: 2,
+                    background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                    boxShadow: '0 5px 15px rgba(99, 102, 241, 0.35)',
+                    '&:hover': {
+                      background: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
+                      boxShadow: '0 8px 20px rgba(99, 102, 241, 0.45)',
+                      transform: 'translateY(-2px)',
+                    },
+                    transition: 'all 0.3s ease'
+                  }}
+                >
+                  AI Exam Evaluator
+                </Button>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  size="large"
+                  startIcon={<Assessment />}
+                  onClick={() => navigate('/admin/exam-eval/dashboard')}
+                  sx={{
+                    py: 2,
+                    borderColor: '#6366f1',
+                    color: '#6366f1',
+                    '&:hover': {
+                      borderColor: '#6366f1',
+                      background: 'rgba(99, 102, 241, 0.08)',
+                      transform: 'translateY(-2px)',
+                    },
+                    transition: 'all 0.3s ease'
+                  }}
+                >
+                  Eval Dashboard
                 </Button>
               </Grid>
             </Grid>

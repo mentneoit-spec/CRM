@@ -6,6 +6,7 @@ import {
   BadgeCheck,
   BarChart3,
   Bell,
+  Brain,
   Database,
   FileText,
   Globe,
@@ -32,6 +33,13 @@ const navSections = [
     label: "Dashboard",
     items: [
       { label: "Overview", icon: LayoutDashboard, to: "/superadmin/dashboard" },
+    ],
+  },
+  {
+    label: "AI Tools",
+    items: [
+      { label: "AI Exam Evaluator", icon: Brain, to: "/admin/exam-eval" },
+      { label: "Eval Dashboard", icon: BarChart3, to: "/admin/exam-eval/dashboard" },
     ],
   },
   {

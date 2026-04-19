@@ -1,4 +1,4 @@
-import { ArrowUpRight, PlusCircle } from "lucide-react";
+import { ArrowUpRight, PlusCircle, Brain } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../../../components/ui/button";
@@ -121,6 +121,33 @@ function SuperAdminDashboard() {
         ) : null}
 
         <DashboardCards stats={dashboardStats} onNavigate={navigate} />
+
+        {/* AI Exam Evaluator Banner */}
+        <Card>
+          <CardContent className="flex flex-wrap items-center justify-between gap-4 py-6">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600 text-white shadow">
+                <Brain className="h-6 w-6" />
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold">AI Exam Evaluator</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Evaluate student answers with Groq AI — instant scoring, feedback &amp; suggestions
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button type="button" className="gap-2 bg-indigo-600 hover:bg-indigo-700" onClick={() => navigate("/admin/exam-eval")}>
+                Evaluate Answer
+                <ArrowUpRight className="h-4 w-4" />
+              </Button>
+              <Button type="button" variant="outline" className="gap-2" onClick={() => navigate("/admin/exam-eval/dashboard")}>
+                View Dashboard
+                <ArrowUpRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
         <Card>
           <CardContent className="flex flex-wrap items-center justify-between gap-4 py-6">
